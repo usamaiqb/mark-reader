@@ -2,9 +2,11 @@ package com.markreader
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,10 +24,12 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var externalUri by mutableStateOf<String?>(null)
+    private var externalUriNonce by mutableStateOf(0L)
     private var launchedExternally by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         handleIntent(intent)
         setContent {
@@ -36,15 +40,21 @@ class MainActivity : ComponentActivity() {
             MarkReaderTheme(theme = preferences.appThemeMode.toAppTheme()) {
                 MarkReaderApp(
                     externalUri = externalUri,
+                    externalUriNonce = externalUriNonce,
                     launchedExternally = launchedExternally
                 )
             }
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ExternalFileCache.clear()
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -70,6 +80,7 @@ class MainActivity : ComponentActivity() {
             }
             val uriString = data.toString()
             externalUri = uriString
+            externalUriNonce++
             launchedExternally = true
 
             // Eagerly read the file on a background thread while the Activity holds
@@ -78,14 +89,14 @@ class MainActivity : ComponentActivity() {
             // the Activity is the direct recipient of the FLAG_GRANT_READ_URI_PERMISSION
             // grant. The result (or null on failure) is published to ExternalFileCache
             // so ViewerViewModel can consume it instead of re-opening the URI.
-            ExternalFileCache.register(uriString)
+            val deferred = ExternalFileCache.register(uriString)
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
                     val content = contentResolver.openInputStream(data)
                         ?.use { it.bufferedReader().readText() }
-                    ExternalFileCache.complete(uriString, content)
+                    deferred.complete(content)
                 } catch (_: Exception) {
-                    ExternalFileCache.complete(uriString, null)
+                    deferred.complete(null)
                 }
             }
         }
@@ -98,8 +109,12 @@ class MainActivity : ComponentActivity() {
                 return clip.getItemAt(0).uri
             }
         }
-        val extra = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-        return extra
+        return if (Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        }
     }
 }
 

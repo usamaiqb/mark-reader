@@ -42,6 +42,20 @@ val DarkSurfaceVariant = Color(0xFF45464F)
 val DarkOnSurfaceVariant = Color(0xFFC6C6D0)
 val DarkOutline = Color(0xFF8F909A)
 
+// Light surface container tones
+val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
+val LightSurfaceContainerLow = Color(0xFFF3F3F9)
+val LightSurfaceContainer = Color(0xFFEDEDF3)
+val LightSurfaceContainerHigh = Color(0xFFE7E7ED)
+val LightSurfaceContainerHighest = Color(0xFFE2E2E7)
+
+// Dark surface container tones
+val DarkSurfaceContainerLowest = Color(0xFF0D0E13)
+val DarkSurfaceContainerLow = Color(0xFF1A1B20)
+val DarkSurfaceContainer = Color(0xFF1E1F25)
+val DarkSurfaceContainerHigh = Color(0xFF292A2F)
+val DarkSurfaceContainerHighest = Color(0xFF33343A)
+
 val AmoledBackground = Color(0xFF000000)
 val AmoledSurface = Color(0xFF000000)
 val AmoledOnSurface = Color(0xFFE6E6EB)

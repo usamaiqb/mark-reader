@@ -23,6 +23,7 @@ import com.markreader.ui.navigation.markReaderNavGraph
 @Composable
 fun MarkReaderApp(
     externalUri: String?,
+    externalUriNonce: Long = 0L,
     launchedExternally: Boolean
 ) {
     val navController = rememberNavController()
@@ -34,8 +35,8 @@ fun MarkReaderApp(
             NavRoutes.Home.route
         }
     }
-    var lastHandledExternalUri by rememberSaveable {
-        mutableStateOf(if (launchedExternally && !externalUri.isNullOrBlank()) externalUri else null)
+    var lastHandledNonce by rememberSaveable {
+        mutableStateOf(if (launchedExternally && !externalUri.isNullOrBlank()) externalUriNonce else -1L)
     }
 
     NavHost(
@@ -73,10 +74,10 @@ fun MarkReaderApp(
         markReaderNavGraph(navController, externalUri)
     }
 
-    LaunchedEffect(externalUri) {
-        if (!externalUri.isNullOrBlank() && externalUri != lastHandledExternalUri) {
+    LaunchedEffect(externalUriNonce) {
+        if (!externalUri.isNullOrBlank() && externalUriNonce != lastHandledNonce) {
             navigateToViewerClearingBackStack(navController, externalUri)
-            lastHandledExternalUri = externalUri
+            lastHandledNonce = externalUriNonce
         }
     }
 }

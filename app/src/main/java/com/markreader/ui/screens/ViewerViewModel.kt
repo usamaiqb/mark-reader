@@ -93,8 +93,8 @@ class ViewerViewModel(
         }
     }
 
-    fun loadUri(uriString: String) {
-        if (currentUri == uriString && _uiState.value.rawText.isNotEmpty()) {
+    fun loadUri(uriString: String, forceReload: Boolean = false) {
+        if (!forceReload && currentUri == uriString && _uiState.value.rawText.isNotEmpty()) {
             return
         }
         currentUri = uriString

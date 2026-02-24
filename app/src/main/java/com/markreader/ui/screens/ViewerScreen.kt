@@ -38,7 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -60,8 +60,11 @@ import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.DockedSearchBar
-import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -73,7 +76,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -271,20 +273,16 @@ fun ViewerScreen(
     }
 
     val view = LocalView.current
-    DisposableEffect(isSurfaceDark, chromeColors.surface) {
+    DisposableEffect(isSurfaceDark) {
         val window = (view.context as? android.app.Activity)?.window
         if (window != null) {
-            val previousStatusBarColor = window.statusBarColor
-            val previousLightStatusBars = WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars
+            val controller = WindowCompat.getInsetsController(window, view)
+            val previousLightStatusBars = controller.isAppearanceLightStatusBars
 
-            window.statusBarColor = chromeColors.surface.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !isSurfaceDark
+            controller.isAppearanceLightStatusBars = !isSurfaceDark
 
             onDispose {
-                window.statusBarColor = previousStatusBarColor
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars =
-                    previousLightStatusBars
+                controller.isAppearanceLightStatusBars = previousLightStatusBars
             }
         } else {
             onDispose { }
@@ -850,12 +848,9 @@ private fun ViewerSearchBar(
         contentColor = contentColor
     ) {
         Column(modifier = Modifier.statusBarsPadding()) {
-            DockedSearchBar(
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = { onNext() },
-                active = false,
-                onActiveChange = { },
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
                 placeholder = {
                     Text(
                         text = "Search in document",
@@ -866,7 +861,7 @@ private fun ViewerSearchBar(
                     if (showBackButton) {
                         IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = Icons.Filled.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 tint = contentColor
                             )
@@ -879,8 +874,8 @@ private fun ViewerSearchBar(
                         )
                     }
                 },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
+                trailingIcon = if (query.isNotEmpty()) {
+                    {
                         IconButton(onClick = onClear) {
                             Icon(
                                 imageVector = Icons.Filled.Close,
@@ -889,33 +884,26 @@ private fun ViewerSearchBar(
                             )
                         }
                     }
-                },
-                colors = SearchBarDefaults.colors(
-                    containerColor = surfaceColor,
-                    dividerColor = tonalContainerColor,
-                    inputFieldColors = TextFieldDefaults.colors(
-                        focusedContainerColor = tonalContainerColor,
-                        unfocusedContainerColor = tonalContainerColor,
-                        focusedTextColor = contentColor,
-                        unfocusedTextColor = contentColor,
-                        focusedPlaceholderColor = contentColor.copy(alpha = 0.55f),
-                        unfocusedPlaceholderColor = contentColor.copy(alpha = 0.55f),
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = contentColor
-                    )
+                } else null,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onNext() }),
+                shape = RoundedCornerShape(28.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = tonalContainerColor,
+                    unfocusedContainerColor = tonalContainerColor,
+                    focusedTextColor = contentColor,
+                    unfocusedTextColor = contentColor,
+                    focusedPlaceholderColor = contentColor.copy(alpha = 0.55f),
+                    unfocusedPlaceholderColor = contentColor.copy(alpha = 0.55f),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = contentColor
                 ),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 8.dp)
-                    .border(
-                        width = 1.dp,
-                        color = tonalContainerColor.copy(alpha = 0.55f),
-                        shape = SearchBarDefaults.dockedShape
-                    )
-            ) {}
+            )
 
             // Controls row — flat, no elevation, same surface as the row above.
             Row(

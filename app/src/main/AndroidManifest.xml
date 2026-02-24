@@ -31,12 +31,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="text/markdown" />
                 <data android:scheme="content" android:mimeType="text/plain" />
-                <data android:scheme="file" android:mimeType="text/markdown" />
-                <data android:scheme="file" android:mimeType="text/plain" />
-                <data android:scheme="content" android:pathPattern=".*\\.md" />
-                <data android:scheme="file" android:pathPattern=".*\\.md" />
-                <data android:scheme="content" android:pathPattern=".*\\.markdown" />
-                <data android:scheme="file" android:pathPattern=".*\\.markdown" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
