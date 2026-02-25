@@ -19,6 +19,8 @@ import com.markreader.data.PreferencesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
 import com.markreader.ExternalFileCache
+import android.graphics.Color
+import androidx.core.graphics.ColorUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,7 +59,8 @@ data class ViewerUiState(
     val searchQuery: String = "",
     val searchMatchCount: Int = 0,
     val searchMatchIndex: Int = 0,
-    val userPreferences: UserPreferences = UserPreferences()
+    val userPreferences: UserPreferences = UserPreferences(),
+    val isSourceCode: Boolean = false
 )
 
 class ViewerViewModel(
@@ -66,8 +69,12 @@ class ViewerViewModel(
 ) : AndroidViewModel(application) {
     private val repository = PreferencesRepository.getInstance(application)
     private var systemDarkTheme = false
-    private var renderer = MarkwonRenderer(application, isDarkTheme(UserPreferences(), systemDarkTheme))
+    private var renderer = run {
+        val dark = isDarkTheme(UserPreferences(), systemDarkTheme)
+        MarkwonRenderer(application, dark, codeBackground(dark))
+    }
     private var currentUri: String? = null
+    private var detectedCodeLanguage: String? = null
     private var loadingJob: Job? = null
     private var baseRendered: Spanned? = null
     private var renderDarkModeOverride: Boolean? = null
@@ -152,7 +159,7 @@ class ViewerViewModel(
                     isLoading = false,
                     isLoadingVisible = false,
                     fileName = fileName,
-                    errorMessage = "Unable to open this Markdown file.$errorDetails",
+                    errorMessage = "Unable to open this file.$errorDetails",
                     needsPermission = needsPermission,
                     rawHighlighted = null,
                     searchQuery = "",
@@ -178,11 +185,20 @@ class ViewerViewModel(
                 return@launch
             }
 
+            val codeLanguage = detectCodeLanguage(fileName)
+            detectedCodeLanguage = codeLanguage
+            val isSourceCode = codeLanguage != null
+            val markdownToRender = if (isSourceCode) {
+                "```${codeLanguage}\n${markdown}\n```"
+            } else {
+                markdown
+            }
+
             val isBinary = isProbablyBinary(markdown)
             val isDark = renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
-            renderer = MarkwonRenderer(getApplication(), isDark)
-            val rendered = if (isBinary) null else renderMarkdown(markdown)
-            val headings = parseHeadings(markdown, rendered?.toString())
+            renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
+            val rendered = if (isBinary) null else renderMarkdown(markdownToRender)
+            val headings = if (isSourceCode) emptyList() else parseHeadings(markdown, rendered?.toString())
 
             if (rendered == null) {
                 loadingJob?.cancel()
@@ -218,7 +234,8 @@ class ViewerViewModel(
                 errorMessage = null,
                 warningMessage = null,
                 headings = headings,
-                activeHeadingIndex = clampActiveHeadingIndex(_uiState.value.activeHeadingIndex, headings)
+                activeHeadingIndex = clampActiveHeadingIndex(_uiState.value.activeHeadingIndex, headings),
+                isSourceCode = isSourceCode
             )
 
             applySearchQuery(_uiState.value.searchQuery)
@@ -327,10 +344,13 @@ class ViewerViewModel(
 
                 if (requiresRebuild) {
                     val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-                    renderer = MarkwonRenderer(getApplication(), isDark)
+                    renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
                     val markdown = _uiState.value.rawText
                     if (markdown.isNotEmpty()) {
-                        val rendered = renderMarkdown(markdown)
+                        val markdownToRender = detectedCodeLanguage?.let { lang ->
+                            "```${lang}\n${markdown}\n```"
+                        } ?: markdown
+                        val rendered = renderMarkdown(markdownToRender)
                         if (rendered != null) {
                             baseRendered = rendered
                             _uiState.value = _uiState.value.copy(rendered = rendered)
@@ -355,9 +375,12 @@ class ViewerViewModel(
         if (markdown.isBlank()) return
         val prefs = _uiState.value.userPreferences
         val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-        renderer = MarkwonRenderer(getApplication(), isDark)
+        renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
+        val markdownToRender = detectedCodeLanguage?.let { lang ->
+            "```${lang}\n${markdown}\n```"
+        } ?: markdown
         viewModelScope.launch {
-            val rendered = renderMarkdown(markdown)
+            val rendered = renderMarkdown(markdownToRender)
             if (rendered != null) {
                 baseRendered = rendered
                 _uiState.value = _uiState.value.copy(rendered = rendered)
@@ -471,10 +494,25 @@ class ViewerViewModel(
             ViewMode.Rendered -> SpannableString(baseRendered)
             ViewMode.Raw -> SpannableString(baseText)
         }
-        val isDark = renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
-        val matchBackgroundColor = if (isDark) 0x66FFD54F.toInt() else 0x553197F5.toInt()
-        val activeMatchBackgroundColor = if (isDark) 0xCCFFD54F.toInt() else 0xFF1565C0.toInt()
-        val activeMatchTextColor = if (isDark) 0xFF1A1A1A.toInt() else 0xFFFFFFFF.toInt()
+        val prefs = _uiState.value.userPreferences
+        val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
+        val activeTheme = if (isDark) prefs.readerDarkTheme else prefs.readerLightTheme
+        val isSepia = activeTheme == com.markreader.data.ReaderThemePreference.Sepia
+        val matchBackgroundColor = when {
+            isDark -> 0x66FFD54F.toInt()
+            isSepia -> 0x55A85A00.toInt()
+            else -> 0x553197F5.toInt()
+        }
+        val activeMatchBackgroundColor = when {
+            isDark -> 0xCCFFD54F.toInt()
+            isSepia -> 0xDD8B4513.toInt()
+            else -> 0xFF1565C0.toInt()
+        }
+        val activeMatchTextColor = when {
+            isDark -> 0xFF1A1A1A.toInt()
+            isSepia -> 0xFFFFFFFF.toInt()
+            else -> 0xFFFFFFFF.toInt()
+        }
         for (range in ranges) {
             val start = range.first
             val end = (range.last + 1).coerceAtMost(highlighted.length)
@@ -570,6 +608,53 @@ class ViewerViewModel(
     }
 
     companion object {
+        private fun detectCodeLanguage(fileName: String): String? {
+            val ext = fileName.substringAfterLast('.', "").lowercase()
+            if (ext == fileName.lowercase()) {
+                // No extension — check full name
+                return when (fileName.lowercase()) {
+                    "makefile" -> "makefile"
+                    else -> null
+                }
+            }
+            return when (ext) {
+                "java" -> "java"
+                "kt", "kts" -> "kotlin"
+                "py" -> "python"
+                "js" -> "javascript"
+                "ts" -> "javascript"
+                "c" -> "c"
+                "cpp", "cc", "cxx", "hpp" -> "cpp"
+                "h" -> "c"
+                "cs" -> "csharp"
+                "swift" -> "swift"
+                "go" -> "go"
+                "rs" -> "c"
+                "rb" -> "python"
+                "scala" -> "scala"
+                "groovy" -> "groovy"
+                "dart" -> "dart"
+                "json" -> "json"
+                "yaml", "yml" -> "yaml"
+                "html", "xml", "svg" -> "markup"
+                "css" -> "css"
+                "sql" -> "sql"
+                "sh", "bash", "zsh" -> "bash"
+                "mk" -> "makefile"
+                "tex", "latex" -> "latex"
+                "gradle" -> "groovy"
+                "toml" -> "yaml"
+                "md", "txt" -> null
+                else -> null
+            }
+        }
+
+        /** Matches Markwon's default: text color at ~10% alpha. */
+        private fun codeBackground(isDark: Boolean): Int {
+            val textColor = if (isDark) Color.WHITE else Color.BLACK
+            return ColorUtils.setAlphaComponent(textColor, 25)
+        }
+
         private fun isDarkTheme(prefs: UserPreferences, isSystemDarkTheme: Boolean): Boolean {
             return when (prefs.appThemeMode) {
                 AppThemeModePreference.System -> isSystemDarkTheme

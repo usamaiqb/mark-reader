@@ -3,12 +3,16 @@
 import android.app.Application
 import android.graphics.Typeface
 import android.os.Build
+import android.content.Context
 import android.text.Layout
 import android.text.Spanned
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.markreader.ui.markdown.CodeBlockMarkerSpan
+import com.markreader.ui.zoom.ZoomableContentLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,12 +38,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LightMode
@@ -47,7 +53,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.WrapText
+import androidx.compose.material.icons.automirrored.filled.WrapText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,6 +82,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -104,10 +111,16 @@ import com.markreader.ui.export.ExportManager
 import com.markreader.ui.theme.AmoledOnSurface
 import com.markreader.ui.theme.AmoledSurface
 import com.markreader.ui.theme.DarkOnSurface
+import com.markreader.ui.theme.DarkOnSurfaceVariant
+import com.markreader.ui.theme.DarkSecondaryContainer
 import com.markreader.ui.theme.DarkSurface
 import com.markreader.ui.theme.LightOnSurface
+import com.markreader.ui.theme.LightOnSurfaceVariant
+import com.markreader.ui.theme.LightSecondaryContainer
 import com.markreader.ui.theme.LightSurface
 import com.markreader.ui.theme.SepiaOnSurface
+import com.markreader.ui.theme.SepiaOnSurfaceVariant
+import com.markreader.ui.theme.SepiaSecondaryContainer
 import com.markreader.ui.theme.SepiaSurface
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,6 +144,7 @@ fun ViewerScreen(
     var isTocVisible by rememberSaveable { mutableStateOf(false) }
     var isExportDialogVisible by rememberSaveable { mutableStateOf(false) }
     var isWordWrapEnabled by rememberSaveable { mutableStateOf(true) }
+    var isCodeBlockWrapEnabled by rememberSaveable { mutableStateOf(true) }
     val exportManager = remember { ExportManager(context) }
 
     val launcher = rememberLauncherForActivityResult(
@@ -155,7 +169,7 @@ fun ViewerScreen(
     LaunchedEffect(uiState.needsPermission) {
         if (uiState.needsPermission) {
             viewModel.onPermissionRequestConsumed()
-            launcher.launch(arrayOf("text/markdown", "text/plain"))
+            launcher.launch(arrayOf("*/*"))
         }
     }
 
@@ -169,7 +183,11 @@ fun ViewerScreen(
     }
 
     val fileName = if (uiState.fileName.isNotBlank()) uiState.fileName else "Untitled"
-    val viewModeLabel = if (uiState.viewMode == ViewMode.Raw) "Raw mode" else "Rendered mode"
+    val viewModeLabel = when {
+        uiState.isSourceCode -> "Source code"
+        uiState.viewMode == ViewMode.Raw -> "Raw mode"
+        else -> "Rendered mode"
+    }
 
     val dynamicLightScheme = remember(context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicLightColorScheme(context) else null
@@ -179,63 +197,59 @@ fun ViewerScreen(
     }
 
     val lightReaderColors = when (prefs.readerLightTheme) {
-        ReaderThemePreference.Sepia -> ReaderSurfaceColors(
+        ReaderThemePreference.Sepia -> ViewerColors(
             surface = SepiaSurface,
             content = SepiaOnSurface,
-            muted = SepiaOnSurface.copy(alpha = 0.72f),
-            tonalContainer = SepiaOnSurface.copy(alpha = 0.10f)
+            muted = SepiaOnSurfaceVariant,
+            tonalContainer = SepiaSecondaryContainer
         )
-        ReaderThemePreference.Light -> ReaderSurfaceColors(
+        ReaderThemePreference.Light -> ViewerColors(
             surface = dynamicLightScheme?.surface ?: LightSurface,
             content = dynamicLightScheme?.onSurface ?: LightOnSurface,
-            muted = dynamicLightScheme?.onSurfaceVariant ?: (dynamicLightScheme?.onSurface
-                ?: LightOnSurface).copy(alpha = 0.72f),
+            muted = dynamicLightScheme?.onSurfaceVariant ?: LightOnSurfaceVariant,
             tonalContainer = dynamicLightScheme?.secondaryContainer
-                ?: (dynamicLightScheme?.onSurface ?: LightOnSurface).copy(alpha = 0.10f)
+                ?: LightSecondaryContainer
         )
-        ReaderThemePreference.Dark -> ReaderSurfaceColors(
+        ReaderThemePreference.Dark -> ViewerColors(
             surface = dynamicDarkScheme?.surface ?: DarkSurface,
             content = dynamicDarkScheme?.onSurface ?: DarkOnSurface,
-            muted = dynamicDarkScheme?.onSurfaceVariant ?: (dynamicDarkScheme?.onSurface
-                ?: DarkOnSurface).copy(alpha = 0.72f),
+            muted = dynamicDarkScheme?.onSurfaceVariant ?: DarkOnSurfaceVariant,
             tonalContainer = dynamicDarkScheme?.secondaryContainer
-                ?: (dynamicDarkScheme?.onSurface ?: DarkOnSurface).copy(alpha = 0.16f)
+                ?: DarkSecondaryContainer
         )
-        ReaderThemePreference.Amoled -> ReaderSurfaceColors(
+        ReaderThemePreference.Amoled -> ViewerColors(
             surface = AmoledSurface,
             content = AmoledOnSurface,
             muted = AmoledOnSurface.copy(alpha = 0.72f),
-            tonalContainer = AmoledOnSurface.copy(alpha = 0.16f)
+            tonalContainer = AmoledOnSurface.copy(alpha = 0.12f)
         )
     }
     val darkReaderColors = when (prefs.readerDarkTheme) {
-        ReaderThemePreference.Amoled -> ReaderSurfaceColors(
+        ReaderThemePreference.Amoled -> ViewerColors(
             surface = AmoledSurface,
             content = AmoledOnSurface,
             muted = AmoledOnSurface.copy(alpha = 0.72f),
-            tonalContainer = AmoledOnSurface.copy(alpha = 0.16f)
+            tonalContainer = AmoledOnSurface.copy(alpha = 0.12f)
         )
-        ReaderThemePreference.Dark -> ReaderSurfaceColors(
+        ReaderThemePreference.Dark -> ViewerColors(
             surface = dynamicDarkScheme?.surface ?: DarkSurface,
             content = dynamicDarkScheme?.onSurface ?: DarkOnSurface,
-            muted = dynamicDarkScheme?.onSurfaceVariant ?: (dynamicDarkScheme?.onSurface
-                ?: DarkOnSurface).copy(alpha = 0.72f),
+            muted = dynamicDarkScheme?.onSurfaceVariant ?: DarkOnSurfaceVariant,
             tonalContainer = dynamicDarkScheme?.secondaryContainer
-                ?: (dynamicDarkScheme?.onSurface ?: DarkOnSurface).copy(alpha = 0.16f)
+                ?: DarkSecondaryContainer
         )
-        ReaderThemePreference.Light -> ReaderSurfaceColors(
+        ReaderThemePreference.Light -> ViewerColors(
             surface = dynamicLightScheme?.surface ?: LightSurface,
             content = dynamicLightScheme?.onSurface ?: LightOnSurface,
-            muted = dynamicLightScheme?.onSurfaceVariant ?: (dynamicLightScheme?.onSurface
-                ?: LightOnSurface).copy(alpha = 0.72f),
+            muted = dynamicLightScheme?.onSurfaceVariant ?: LightOnSurfaceVariant,
             tonalContainer = dynamicLightScheme?.secondaryContainer
-                ?: (dynamicLightScheme?.onSurface ?: LightOnSurface).copy(alpha = 0.10f)
+                ?: LightSecondaryContainer
         )
-        ReaderThemePreference.Sepia -> ReaderSurfaceColors(
+        ReaderThemePreference.Sepia -> ViewerColors(
             surface = SepiaSurface,
             content = SepiaOnSurface,
-            muted = SepiaOnSurface.copy(alpha = 0.72f),
-            tonalContainer = SepiaOnSurface.copy(alpha = 0.10f)
+            muted = SepiaOnSurfaceVariant,
+            tonalContainer = SepiaSecondaryContainer
         )
     }
     val isBaseDark = when (prefs.appThemeMode) {
@@ -247,6 +261,7 @@ fun ViewerScreen(
     val activeReaderTheme = if (isSurfaceDark) prefs.readerDarkTheme else prefs.readerLightTheme
     val activeReaderColors = if (isSurfaceDark) darkReaderColors else lightReaderColors
     val chromeColors = viewerChromeColors(
+        activeReaderTheme = activeReaderTheme,
         isSurfaceDark = isSurfaceDark,
         dynamicLightScheme = dynamicLightScheme,
         dynamicDarkScheme = dynamicDarkScheme
@@ -341,17 +356,19 @@ fun ViewerScreen(
                             }
                         },
                         navigationIcon = {
-                            FilledTonalIconButton(
-                                onClick = { isTocVisible = true },
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = chromeColors.tonalContainer,
-                                    contentColor = chromeColors.content
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.FormatListBulleted,
-                                    contentDescription = "Table of contents"
-                                )
+                            if (!uiState.isSourceCode) {
+                                FilledTonalIconButton(
+                                    onClick = { isTocVisible = true },
+                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                        containerColor = chromeColors.tonalContainer,
+                                        contentColor = chromeColors.content
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                                        contentDescription = "Table of contents"
+                                    )
+                                }
                             }
                         },
                         actions = {
@@ -388,7 +405,7 @@ fun ViewerScreen(
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Filled.WrapText,
+                                            imageVector = Icons.AutoMirrored.Filled.WrapText,
                                             contentDescription = null,
                                             tint = chromeColors.content
                                         )
@@ -415,6 +432,38 @@ fun ViewerScreen(
                                         isWordWrapEnabled = !isWordWrapEnabled
                                     }
                                 )
+                                if (isWordWrapEnabled) {
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Filled.Code,
+                                                contentDescription = null,
+                                                tint = chromeColors.content
+                                            )
+                                        },
+                                        text = {
+                                            Text(
+                                                text = "Wrap code blocks",
+                                                color = chromeColors.content
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            androidx.compose.material3.Switch(
+                                                checked = isCodeBlockWrapEnabled,
+                                                onCheckedChange = null,
+                                                colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                    checkedThumbColor = chromeColors.content,
+                                                    checkedTrackColor = chromeColors.tonalContainer,
+                                                    uncheckedThumbColor = chromeColors.muted,
+                                                    uncheckedTrackColor = chromeColors.tonalContainer
+                                                )
+                                            )
+                                        },
+                                        onClick = {
+                                            isCodeBlockWrapEnabled = !isCodeBlockWrapEnabled
+                                        }
+                                    )
+                                }
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(
@@ -531,7 +580,7 @@ fun ViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.Button(
-                            onClick = { launcher.launch(arrayOf("text/markdown", "text/plain")) }
+                            onClick = { launcher.launch(arrayOf("*/*")) }
                         ) {
                             Text(text = "Open Different File")
                         }
@@ -552,7 +601,7 @@ fun ViewerScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.Button(
                             onClick = {
-                                launcher.launch(arrayOf("text/markdown", "text/plain"))
+                                launcher.launch(arrayOf("*/*"))
                             }
                         ) {
                             Text(text = "Open Different File")
@@ -567,6 +616,7 @@ fun ViewerScreen(
                         RenderedTextView(
                             text = text,
                             isDarkSurface = isSurfaceDark,
+                            textColor = contentColor.toArgb(),
                             padding = PaddingValues(0.dp),
                             savedScrollY = savedScrollY,
                             scrollToOffset = scrollToOffset,
@@ -575,6 +625,7 @@ fun ViewerScreen(
                             headings = uiState.headings,
                             onActiveHeadingChanged = viewModel::onActiveHeadingChanged,
                             isWordWrapEnabled = isWordWrapEnabled,
+                            isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
                             selectionHighlightColor = selectionHighlightColor,
                             fontSizeSp = prefs.fontSizeSp,
                             lineHeight = prefs.lineHeight,
@@ -591,6 +642,7 @@ fun ViewerScreen(
                         RenderedTextView(
                             text = text,
                             isDarkSurface = isSurfaceDark,
+                            textColor = contentColor.toArgb(),
                             padding = PaddingValues(0.dp),
                             savedScrollY = savedScrollY,
                             scrollToOffset = scrollToOffset,
@@ -599,6 +651,7 @@ fun ViewerScreen(
                             headings = uiState.headings,
                             onActiveHeadingChanged = viewModel::onActiveHeadingChanged,
                             isWordWrapEnabled = isWordWrapEnabled,
+                            isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
                             selectionHighlightColor = selectionHighlightColor,
                             fontSizeSp = prefs.fontSizeSp,
                             lineHeight = prefs.lineHeight,
@@ -970,14 +1023,7 @@ private fun ViewerSearchBar(
         }
     }
 }
-private data class ReaderSurfaceColors(
-    val surface: Color,
-    val content: Color,
-    val muted: Color,
-    val tonalContainer: Color
-)
-
-private data class ViewerChromeColors(
+private data class ViewerColors(
     val surface: Color,
     val content: Color,
     val muted: Color,
@@ -985,28 +1031,41 @@ private data class ViewerChromeColors(
 )
 
 private fun viewerChromeColors(
+    activeReaderTheme: ReaderThemePreference,
     isSurfaceDark: Boolean,
     dynamicLightScheme: androidx.compose.material3.ColorScheme?,
     dynamicDarkScheme: androidx.compose.material3.ColorScheme?
-): ViewerChromeColors {
-    return if (isSurfaceDark) {
-        val scheme = dynamicDarkScheme
-        ViewerChromeColors(
-            surface = scheme?.surface ?: DarkSurface,
-            content = scheme?.onSurface ?: DarkOnSurface,
-            muted = scheme?.onSurfaceVariant ?: (scheme?.onSurface ?: DarkOnSurface).copy(alpha = 0.72f),
-            tonalContainer = scheme?.secondaryContainer
-                ?: (scheme?.onSurface ?: DarkOnSurface).copy(alpha = 0.16f)
+): ViewerColors {
+    return when (activeReaderTheme) {
+        ReaderThemePreference.Sepia -> ViewerColors(
+            surface = SepiaSurface,
+            content = SepiaOnSurface,
+            muted = SepiaOnSurfaceVariant,
+            tonalContainer = SepiaSecondaryContainer
         )
-    } else {
-        val scheme = dynamicLightScheme
-        ViewerChromeColors(
-            surface = scheme?.surface ?: LightSurface,
-            content = scheme?.onSurface ?: LightOnSurface,
-            muted = scheme?.onSurfaceVariant ?: (scheme?.onSurface ?: LightOnSurface).copy(alpha = 0.72f),
-            tonalContainer = scheme?.secondaryContainer
-                ?: (scheme?.onSurface ?: LightOnSurface).copy(alpha = 0.10f)
+        ReaderThemePreference.Amoled -> ViewerColors(
+            surface = AmoledSurface,
+            content = AmoledOnSurface,
+            muted = AmoledOnSurface.copy(alpha = 0.72f),
+            tonalContainer = AmoledOnSurface.copy(alpha = 0.12f)
         )
+        else -> if (isSurfaceDark) {
+            val scheme = dynamicDarkScheme
+            ViewerColors(
+                surface = scheme?.surface ?: DarkSurface,
+                content = scheme?.onSurface ?: DarkOnSurface,
+                muted = scheme?.onSurfaceVariant ?: DarkOnSurfaceVariant,
+                tonalContainer = scheme?.secondaryContainer ?: DarkSecondaryContainer
+            )
+        } else {
+            val scheme = dynamicLightScheme
+            ViewerColors(
+                surface = scheme?.surface ?: LightSurface,
+                content = scheme?.onSurface ?: LightOnSurface,
+                muted = scheme?.onSurfaceVariant ?: LightOnSurfaceVariant,
+                tonalContainer = scheme?.secondaryContainer ?: LightSecondaryContainer
+            )
+        }
     }
 }
 
@@ -1022,6 +1081,7 @@ private data class ContentKey(
 private fun RenderedTextView(
     text: Any,
     isDarkSurface: Boolean,
+    textColor: Int,
     padding: PaddingValues,
     savedScrollY: Int,
     scrollToOffset: Int?,
@@ -1030,6 +1090,7 @@ private fun RenderedTextView(
     headings: List<HeadingItem>,
     onActiveHeadingChanged: (Int) -> Unit,
     isWordWrapEnabled: Boolean,
+    isCodeBlockWrapEnabled: Boolean,
     selectionHighlightColor: Int,
     fontSizeSp: Float,
     lineHeight: Float,
@@ -1047,6 +1108,7 @@ private fun RenderedTextView(
     }
     var lastRestoredKey by remember { mutableStateOf<ContentKey?>(null) }
     var lastWrapEnabled by remember { mutableStateOf(isWordWrapEnabled) }
+    var lastCodeBlockWrapEnabled by remember { mutableStateOf(isCodeBlockWrapEnabled) }
     var pendingAnchorOffset by remember { mutableStateOf<Int?>(null) }
     var lastTextHash by remember { mutableStateOf(0) }
     var lastStyleKey by remember {
@@ -1060,98 +1122,167 @@ private fun RenderedTextView(
             )
         )
     }
-    var lastIsDarkSurface by remember { mutableStateOf(isDarkSurface) }
+    var lastTextColor by remember { mutableStateOf(textColor) }
     var lastWrapEnabledApplied by remember { mutableStateOf(isWordWrapEnabled) }
     var lastSelectionHighlightColor by remember { mutableStateOf(selectionHighlightColor) }
+    var splitBoundaries by remember { mutableStateOf<List<Triple<Int, Int, Boolean>>>(emptyList()) }
     val currentHeadings by rememberUpdatedState(headings)
+    val currentSplitBoundaries by rememberUpdatedState(splitBoundaries)
     val onActiveHeadingChangedState by rememberUpdatedState(onActiveHeadingChanged)
 
-    AndroidView(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding),
+        contentAlignment = Alignment.TopCenter
+    ) {
+    AndroidView(
+        modifier = Modifier
+            .fillMaxSize()
+            .widthIn(max = 600.dp),
         factory = { context ->
-            val textView = TextView(context).apply {
-                textSize = fontSizeSp
-                setLineSpacing(0f, lineHeight)
-                setPadding(20, 20, 20, 20)
-                setHorizontallyScrolling(!isWordWrapEnabled)
-                isHorizontalScrollBarEnabled = !isWordWrapEnabled
-                setTextIsSelectable(true)
-                setTextColor(
-                    if (isDarkSurface) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                )
-                highlightColor = selectionHighlightColor
-            }
+            val density = context.resources.displayMetrics.density
+            val paddingPx = (16 * density).toInt()
+            val isSplitMode = isWordWrapEnabled && !isCodeBlockWrapEnabled && text is Spanned
+
             val scrollView = ScrollView(context).apply {
-                if (isWordWrapEnabled) {
+                if (isSplitMode) {
+                    val container = LinearLayout(context).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                    }
                     addView(
-                        textView,
+                        container,
                         ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.WRAP_CONTENT
                         )
                     )
                 } else {
-                    val horizontalScrollView = HorizontalScrollView(context).apply {
-                        isHorizontalScrollBarEnabled = true
+                    val textView = TextView(context).apply {
+                        textSize = fontSizeSp
+                        setLineSpacing(0f, lineHeight)
+                        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                        setHorizontallyScrolling(!isWordWrapEnabled)
+                        isHorizontalScrollBarEnabled = !isWordWrapEnabled
+                        setTextIsSelectable(true)
+                        setTextColor(textColor)
+                        highlightColor = selectionHighlightColor
+                    }
+                    if (isWordWrapEnabled) {
                         addView(
                             textView,
                             ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.WRAP_CONTENT
+                            )
+                        )
+                    } else {
+                        val horizontalScrollView = HorizontalScrollView(context).apply {
+                            isHorizontalScrollBarEnabled = true
+                            addView(
+                                textView,
+                                ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                )
+                            )
+                        }
+                        addView(
+                            horizontalScrollView,
+                            ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.WRAP_CONTENT
                             )
                         )
                     }
-                    addView(
-                        horizontalScrollView,
-                        ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                    )
                 }
                 setOnScrollChangeListener { _, _, scrollY, _, _ ->
                     onScrollChanged(scrollY)
-                    val layout = textView.layout ?: return@setOnScrollChangeListener
                     val list = currentHeadings
                     if (list.isEmpty()) return@setOnScrollChangeListener
-                    if (layout.text.isEmpty()) return@setOnScrollChangeListener
-                    val y = scrollY + textView.paddingTop
-                    onActiveHeadingChangedState(findActiveHeadingIndex(layout, list, y))
+                    val firstChild = getChildAt(0) ?: return@setOnScrollChangeListener
+                    if (firstChild is LinearLayout) {
+                        onActiveHeadingChangedState(
+                            findActiveHeadingInSplit(
+                                firstChild, currentSplitBoundaries, list, scrollY
+                            )
+                        )
+                    } else {
+                        val tv = if (firstChild is HorizontalScrollView) {
+                            firstChild.getChildAt(0) as? TextView
+                        } else {
+                            firstChild as? TextView
+                        } ?: return@setOnScrollChangeListener
+                        val layout = tv.layout ?: return@setOnScrollChangeListener
+                        if (layout.text.isEmpty()) return@setOnScrollChangeListener
+                        val y = scrollY + tv.paddingTop
+                        onActiveHeadingChangedState(findActiveHeadingIndex(layout, list, y))
+                    }
                 }
             }
-            scrollView
+            val zoomLayout = ZoomableContentLayout(context).apply {
+                addView(
+                    scrollView,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                )
+            }
+            zoomLayout
         },
-        update = { scrollView ->
-            val child = scrollView.getChildAt(0)
-            val textView = if (child is HorizontalScrollView) {
-                child.getChildAt(0) as TextView
-            } else {
-                child as TextView
-            }
+        update = { zoomLayout ->
+            val scrollView = zoomLayout.getChildAt(0) as ScrollView
+            val child = scrollView.getChildAt(0) ?: return@AndroidView
+            val isSplitMode = isWordWrapEnabled && !isCodeBlockWrapEnabled && text is Spanned
+            val modeChanged = lastWrapEnabled != isWordWrapEnabled ||
+                lastCodeBlockWrapEnabled != isCodeBlockWrapEnabled
+            val density = scrollView.context.resources.displayMetrics.density
+            val paddingPx = (16 * density).toInt()
 
-            if (lastWrapEnabled != isWordWrapEnabled) {
-                val layout = textView.layout
-                if (layout != null) {
-                    val line = layout.getLineForVertical(scrollView.scrollY)
-                    pendingAnchorOffset = layout.getLineStart(line)
-                }
-                (textView.parent as? ViewGroup)?.removeView(textView)
+            if (modeChanged) {
+                // Save anchor from current view structure
+                pendingAnchorOffset = getAnchorFromView(
+                    scrollView, child, currentSplitBoundaries
+                )
                 scrollView.removeAllViews()
-                if (isWordWrapEnabled) {
+
+                if (isSplitMode) {
+                    val container = LinearLayout(scrollView.context).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                    }
                     scrollView.addView(
-                        textView,
+                        container,
+                        ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        )
+                    )
+                } else if (isWordWrapEnabled) {
+                    val tv = createStyledTextView(
+                        scrollView.context, paddingPx, fontSizeSp, lineHeight,
+                        readingFont, textAlignment, textColor, selectionHighlightColor,
+                        horizontalScroll = false
+                    )
+                    scrollView.addView(
+                        tv,
                         ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.WRAP_CONTENT
                         )
                     )
                 } else {
-                    val horizontalScrollView = HorizontalScrollView(scrollView.context).apply {
+                    val tv = createStyledTextView(
+                        scrollView.context, paddingPx, fontSizeSp, lineHeight,
+                        readingFont, textAlignment, textColor, selectionHighlightColor,
+                        horizontalScroll = true
+                    )
+                    val hsv = HorizontalScrollView(scrollView.context).apply {
                         isHorizontalScrollBarEnabled = true
                         addView(
-                            textView,
+                            tv,
                             ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.WRAP_CONTENT,
                                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1159,94 +1290,196 @@ private fun RenderedTextView(
                         )
                     }
                     scrollView.addView(
-                        horizontalScrollView,
+                        hsv,
                         ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.WRAP_CONTENT
                         )
                     )
                 }
+
                 lastWrapEnabled = isWordWrapEnabled
-            }
-
-            val textHash = text.hashCode()
-            if (textHash != lastTextHash) {
-                when (text) {
-                    is Spanned -> textView.text = text
-                    else -> textView.text = text.toString()
-                }
-                lastTextHash = textHash
-            }
-            if (lastStyleKey != contentKey) {
-                textView.textSize = fontSizeSp
-                textView.setLineSpacing(0f, lineHeight)
-                textView.typeface = when (readingFont) {
-                    ReadingFontPreference.Merriweather -> Typeface.SERIF
-                    ReadingFontPreference.SystemSerif -> Typeface.SERIF
-                }
-                if (textAlignment == TextAlignmentPreference.Justified && Build.VERSION.SDK_INT >= 26) {
-                    textView.justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
-                } else {
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        textView.justificationMode = Layout.JUSTIFICATION_MODE_NONE
-                    }
-                    textView.textAlignment = TextView.TEXT_ALIGNMENT_VIEW_START
-                }
-                lastStyleKey = contentKey
-            }
-
-            if (lastIsDarkSurface != isDarkSurface) {
-                textView.setTextColor(
-                    if (isDarkSurface) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                )
-                lastIsDarkSurface = isDarkSurface
-            }
-
-            if (lastWrapEnabledApplied != isWordWrapEnabled) {
-                textView.setHorizontallyScrolling(!isWordWrapEnabled)
-                textView.isHorizontalScrollBarEnabled = !isWordWrapEnabled
+                lastCodeBlockWrapEnabled = isCodeBlockWrapEnabled
+                // Force text and style to be re-applied below
+                lastTextHash = 0
+                lastStyleKey = ContentKey(0, -1f, -1f,
+                    ReadingFontPreference.Merriweather, TextAlignmentPreference.Left)
+                lastTextColor = textColor.inv()
                 lastWrapEnabledApplied = isWordWrapEnabled
+                lastSelectionHighlightColor = selectionHighlightColor.inv()
             }
 
-            if (lastSelectionHighlightColor != selectionHighlightColor) {
-                textView.highlightColor = selectionHighlightColor
-                lastSelectionHighlightColor = selectionHighlightColor
+            // Text / style updates
+            val currentChild = scrollView.getChildAt(0) ?: return@AndroidView
+
+            if (currentChild is LinearLayout) {
+                // Split mode
+                val container = currentChild
+                val textHash = text.hashCode()
+                if (textHash != lastTextHash) {
+                    val spanned = text as Spanned
+                    val segments = splitByCodeBlocks(spanned)
+                    splitBoundaries = segments
+                    container.removeAllViews()
+                    for ((start, end, isCode) in segments) {
+                        val segText = spanned.subSequence(start, end) as Spanned
+                        val tv = createStyledTextView(
+                            container.context, 0, fontSizeSp, lineHeight,
+                            readingFont, textAlignment, textColor, selectionHighlightColor,
+                            horizontalScroll = isCode
+                        )
+                        tv.text = segText
+                        if (isCode) {
+                            val hsv = HorizontalScrollView(container.context).apply {
+                                isHorizontalScrollBarEnabled = true
+                                addView(
+                                    tv,
+                                    ViewGroup.LayoutParams(
+                                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                                        ViewGroup.LayoutParams.WRAP_CONTENT
+                                    )
+                                )
+                            }
+                            container.addView(
+                                hsv,
+                                ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                )
+                            )
+                        } else {
+                            container.addView(
+                                tv,
+                                ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                )
+                            )
+                        }
+                    }
+                    lastTextHash = textHash
+                    lastStyleKey = contentKey
+                    lastTextColor = textColor
+                    lastSelectionHighlightColor = selectionHighlightColor
+                } else if (lastStyleKey != contentKey || lastTextColor != textColor ||
+                    lastSelectionHighlightColor != selectionHighlightColor
+                ) {
+                    for (i in 0 until container.childCount) {
+                        val seg = container.getChildAt(i)
+                        val tv = if (seg is HorizontalScrollView) {
+                            seg.getChildAt(0) as? TextView
+                        } else {
+                            seg as? TextView
+                        }
+                        tv?.let {
+                            applyStyleToTextView(
+                                it, fontSizeSp, lineHeight, readingFont,
+                                textAlignment, textColor, selectionHighlightColor
+                            )
+                        }
+                    }
+                    lastStyleKey = contentKey
+                    lastTextColor = textColor
+                    lastSelectionHighlightColor = selectionHighlightColor
+                }
+            } else {
+                // Single-TV mode
+                val textView = when (currentChild) {
+                    is HorizontalScrollView -> currentChild.getChildAt(0) as TextView
+                    else -> currentChild as TextView
+                }
+
+                val textHash = text.hashCode()
+                if (textHash != lastTextHash) {
+                    when (text) {
+                        is Spanned -> textView.text = text
+                        else -> textView.text = text.toString()
+                    }
+                    lastTextHash = textHash
+                }
+                if (lastStyleKey != contentKey) {
+                    applyStyleToTextView(
+                        textView, fontSizeSp, lineHeight, readingFont,
+                        textAlignment, textColor, selectionHighlightColor
+                    )
+                    lastStyleKey = contentKey
+                }
+                if (lastTextColor != textColor) {
+                    textView.setTextColor(textColor)
+                    lastTextColor = textColor
+                }
+                if (lastWrapEnabledApplied != isWordWrapEnabled) {
+                    textView.setHorizontallyScrolling(!isWordWrapEnabled)
+                    textView.isHorizontalScrollBarEnabled = !isWordWrapEnabled
+                    lastWrapEnabledApplied = isWordWrapEnabled
+                }
+                if (lastSelectionHighlightColor != selectionHighlightColor) {
+                    textView.highlightColor = selectionHighlightColor
+                    lastSelectionHighlightColor = selectionHighlightColor
+                }
             }
 
+            // Scroll handling
             if (pendingAnchorOffset != null) {
                 val targetOffset = pendingAnchorOffset
                 pendingAnchorOffset = null
                 scrollView.post {
-                    val layout = textView.layout ?: return@post
-                    val line = layout.getLineForOffset(targetOffset ?: return@post)
-                    val y = layout.getLineTop(line)
+                    val y = resolveScrollY(
+                        scrollView, currentSplitBoundaries, targetOffset ?: return@post
+                    )
                     lastRestoredKey = contentKey
-                    scrollView.scrollTo(0, y)
+                    scrollView.smoothScrollTo(0, y)
                 }
-            } else if (scrollToOffset == null && savedScrollY > 0 && lastRestoredKey != contentKey) {
+            } else if (scrollToOffset == null && savedScrollY > 0 &&
+                lastRestoredKey != contentKey
+            ) {
                 lastRestoredKey = contentKey
                 scrollView.post { scrollView.scrollTo(0, savedScrollY) }
             }
 
             if (scrollToOffset != null) {
                 scrollView.post {
-                    val layout = textView.layout ?: return@post
-                    val line = layout.getLineForOffset(scrollToOffset)
-                    val y = layout.getLineTop(line)
+                    val y = resolveScrollY(
+                        scrollView, currentSplitBoundaries, scrollToOffset
+                    )
                     lastRestoredKey = contentKey
-                    scrollView.scrollTo(0, y)
+                    scrollView.smoothScrollTo(0, y)
+                    if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
                     onScrollConsumed()
                 }
             }
 
-            val layout = textView.layout
-            if (layout != null && currentHeadings.isNotEmpty() && layout.text.isNotEmpty()) {
-                val y = scrollView.scrollY + textView.paddingTop
-                onActiveHeadingChangedState(findActiveHeadingIndex(layout, currentHeadings, y))
+            // Heading tracking
+            val curChild = scrollView.getChildAt(0)
+            if (currentHeadings.isNotEmpty()) {
+                if (curChild is LinearLayout) {
+                    onActiveHeadingChangedState(
+                        findActiveHeadingInSplit(
+                            curChild, currentSplitBoundaries,
+                            currentHeadings, scrollView.scrollY
+                        )
+                    )
+                } else {
+                    val tv = when (curChild) {
+                        is HorizontalScrollView -> curChild.getChildAt(0) as? TextView
+                        is TextView -> curChild
+                        else -> null
+                    }
+                    val layout = tv?.layout
+                    if (layout != null && layout.text.isNotEmpty()) {
+                        val y = scrollView.scrollY + (tv?.paddingTop ?: 0)
+                        onActiveHeadingChangedState(
+                            findActiveHeadingIndex(layout, currentHeadings, y)
+                        )
+                    }
+                }
             }
         }
     )
+    }
 }
+
+// ---------- Helper functions ----------
 
 private fun findActiveHeadingIndex(
     layout: Layout,
@@ -1272,5 +1505,217 @@ private fun findActiveHeadingIndex(
     return result
 }
 
+private fun findActiveHeadingInSplit(
+    container: LinearLayout,
+    boundaries: List<Triple<Int, Int, Boolean>>,
+    headings: List<HeadingItem>,
+    scrollY: Int
+): Int {
+    if (headings.isEmpty() || boundaries.isEmpty()) return -1
+    var result = -1
+    val adjustedY = scrollY + container.paddingTop
+    for (i in 0 until container.childCount.coerceAtMost(boundaries.size)) {
+        val child = container.getChildAt(i)
+        val (segStart, segEnd, _) = boundaries[i]
+        val tv = if (child is HorizontalScrollView) {
+            child.getChildAt(0) as? TextView
+        } else {
+            child as? TextView
+        } ?: continue
+        val layout = tv.layout ?: continue
+        for (h in headings.indices) {
+            val offset = headings[h].offset
+            if (offset < segStart || offset >= segEnd) continue
+            val localOffset = (offset - segStart).coerceIn(0, layout.text.length - 1)
+            val line = layout.getLineForOffset(localOffset)
+            val top = child.top + layout.getLineTop(line)
+            if (top <= adjustedY) {
+                result = h
+            }
+        }
+    }
+    return result
+}
 
+private fun getAnchorFromView(
+    scrollView: ScrollView,
+    child: android.view.View,
+    boundaries: List<Triple<Int, Int, Boolean>>
+): Int? {
+    val sy = scrollView.scrollY
+    when (child) {
+        is LinearLayout -> {
+            for (i in 0 until child.childCount.coerceAtMost(boundaries.size)) {
+                val seg = child.getChildAt(i)
+                if (seg.top + seg.height > sy) {
+                    val (segStart, _, _) = boundaries[i]
+                    val tv = if (seg is HorizontalScrollView) {
+                        seg.getChildAt(0) as? TextView
+                    } else {
+                        seg as? TextView
+                    }
+                    val layout = tv?.layout
+                    return if (layout != null) {
+                        val localY = (sy - seg.top).coerceAtLeast(0)
+                        val line = layout.getLineForVertical(localY)
+                        segStart + layout.getLineStart(line)
+                    } else {
+                        segStart
+                    }
+                }
+            }
+            return boundaries.lastOrNull()?.first
+        }
+        is HorizontalScrollView -> {
+            val tv = child.getChildAt(0) as? TextView
+            val layout = tv?.layout ?: return null
+            val line = layout.getLineForVertical(sy)
+            return layout.getLineStart(line)
+        }
+        is TextView -> {
+            val layout = child.layout ?: return null
+            val line = layout.getLineForVertical(sy)
+            return layout.getLineStart(line)
+        }
+        else -> return null
+    }
+}
 
+private fun resolveScrollY(
+    scrollView: ScrollView,
+    boundaries: List<Triple<Int, Int, Boolean>>,
+    offset: Int
+): Int {
+    val child = scrollView.getChildAt(0) ?: return 0
+    if (child is LinearLayout && boundaries.isNotEmpty()) {
+        return scrollToOffsetInSplit(child, boundaries, offset)
+    }
+    val tv = when (child) {
+        is HorizontalScrollView -> child.getChildAt(0) as? TextView
+        is TextView -> child
+        else -> null
+    } ?: return 0
+    val layout = tv.layout ?: return 0
+    val line = layout.getLineForOffset(offset)
+    return layout.getLineTop(line)
+}
+
+private fun scrollToOffsetInSplit(
+    container: LinearLayout,
+    boundaries: List<Triple<Int, Int, Boolean>>,
+    offset: Int
+): Int {
+    for (i in boundaries.indices) {
+        val (segStart, segEnd, _) = boundaries[i]
+        if (offset < segStart || offset >= segEnd) continue
+        if (i >= container.childCount) break
+        val child = container.getChildAt(i)
+        val tv = if (child is HorizontalScrollView) {
+            child.getChildAt(0) as? TextView
+        } else {
+            child as? TextView
+        } ?: continue
+        val layout = tv.layout ?: continue
+        val localOffset = (offset - segStart).coerceIn(
+            0, layout.text.length.coerceAtLeast(1) - 1
+        )
+        val line = layout.getLineForOffset(localOffset)
+        return child.top + layout.getLineTop(line) + container.paddingTop
+    }
+    return 0
+}
+
+private fun splitByCodeBlocks(text: Spanned): List<Triple<Int, Int, Boolean>> {
+    val markers = text.getSpans(0, text.length, CodeBlockMarkerSpan::class.java)
+    if (markers.isEmpty()) return listOf(Triple(0, text.length, false))
+    val codeRanges = markers.map {
+        text.getSpanStart(it) to text.getSpanEnd(it)
+    }.sortedBy { it.first }
+    val segments = mutableListOf<Triple<Int, Int, Boolean>>()
+    var pos = 0
+    for ((start, end) in codeRanges) {
+        if (start > pos) {
+            segments.add(Triple(pos, start, false))
+        }
+        segments.add(Triple(start, end, true))
+        pos = end
+    }
+    if (pos < text.length) {
+        segments.add(Triple(pos, text.length, false))
+    }
+    return segments
+}
+
+private fun createStyledTextView(
+    context: Context,
+    paddingPx: Int,
+    fontSizeSp: Float,
+    lineHeight: Float,
+    readingFont: ReadingFontPreference,
+    textAlignment: TextAlignmentPreference,
+    textColor: Int,
+    selectionHighlightColor: Int,
+    horizontalScroll: Boolean
+): TextView {
+    return TextView(context).apply {
+        textSize = fontSizeSp
+        setLineSpacing(0f, lineHeight)
+        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        setHorizontallyScrolling(horizontalScroll)
+        isHorizontalScrollBarEnabled = horizontalScroll
+        setTextIsSelectable(true)
+        setTextColor(textColor)
+        highlightColor = selectionHighlightColor
+        typeface = when (readingFont) {
+            ReadingFontPreference.Merriweather -> try {
+                androidx.core.content.res.ResourcesCompat.getFont(
+                    context, R.font.merriweather_regular
+                ) ?: Typeface.SERIF
+            } catch (_: Exception) { Typeface.SERIF }
+            ReadingFontPreference.SystemSerif -> Typeface.SERIF
+        }
+        if (textAlignment == TextAlignmentPreference.Justified &&
+            Build.VERSION.SDK_INT >= 26
+        ) {
+            justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
+        } else {
+            if (Build.VERSION.SDK_INT >= 26) {
+                justificationMode = Layout.JUSTIFICATION_MODE_NONE
+            }
+            this.textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
+        }
+    }
+}
+
+private fun applyStyleToTextView(
+    tv: TextView,
+    fontSizeSp: Float,
+    lineHeight: Float,
+    readingFont: ReadingFontPreference,
+    textAlignment: TextAlignmentPreference,
+    textColor: Int,
+    selectionHighlightColor: Int
+) {
+    tv.textSize = fontSizeSp
+    tv.setLineSpacing(0f, lineHeight)
+    tv.setTextColor(textColor)
+    tv.highlightColor = selectionHighlightColor
+    tv.typeface = when (readingFont) {
+        ReadingFontPreference.Merriweather -> try {
+            androidx.core.content.res.ResourcesCompat.getFont(
+                tv.context, R.font.merriweather_regular
+            ) ?: Typeface.SERIF
+        } catch (_: Exception) { Typeface.SERIF }
+        ReadingFontPreference.SystemSerif -> Typeface.SERIF
+    }
+    if (textAlignment == TextAlignmentPreference.Justified &&
+        Build.VERSION.SDK_INT >= 26
+    ) {
+        tv.justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
+    } else {
+        if (Build.VERSION.SDK_INT >= 26) {
+            tv.justificationMode = Layout.JUSTIFICATION_MODE_NONE
+        }
+        tv.textAlignment = TextView.TEXT_ALIGNMENT_VIEW_START
+    }
+}

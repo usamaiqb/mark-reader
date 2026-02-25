@@ -3,19 +3,12 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Stylized M (Markdown) -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M36,20h8v52h-8z" />
+        android:pathData="M22,78 L22,30 L33,30 L44,60 L55,30 L66,30 L66,78 L55,78 L55,44 L44,68 L33,44 L33,78 Z" />
+    <!-- Down arrow (shaft + head) -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M64,20h8v52h-8z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M28,34h52v8h-52z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M28,52h52v8h-52z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M36,80h36v6h-36z" />
+        android:pathData="M74,34 L82,34 L82,58 L86,58 L78,76 L70,58 L74,58 Z" />
 </vector>

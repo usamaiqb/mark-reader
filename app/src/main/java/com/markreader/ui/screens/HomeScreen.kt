@@ -68,7 +68,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.launchPickerSignal.collectLatest {
-            launcher.launch(arrayOf("text/markdown", "text/plain"))
+            launcher.launch(arrayOf("*/*"))
         }
     }
 
@@ -100,7 +100,7 @@ fun HomeScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 ),
@@ -124,13 +124,13 @@ fun HomeScreen(
                 modifier = Modifier.size(128.dp)
             )
             Text(
-                text = "Open an .md file",
+                text = "Open a file",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = 24.dp)
             )
             Text(
-                text = "Choose a local Markdown document to start reading.",
+                text = "Choose a Markdown or source code file to start reading.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

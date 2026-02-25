@@ -19,7 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.FormatAlignJustify
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -273,7 +273,6 @@ fun SettingsScreen(
             Column {
                 SectionHeader("Appearance")
 
-                // App theme — standalone segment
                 SegmentedItem(position = SegmentPosition.Single) {
                     Column {
                         Text(
@@ -287,10 +286,12 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(2.dp))
+            // ── Reader ────────────────────────────────────────────────
+            Column {
+                SectionHeader("Reader")
 
-                // Dropdown group — connected segments
                 var showReaderLight by remember { mutableStateOf(false) }
                 var showReaderDark by remember { mutableStateOf(false) }
                 var showReadingFont by remember { mutableStateOf(false) }
@@ -348,7 +349,7 @@ fun SettingsScreen(
                     )
                 }
                 SegmentedItem(
-                    position = SegmentPosition.Last,
+                    position = SegmentPosition.Middle,
                     onClick = { showCodeFont = true }
                 ) {
                     InlineDropdownRow(
@@ -364,12 +365,7 @@ fun SettingsScreen(
                         onShowSheet = { showCodeFont = it }
                     )
                 }
-            }
-
-            // ── Typography ─────────────────────────────────────────────
-            Column {
-                SectionHeader("Typography")
-                SegmentedItem(position = SegmentPosition.First) {
+                SegmentedItem(position = SegmentPosition.Middle) {
                     SliderPreference(
                         label = "Font size",
                         valueLabel = "${fontSizeDraft.toInt()}sp",
@@ -384,7 +380,7 @@ fun SettingsScreen(
                         steps = 12
                     )
                 }
-                SegmentedItem(position = SegmentPosition.Last) {
+                SegmentedItem(position = SegmentPosition.Middle) {
                     SliderPreference(
                         label = "Line height",
                         valueLabel = "${String.format(Locale.US, "%.1f", lineHeightDraft)}x",
@@ -399,12 +395,7 @@ fun SettingsScreen(
                         steps = 7
                     )
                 }
-            }
-
-            // ── Layout ─────────────────────────────────────────────────
-            Column {
-                SectionHeader("Layout")
-                SegmentedItem(position = SegmentPosition.Single) {
+                SegmentedItem(position = SegmentPosition.Last) {
                     AlignmentPreference(
                         selected = preferences.textAlignment,
                         onSelect = viewModel::setTextAlignment
@@ -489,7 +480,7 @@ private fun AlignmentPreference(
             selected = selected == TextAlignmentPreference.Left,
             icon = {
                 Icon(
-                    imageVector = Icons.Filled.FormatAlignLeft,
+                    imageVector = Icons.AutoMirrored.Filled.FormatAlignLeft,
                     contentDescription = null
                 )
             }

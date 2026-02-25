@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.kapt")
 }
 
 android {
@@ -80,7 +81,7 @@ dependencies {
         exclude(group = "com.google.guava", module = "guava")
     }
     implementation("io.noties:prism4j:2.0.0")
-    annotationProcessor("io.noties:prism4j-bundler:2.0.0")
+    kapt("io.noties:prism4j-bundler:2.0.0")
 
     implementation("androidx.core:core-splashscreen:1.0.1")
 }
