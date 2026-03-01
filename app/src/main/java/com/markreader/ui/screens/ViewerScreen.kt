@@ -104,6 +104,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.R
 import com.markreader.data.AppThemeModePreference
+import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.ReaderThemePreference
 import com.markreader.data.TextAlignmentPreference
@@ -169,7 +170,7 @@ fun ViewerScreen(
     LaunchedEffect(uiState.needsPermission) {
         if (uiState.needsPermission) {
             viewModel.onPermissionRequestConsumed()
-            launcher.launch(arrayOf("*/*"))
+            launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
         }
     }
 
@@ -180,6 +181,9 @@ fun ViewerScreen(
     }
     LaunchedEffect(isSystemDark) {
         viewModel.onSystemDarkThemeChanged(isSystemDark)
+    }
+    LaunchedEffect(uiState.isSourceCode) {
+        isWordWrapEnabled = !uiState.isSourceCode
     }
 
     val fileName = if (uiState.fileName.isNotBlank()) uiState.fileName else "Untitled"
@@ -580,7 +584,7 @@ fun ViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.Button(
-                            onClick = { launcher.launch(arrayOf("*/*")) }
+                            onClick = { launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream")) }
                         ) {
                             Text(text = "Open Different File")
                         }
@@ -601,7 +605,7 @@ fun ViewerScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.Button(
                             onClick = {
-                                launcher.launch(arrayOf("*/*"))
+                                launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
                             }
                         ) {
                             Text(text = "Open Different File")
@@ -630,6 +634,8 @@ fun ViewerScreen(
                             fontSizeSp = prefs.fontSizeSp,
                             lineHeight = prefs.lineHeight,
                             readingFont = prefs.readingFont,
+                            codeFont = prefs.codeFont,
+                            isSourceCode = uiState.isSourceCode,
                             textAlignment = prefs.textAlignment
                         )
                     }
@@ -656,6 +662,8 @@ fun ViewerScreen(
                             fontSizeSp = prefs.fontSizeSp,
                             lineHeight = prefs.lineHeight,
                             readingFont = prefs.readingFont,
+                            codeFont = prefs.codeFont,
+                            isSourceCode = uiState.isSourceCode,
                             textAlignment = prefs.textAlignment
                         )
                     }
@@ -1074,6 +1082,8 @@ private data class ContentKey(
     val fontSizeSp: Float,
     val lineHeight: Float,
     val readingFont: ReadingFontPreference,
+    val codeFont: CodeFontPreference,
+    val isSourceCode: Boolean,
     val textAlignment: TextAlignmentPreference
 )
 
@@ -1095,14 +1105,18 @@ private fun RenderedTextView(
     fontSizeSp: Float,
     lineHeight: Float,
     readingFont: ReadingFontPreference,
+    codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono,
+    isSourceCode: Boolean = false,
     textAlignment: TextAlignmentPreference
 ) {
-    val contentKey = remember(text, fontSizeSp, lineHeight, readingFont, textAlignment) {
+    val contentKey = remember(text, fontSizeSp, lineHeight, readingFont, codeFont, isSourceCode, textAlignment) {
         ContentKey(
             textHash = text.hashCode(),
             fontSizeSp = fontSizeSp,
             lineHeight = lineHeight,
             readingFont = readingFont,
+            codeFont = codeFont,
+            isSourceCode = isSourceCode,
             textAlignment = textAlignment
         )
     }
@@ -1118,6 +1132,8 @@ private fun RenderedTextView(
                 fontSizeSp = -1f,
                 lineHeight = -1f,
                 readingFont = ReadingFontPreference.Merriweather,
+                codeFont = CodeFontPreference.JetBrainsMono,
+                isSourceCode = false,
                 textAlignment = TextAlignmentPreference.Left
             )
         )
@@ -1263,7 +1279,7 @@ private fun RenderedTextView(
                 } else if (isWordWrapEnabled) {
                     val tv = createStyledTextView(
                         scrollView.context, paddingPx, fontSizeSp, lineHeight,
-                        readingFont, textAlignment, textColor, selectionHighlightColor,
+                        readingFont, codeFont, isSourceCode, textAlignment, textColor, selectionHighlightColor,
                         horizontalScroll = false
                     )
                     scrollView.addView(
@@ -1276,7 +1292,7 @@ private fun RenderedTextView(
                 } else {
                     val tv = createStyledTextView(
                         scrollView.context, paddingPx, fontSizeSp, lineHeight,
-                        readingFont, textAlignment, textColor, selectionHighlightColor,
+                        readingFont, codeFont, isSourceCode, textAlignment, textColor, selectionHighlightColor,
                         horizontalScroll = true
                     )
                     val hsv = HorizontalScrollView(scrollView.context).apply {
@@ -1303,7 +1319,8 @@ private fun RenderedTextView(
                 // Force text and style to be re-applied below
                 lastTextHash = 0
                 lastStyleKey = ContentKey(0, -1f, -1f,
-                    ReadingFontPreference.Merriweather, TextAlignmentPreference.Left)
+                    ReadingFontPreference.Merriweather, CodeFontPreference.JetBrainsMono,
+                    false, TextAlignmentPreference.Left)
                 lastTextColor = textColor.inv()
                 lastWrapEnabledApplied = isWordWrapEnabled
                 lastSelectionHighlightColor = selectionHighlightColor.inv()
@@ -1325,7 +1342,7 @@ private fun RenderedTextView(
                         val segText = spanned.subSequence(start, end) as Spanned
                         val tv = createStyledTextView(
                             container.context, 0, fontSizeSp, lineHeight,
-                            readingFont, textAlignment, textColor, selectionHighlightColor,
+                            readingFont, codeFont, isSourceCode, textAlignment, textColor, selectionHighlightColor,
                             horizontalScroll = isCode
                         )
                         tv.text = segText
@@ -1373,7 +1390,7 @@ private fun RenderedTextView(
                         }
                         tv?.let {
                             applyStyleToTextView(
-                                it, fontSizeSp, lineHeight, readingFont,
+                                it, fontSizeSp, lineHeight, readingFont, codeFont, isSourceCode,
                                 textAlignment, textColor, selectionHighlightColor
                             )
                         }
@@ -1399,7 +1416,7 @@ private fun RenderedTextView(
                 }
                 if (lastStyleKey != contentKey) {
                     applyStyleToTextView(
-                        textView, fontSizeSp, lineHeight, readingFont,
+                        textView, fontSizeSp, lineHeight, readingFont, codeFont, isSourceCode,
                         textAlignment, textColor, selectionHighlightColor
                     )
                     lastStyleKey = contentKey
@@ -1646,12 +1663,39 @@ private fun splitByCodeBlocks(text: Spanned): List<Triple<Int, Int, Boolean>> {
     return segments
 }
 
+private fun resolveTypeface(
+    context: Context,
+    isSourceCode: Boolean,
+    readingFont: ReadingFontPreference,
+    codeFont: CodeFontPreference
+): Typeface = if (isSourceCode) {
+    when (codeFont) {
+        CodeFontPreference.JetBrainsMono -> try {
+            androidx.core.content.res.ResourcesCompat.getFont(
+                context, R.font.jetbrains_mono_regular
+            ) ?: Typeface.MONOSPACE
+        } catch (_: Exception) { Typeface.MONOSPACE }
+        CodeFontPreference.SystemMono -> Typeface.MONOSPACE
+    }
+} else {
+    when (readingFont) {
+        ReadingFontPreference.Merriweather -> try {
+            androidx.core.content.res.ResourcesCompat.getFont(
+                context, R.font.merriweather_regular
+            ) ?: Typeface.SERIF
+        } catch (_: Exception) { Typeface.SERIF }
+        ReadingFontPreference.SystemSerif -> Typeface.SERIF
+    }
+}
+
 private fun createStyledTextView(
     context: Context,
     paddingPx: Int,
     fontSizeSp: Float,
     lineHeight: Float,
     readingFont: ReadingFontPreference,
+    codeFont: CodeFontPreference,
+    isSourceCode: Boolean,
     textAlignment: TextAlignmentPreference,
     textColor: Int,
     selectionHighlightColor: Int,
@@ -1666,14 +1710,7 @@ private fun createStyledTextView(
         setTextIsSelectable(true)
         setTextColor(textColor)
         highlightColor = selectionHighlightColor
-        typeface = when (readingFont) {
-            ReadingFontPreference.Merriweather -> try {
-                androidx.core.content.res.ResourcesCompat.getFont(
-                    context, R.font.merriweather_regular
-                ) ?: Typeface.SERIF
-            } catch (_: Exception) { Typeface.SERIF }
-            ReadingFontPreference.SystemSerif -> Typeface.SERIF
-        }
+        typeface = resolveTypeface(context, isSourceCode, readingFont, codeFont)
         if (textAlignment == TextAlignmentPreference.Justified &&
             Build.VERSION.SDK_INT >= 26
         ) {
@@ -1692,6 +1729,8 @@ private fun applyStyleToTextView(
     fontSizeSp: Float,
     lineHeight: Float,
     readingFont: ReadingFontPreference,
+    codeFont: CodeFontPreference,
+    isSourceCode: Boolean,
     textAlignment: TextAlignmentPreference,
     textColor: Int,
     selectionHighlightColor: Int
@@ -1700,14 +1739,7 @@ private fun applyStyleToTextView(
     tv.setLineSpacing(0f, lineHeight)
     tv.setTextColor(textColor)
     tv.highlightColor = selectionHighlightColor
-    tv.typeface = when (readingFont) {
-        ReadingFontPreference.Merriweather -> try {
-            androidx.core.content.res.ResourcesCompat.getFont(
-                tv.context, R.font.merriweather_regular
-            ) ?: Typeface.SERIF
-        } catch (_: Exception) { Typeface.SERIF }
-        ReadingFontPreference.SystemSerif -> Typeface.SERIF
-    }
+    tv.typeface = resolveTypeface(tv.context, isSourceCode, readingFont, codeFont)
     if (textAlignment == TextAlignmentPreference.Justified &&
         Build.VERSION.SDK_INT >= 26
     ) {

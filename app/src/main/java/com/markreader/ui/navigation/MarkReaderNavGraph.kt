@@ -27,7 +27,7 @@ fun NavGraphBuilder.markReaderNavGraph(
         route = NavRoutes.Viewer.route,
         arguments = listOf(navArgument("uri") { nullable = true })
     ) { backStackEntry ->
-        val uri = backStackEntry.arguments?.getString("uri")?.let(Uri::decode) ?: externalUri
+        val uri = backStackEntry.arguments?.getString("uri") ?: externalUri
         ViewerScreen(
             onOpenSettings = { navController.navigateToSettings() },
             uriString = uri

@@ -18,6 +18,7 @@ import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
+import com.markreader.ui.markdown.SourceCodeRenderer
 import com.markreader.ExternalFileCache
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
@@ -75,6 +76,7 @@ class ViewerViewModel(
     }
     private var currentUri: String? = null
     private var detectedCodeLanguage: String? = null
+    private var sourceCodeRenderer = SourceCodeRenderer(false)
     private var loadingJob: Job? = null
     private var baseRendered: Spanned? = null
     private var renderDarkModeOverride: Boolean? = null
@@ -90,9 +92,7 @@ class ViewerViewModel(
 
     init {
         observePreferences()
-        if (initialUri != null) {
-            loadUri(initialUri)
-        } else {
+        if (initialUri == null) {
             _uiState.value = ViewerUiState(
                 isLoading = false,
                 errorMessage = "No file selected."
@@ -188,16 +188,19 @@ class ViewerViewModel(
             val codeLanguage = detectCodeLanguage(fileName)
             detectedCodeLanguage = codeLanguage
             val isSourceCode = codeLanguage != null
-            val markdownToRender = if (isSourceCode) {
-                "```${codeLanguage}\n${markdown}\n```"
-            } else {
-                markdown
-            }
-
             val isBinary = isProbablyBinary(markdown)
             val isDark = renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
-            renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
-            val rendered = if (isBinary) null else renderMarkdown(markdownToRender)
+            val rendered: android.text.Spanned? = when {
+                isBinary -> null
+                isSourceCode -> {
+                    sourceCodeRenderer = SourceCodeRenderer(isDark)
+                    renderSourceCode(markdown, codeLanguage!!)
+                }
+                else -> {
+                    renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
+                    renderMarkdown(markdown)
+                }
+            }
             val headings = if (isSourceCode) emptyList() else parseHeadings(markdown, rendered?.toString())
 
             if (rendered == null) {
@@ -212,10 +215,10 @@ class ViewerViewModel(
                     searchQuery = "",
                     searchMatchCount = 0,
                     searchMatchIndex = 0,
-                    warningMessage = if (isBinary) {
-                        "This file looks binary or malformed. Showing raw text."
-                    } else {
-                        "Unable to render this Markdown file. Showing raw text."
+                    warningMessage = when {
+                        isBinary -> "This file looks binary or malformed. Showing raw text."
+                        isSourceCode -> "Unable to highlight this source code file. Showing raw text."
+                        else -> "Unable to render this Markdown file. Showing raw text."
                     }
                 )
                 baseRendered = null
@@ -344,13 +347,17 @@ class ViewerViewModel(
 
                 if (requiresRebuild) {
                     val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-                    renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
                     val markdown = _uiState.value.rawText
                     if (markdown.isNotEmpty()) {
-                        val markdownToRender = detectedCodeLanguage?.let { lang ->
-                            "```${lang}\n${markdown}\n```"
-                        } ?: markdown
-                        val rendered = renderMarkdown(markdownToRender)
+                        val codeLanguage = detectedCodeLanguage
+                        val isSourceCode = _uiState.value.isSourceCode
+                        val rendered = if (isSourceCode && codeLanguage != null) {
+                            sourceCodeRenderer = SourceCodeRenderer(isDark)
+                            renderSourceCode(markdown, codeLanguage)
+                        } else {
+                            renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
+                            renderMarkdown(markdown)
+                        }
                         if (rendered != null) {
                             baseRendered = rendered
                             _uiState.value = _uiState.value.copy(rendered = rendered)
@@ -370,17 +377,29 @@ class ViewerViewModel(
         }
     }
 
+    private suspend fun renderSourceCode(code: String, language: String): Spanned? {
+        return try {
+            sourceCodeRenderer.highlight(code, language)
+        } catch (ex: Exception) {
+            null
+        }
+    }
+
     private fun rebuildRenderedForTheme() {
         val markdown = _uiState.value.rawText
         if (markdown.isBlank()) return
         val prefs = _uiState.value.userPreferences
         val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-        renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
-        val markdownToRender = detectedCodeLanguage?.let { lang ->
-            "```${lang}\n${markdown}\n```"
-        } ?: markdown
+        val codeLanguage = detectedCodeLanguage
+        val isSourceCode = _uiState.value.isSourceCode
         viewModelScope.launch {
-            val rendered = renderMarkdown(markdownToRender)
+            val rendered = if (isSourceCode && codeLanguage != null) {
+                sourceCodeRenderer = SourceCodeRenderer(isDark)
+                renderSourceCode(markdown, codeLanguage)
+            } else {
+                renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
+                renderMarkdown(markdown)
+            }
             if (rendered != null) {
                 baseRendered = rendered
                 _uiState.value = _uiState.value.copy(rendered = rendered)

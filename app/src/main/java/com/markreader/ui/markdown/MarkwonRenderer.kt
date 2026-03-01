@@ -10,8 +10,6 @@ import io.noties.markwon.MarkwonSpansFactory
 import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.syntax.Prism4jTheme
 import io.noties.markwon.syntax.SyntaxHighlightPlugin
-import io.noties.markwon.syntax.Prism4jThemeDarkula
-import io.noties.markwon.syntax.Prism4jThemeDefault
 import io.noties.prism4j.Prism4j
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,8 +55,8 @@ class MarkwonRenderer(
             SyntaxHighlightPlugin.create(
                 Prism4j(PrismGrammarLocatorImpl()),
                 ThemedPrism4jTheme(
-                    delegate = if (isDarkTheme) Prism4jThemeDarkula.create()
-                               else Prism4jThemeDefault.create(),
+                    delegate = if (isDarkTheme) Prism4jThemeOneDark()
+                               else Prism4jThemeOneLight(),
                     bg = codeBlockBackground
                 )
             )

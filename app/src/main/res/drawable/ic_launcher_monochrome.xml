@@ -3,12 +3,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Stylized M (Markdown) -->
+
+    <!-- M letterform -->
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M22,78 L22,30 L33,30 L44,60 L55,30 L66,30 L66,78 L55,78 L55,44 L44,68 L33,44 L33,78 Z" />
-    <!-- Down arrow (shaft + head) -->
+        android:fillColor="#3A3A3C"
+        android:pathData="M29,68V40h8l8,18l8,-18h8v28h-6V50l-10,18l-10,-18v18z" />
+
+    <!-- Download arrow - same color as M -->
     <path
-        android:fillColor="#FF000000"
-        android:pathData="M74,34 L82,34 L82,58 L86,58 L78,76 L70,58 L74,58 Z" />
+        android:fillColor="#3A3A3C"
+        android:pathData="M67,40h8v14h4l-8,14l-8,-14h4z" />
+
 </vector>

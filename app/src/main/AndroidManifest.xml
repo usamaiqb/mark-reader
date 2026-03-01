@@ -34,6 +34,7 @@
                 <data android:scheme="content" android:mimeType="text/*" />
                 <data android:scheme="content" android:mimeType="application/json" />
                 <data android:scheme="content" android:mimeType="application/xml" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
@@ -43,6 +44,7 @@
                 <data android:mimeType="text/*" />
                 <data android:mimeType="application/json" />
                 <data android:mimeType="application/xml" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
     </application>

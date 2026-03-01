@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="58dp"
+    android:height="36dp"
+    android:viewportWidth="58"
+    android:viewportHeight="36">
+
+    <!-- M letterform -->
+    <path
+        android:fillColor="#3A3A3C"
+        android:pathData="M4,32V4h8l8,18l8,-18h8v28h-6V14l-10,18l-10,-18v18z" />
+
+    <!-- Download arrow -->
+    <path
+        android:fillColor="#007AFF"
+        android:pathData="M42,4h8v14h4l-8,14l-8,-14h4z" />
+
+</vector>

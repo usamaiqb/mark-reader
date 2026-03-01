@@ -68,7 +68,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.launchPickerSignal.collectLatest {
-            launcher.launch(arrayOf("*/*"))
+            launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
         }
     }
 
@@ -118,7 +118,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Image(
-                painter = painterResource(id = R.drawable.ic_launcher_monochrome),
+                painter = painterResource(id = R.drawable.ic_logo),
                 contentDescription = "MarkReader app icon",
                 colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.size(128.dp)
