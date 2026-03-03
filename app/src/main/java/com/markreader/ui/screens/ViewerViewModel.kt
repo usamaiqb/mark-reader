@@ -68,6 +68,12 @@ class ViewerViewModel(
     application: Application,
     private val initialUri: String?
 ) : AndroidViewModel(application) {
+    private data class RenderCacheKey(
+        val isDark: Boolean,
+        val isSourceCode: Boolean,
+        val codeLanguage: String?
+    )
+
     private val repository = PreferencesRepository.getInstance(application)
     private var systemDarkTheme = false
     private var renderer = run {
@@ -78,8 +84,13 @@ class ViewerViewModel(
     private var detectedCodeLanguage: String? = null
     private var sourceCodeRenderer = SourceCodeRenderer(false)
     private var loadingJob: Job? = null
+    private var rebuildJob: Job? = null
     private var baseRendered: Spanned? = null
     private var renderDarkModeOverride: Boolean? = null
+    private var preferencesLoaded = false
+    private var pendingExternalRerender = initialUri != null
+    private var renderCacheTextHash = 0
+    private val renderCache = mutableMapOf<RenderCacheKey, Spanned>()
 
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
@@ -169,6 +180,12 @@ class ViewerViewModel(
                 return@launch
             }
 
+            val textHash = markdown.hashCode()
+            if (renderCacheTextHash != textHash) {
+                renderCacheTextHash = textHash
+                renderCache.clear()
+            }
+
             if (markdown.isBlank()) {
                 loadingJob?.cancel()
                 _uiState.value = _uiState.value.copy(
@@ -227,6 +244,7 @@ class ViewerViewModel(
 
             loadingJob?.cancel()
             baseRendered = rendered
+            renderCache[RenderCacheKey(isDark, isSourceCode, codeLanguage)] = rendered
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 isLoadingVisible = false,
@@ -242,6 +260,10 @@ class ViewerViewModel(
             )
 
             applySearchQuery(_uiState.value.searchQuery)
+            if (pendingExternalRerender && preferencesLoaded) {
+                pendingExternalRerender = false
+                scheduleRebuild()
+            }
         }
     }
 
@@ -316,14 +338,14 @@ class ViewerViewModel(
     fun onReadingSurfaceModeChanged(isDarkSurface: Boolean) {
         if (renderDarkModeOverride == isDarkSurface) return
         renderDarkModeOverride = isDarkSurface
-        rebuildRenderedForTheme()
+        scheduleRebuild()
     }
 
     fun onSystemDarkThemeChanged(isDark: Boolean) {
         if (systemDarkTheme == isDark) return
         systemDarkTheme = isDark
         if (renderDarkModeOverride == null) {
-            rebuildRenderedForTheme()
+            scheduleRebuild()
         }
     }
 
@@ -334,6 +356,9 @@ class ViewerViewModel(
     private fun observePreferences() {
         viewModelScope.launch {
             repository.preferences.collect { prefs ->
+                if (!preferencesLoaded) {
+                    preferencesLoaded = true
+                }
                 val previous = _uiState.value.userPreferences
                 val requiresRebuild = prefs.readingFont != previous.readingFont ||
                     prefs.codeFont != previous.codeFont ||
@@ -345,25 +370,13 @@ class ViewerViewModel(
 
                 _uiState.value = _uiState.value.copy(userPreferences = prefs)
 
+                if (pendingExternalRerender && _uiState.value.rawText.isNotBlank()) {
+                    pendingExternalRerender = false
+                    scheduleRebuild()
+                }
+
                 if (requiresRebuild) {
-                    val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-                    val markdown = _uiState.value.rawText
-                    if (markdown.isNotEmpty()) {
-                        val codeLanguage = detectedCodeLanguage
-                        val isSourceCode = _uiState.value.isSourceCode
-                        val rendered = if (isSourceCode && codeLanguage != null) {
-                            sourceCodeRenderer = SourceCodeRenderer(isDark)
-                            renderSourceCode(markdown, codeLanguage)
-                        } else {
-                            renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
-                            renderMarkdown(markdown)
-                        }
-                        if (rendered != null) {
-                            baseRendered = rendered
-                            _uiState.value = _uiState.value.copy(rendered = rendered)
-                            applySearchQuery(_uiState.value.searchQuery)
-                        }
-                    }
+                    scheduleRebuild()
                 }
             }
         }
@@ -393,6 +406,9 @@ class ViewerViewModel(
         val codeLanguage = detectedCodeLanguage
         val isSourceCode = _uiState.value.isSourceCode
         viewModelScope.launch {
+            if (tryApplyCachedRender(isDark, isSourceCode, codeLanguage)) {
+                return@launch
+            }
             val rendered = if (isSourceCode && codeLanguage != null) {
                 sourceCodeRenderer = SourceCodeRenderer(isDark)
                 renderSourceCode(markdown, codeLanguage)
@@ -402,10 +418,38 @@ class ViewerViewModel(
             }
             if (rendered != null) {
                 baseRendered = rendered
+                renderCache[RenderCacheKey(isDark, isSourceCode, codeLanguage)] = rendered
                 _uiState.value = _uiState.value.copy(rendered = rendered)
                 applySearchQuery(_uiState.value.searchQuery)
             }
         }
+    }
+
+    private fun scheduleRebuild() {
+        rebuildJob?.cancel()
+        val prefs = _uiState.value.userPreferences
+        val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
+        val codeLanguage = detectedCodeLanguage
+        val isSourceCode = _uiState.value.isSourceCode
+        if (tryApplyCachedRender(isDark, isSourceCode, codeLanguage)) {
+            return
+        }
+        rebuildJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(120)
+            rebuildRenderedForTheme()
+        }
+    }
+
+    private fun tryApplyCachedRender(
+        isDark: Boolean,
+        isSourceCode: Boolean,
+        codeLanguage: String?
+    ): Boolean {
+        val cached = renderCache[RenderCacheKey(isDark, isSourceCode, codeLanguage)] ?: return false
+        baseRendered = cached
+        _uiState.value = _uiState.value.copy(rendered = cached)
+        applySearchQuery(_uiState.value.searchQuery)
+        return true
     }
 
     private fun isProbablyBinary(text: String): Boolean {
