@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -21,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -43,11 +45,12 @@ import kotlinx.coroutines.flow.collectLatest
 fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenViewer: (String) -> Unit,
+    onOpenEditor: (String, Boolean) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = viewModel()
 ) {
     val context = LocalContext.current
 
-    val launcher = rememberLauncherForActivityResult(
+    val openFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
             if (uri != null) {
@@ -66,15 +69,43 @@ fun HomeScreen(
         }
     )
 
+    val createFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown"),
+        onResult = { uri ->
+            if (uri != null) {
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                } catch (ex: SecurityException) { } catch (ex: IllegalArgumentException) { }
+            }
+            viewModel.onNewFileCreated(uri)
+        }
+    )
+
     LaunchedEffect(Unit) {
         viewModel.launchPickerSignal.collectLatest {
-            launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
+            openFileLauncher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.launchCreateSignal.collectLatest {
+            createFileLauncher.launch("untitled.md")
         }
     }
 
     LaunchedEffect(Unit) {
         viewModel.navigateToViewer.collectLatest { uriString ->
             onOpenViewer(uriString)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.navigateToEditor.collectLatest { (uriString, isMarkdown) ->
+            onOpenEditor(uriString, isMarkdown)
         }
     }
 
@@ -150,6 +181,23 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                 Text(
                     text = "Open File",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            OutlinedButton(
+                onClick = viewModel::onNewFileRequested,
+                shape = MaterialTheme.shapes.extraLarge,
+                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp),
+                modifier = Modifier.padding(top = 12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                )
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(
+                    text = "New File",
                     style = MaterialTheme.typography.titleMedium
                 )
             }

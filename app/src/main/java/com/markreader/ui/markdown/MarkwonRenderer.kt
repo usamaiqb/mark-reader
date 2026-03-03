@@ -7,6 +7,7 @@ import androidx.annotation.ColorInt
 import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon
 import io.noties.markwon.MarkwonSpansFactory
+import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.syntax.Prism4jTheme
 import io.noties.markwon.syntax.SyntaxHighlightPlugin
@@ -50,6 +51,7 @@ class MarkwonRenderer(
     private val inlineCodeCorner = 4f * context.resources.displayMetrics.density
 
     private val markwon: Markwon = Markwon.builder(context)
+        .usePlugin(TablePlugin.create(context))
         .usePlugin(ImagesPlugin.create())
         .usePlugin(
             SyntaxHighlightPlugin.create(

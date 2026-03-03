@@ -52,8 +52,10 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.WrapText
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
@@ -128,7 +130,10 @@ import com.markreader.ui.theme.SepiaSurface
 @Composable
 fun ViewerScreen(
     onOpenSettings: () -> Unit,
-    uriString: String?
+    onOpenEditor: (String, Boolean) -> Unit = { _, _ -> },
+    uriString: String?,
+    fileSaved: Boolean = false,
+    onFileSavedConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val viewModel: ViewerViewModel = viewModel(
@@ -184,6 +189,12 @@ fun ViewerScreen(
     }
     LaunchedEffect(uiState.isSourceCode) {
         isWordWrapEnabled = !uiState.isSourceCode
+    }
+    LaunchedEffect(fileSaved) {
+        if (fileSaved) {
+            uriString?.let { viewModel.loadUri(it, forceReload = true) }
+            onFileSavedConsumed()
+        }
     }
 
     val fileName = if (uiState.fileName.isNotBlank()) uiState.fileName else "Untitled"
@@ -313,7 +324,26 @@ fun ViewerScreen(
         viewModel.onSearchToggled()
     }
 
+    // Determine if this file is editable (loaded, not binary, not error)
+    val canEdit = !uiState.isLoading && uiState.errorMessage == null &&
+        !uiState.isEmptyFile && uriString != null
+    val isMarkdownFile = !uiState.isSourceCode &&
+        uiState.fileName.substringAfterLast('.', "").lowercase().let { it == "md" || it == "markdown" }
+
     Scaffold(
+        floatingActionButton = {
+            if (canEdit && !uiState.isSearchActive) {
+                FloatingActionButton(
+                    onClick = {
+                        onOpenEditor(uriString!!, isMarkdownFile)
+                    },
+                    containerColor = chromeColors.tonalContainer,
+                    contentColor = chromeColors.content
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit file")
+                }
+            }
+        },
         topBar = {
             Column {
                 if (uiState.isSearchActive) {

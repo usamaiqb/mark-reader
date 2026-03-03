@@ -6,4 +6,7 @@ sealed class NavRoutes(val route: String) {
         fun createRoute(uri: String) = "viewer?uri=$uri"
     }
     data object Settings : NavRoutes("settings")
+    data object Editor : NavRoutes("editor?uri={uri}&isMarkdown={isMarkdown}") {
+        fun createRoute(uri: String, isMarkdown: Boolean) = "editor?uri=$uri&isMarkdown=$isMarkdown"
+    }
 }
