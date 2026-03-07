@@ -37,7 +37,9 @@ import com.markreader.data.TextAlignmentPreference
 import com.markreader.ui.markdown.CodeBlockMarkerSpan
 import com.markreader.ui.markdown.TableMarkerSpan
 import com.markreader.ui.zoom.ZoomableContentLayout
-import android.graphics.Paint
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import io.noties.markwon.ext.tables.TableRowSpan
 
 private enum class SegmentType { Text, Code, Table }
@@ -351,86 +353,34 @@ fun RenderedTextView(
                             } else {
                                 segText
                             }
-                            val needsCodeHScroll =
-                                !useGlobalHorizontalScroll && isCode
-                            val tv = createStyledTextView(
-                                container.context, 0, fontSizeSp, lineHeight,
-                                readingFont, codeFont,
-                                isSourceCode = isSourceCode || isCode,
-                                textAlignment = textAlignment,
-                                textColor = textColor,
-                                selectionHighlightColor = selectionHighlightColor,
-                                horizontalScroll = needsCodeHScroll
-                            )
-                            tv.text = segmentContent
-                            if (isTable) {
-                                // Replicate TableRowsScheduler: set up invalidator
-                                // so tables re-measure with correct row heights
-                                val invalidateRunnable = Runnable {
-                                    tv.text = tv.text
-                                }
-                                val invalidator = TableRowSpan.Invalidator {
-                                    tv.removeCallbacks(invalidateRunnable)
-                                    tv.post(invalidateRunnable)
-                                }
-                                for (span in segmentContent.getSpans(
-                                    0, segmentContent.length,
-                                    TableRowSpan::class.java
-                                )) {
-                                    span.invalidator(invalidator)
-                                }
-                            }
-                            val contentView = if (isTable && !useGlobalHorizontalScroll) {
-                                val screenWidth = container.context.resources
-                                    .displayMetrics.widthPixels
-                                val tableMinWidth = measureTableMinWidth(
-                                    segmentContent, tv.paint, density
+                            if (isTable && !useGlobalHorizontalScroll) {
+                                val tableView = buildTableLayout(
+                                    segmentContent, container.context, textColor,
+                                    fontSizeSp, lineHeight, readingFont,
+                                    selectionHighlightColor, density
                                 )
-                                val tableWidth = maxOf(tableMinWidth, screenWidth)
-                                tv.minimumWidth = tableWidth
-                                HorizontalScrollView(container.context).apply {
-                                    isHorizontalScrollBarEnabled = true
-                                    addView(
-                                        tv,
-                                        ViewGroup.LayoutParams(
-                                            ViewGroup.LayoutParams.MATCH_PARENT,
-                                            ViewGroup.LayoutParams.WRAP_CONTENT
+                                val contentView = if (tableView != null) {
+                                    HorizontalScrollView(container.context).apply {
+                                        isHorizontalScrollBarEnabled = true
+                                        addView(
+                                            tableView,
+                                            ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                ViewGroup.LayoutParams.WRAP_CONTENT
+                                            )
                                         )
+                                    }
+                                } else {
+                                    // Fallback: plain text
+                                    val tv = createStyledTextView(
+                                        container.context, 0, fontSizeSp, lineHeight,
+                                        readingFont, codeFont, isSourceCode, textAlignment,
+                                        textColor, selectionHighlightColor,
+                                        horizontalScroll = false
                                     )
+                                    tv.text = segmentContent
+                                    tv
                                 }
-                            } else if (needsCodeHScroll) {
-                                HorizontalScrollView(container.context).apply {
-                                    isHorizontalScrollBarEnabled = true
-                                    addView(
-                                        tv,
-                                        ViewGroup.LayoutParams(
-                                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                                            ViewGroup.LayoutParams.WRAP_CONTENT
-                                        )
-                                    )
-                                }
-                            } else {
-                                tv
-                            }
-                            if (isCode) {
-                                val block = FrameLayout(container.context).apply {
-                                    setBackgroundColor(codeBlockBackgroundColor)
-                                    addView(
-                                        contentView,
-                                        ViewGroup.LayoutParams(
-                                            ViewGroup.LayoutParams.MATCH_PARENT,
-                                            ViewGroup.LayoutParams.WRAP_CONTENT
-                                        )
-                                    )
-                                }
-                                container.addView(
-                                    block,
-                                    ViewGroup.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.WRAP_CONTENT
-                                    )
-                                )
-                            } else {
                                 container.addView(
                                     contentView,
                                     ViewGroup.LayoutParams(
@@ -438,6 +388,60 @@ fun RenderedTextView(
                                         ViewGroup.LayoutParams.WRAP_CONTENT
                                     )
                                 )
+                            } else {
+                                val needsCodeHScroll =
+                                    !useGlobalHorizontalScroll && isCode
+                                val tv = createStyledTextView(
+                                    container.context, 0, fontSizeSp, lineHeight,
+                                    readingFont, codeFont,
+                                    isSourceCode = isSourceCode || isCode,
+                                    textAlignment = textAlignment,
+                                    textColor = textColor,
+                                    selectionHighlightColor = selectionHighlightColor,
+                                    horizontalScroll = needsCodeHScroll
+                                )
+                                tv.text = segmentContent
+                                val contentView = if (needsCodeHScroll) {
+                                    HorizontalScrollView(container.context).apply {
+                                        isHorizontalScrollBarEnabled = true
+                                        addView(
+                                            tv,
+                                            ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                ViewGroup.LayoutParams.WRAP_CONTENT
+                                            )
+                                        )
+                                    }
+                                } else {
+                                    tv
+                                }
+                                if (isCode) {
+                                    val block = FrameLayout(container.context).apply {
+                                        setBackgroundColor(codeBlockBackgroundColor)
+                                        addView(
+                                            contentView,
+                                            ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                                ViewGroup.LayoutParams.WRAP_CONTENT
+                                            )
+                                        )
+                                    }
+                                    container.addView(
+                                        block,
+                                        ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.WRAP_CONTENT
+                                        )
+                                    )
+                                } else {
+                                    container.addView(
+                                        contentView,
+                                        ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.WRAP_CONTENT
+                                        )
+                                    )
+                                }
                             }
                         }
                         lastTextHash = textHash
@@ -445,8 +449,10 @@ fun RenderedTextView(
                         lastStyleKey = contentKey
                         lastTextColor = textColor
                         lastSelectionHighlightColor = selectionHighlightColor
-                    } else if (lastStyleKey != contentKey) {
-                        // Rebuild segments to refresh code spans when style/theme changes.
+                    } else if (lastStyleKey != contentKey || lastTextColor != textColor ||
+                        lastSelectionHighlightColor != selectionHighlightColor
+                    ) {
+                        // Rebuild segments to refresh table colors and code spans
                         lastTextHash = 0
                     }
                     if (lastStyleKey != contentKey || lastTextColor != textColor ||
@@ -767,51 +773,84 @@ private fun hasTables(text: Spanned): Boolean {
     return text.getSpans(0, text.length, TableMarkerSpan::class.java).isNotEmpty()
 }
 
-private fun measureTableMinWidth(
+private fun buildTableLayout(
     text: Spanned,
-    paint: Paint,
+    context: Context,
+    textColor: Int,
+    fontSizeSp: Float,
+    lineHeight: Float,
+    readingFont: ReadingFontPreference,
+    selectionHighlightColor: Int,
     density: Float
-): Int {
+): android.widget.TableLayout? {
     val tableRowSpans = text.getSpans(0, text.length, TableRowSpan::class.java)
-    if (tableRowSpans.isEmpty()) return 0
+    if (tableRowSpans.isEmpty()) return null
+
+    tableRowSpans.sortBy { text.getSpanStart(it) }
 
     val cellsField = try {
         TableRowSpan::class.java.getDeclaredField("cells").apply { isAccessible = true }
-    } catch (_: Exception) { return 0 }
+    } catch (_: Exception) { return null }
 
-    val cellPadding = (4 * density).toInt()
-    val borderWidth = (density + 0.5f).toInt()
+    val cellPaddingPx = (8 * density).toInt()
+    val borderWidthPx = maxOf(1, density.toInt())
+    // Markwon defaults: border = textColor at 75/255 alpha, odd row bg = textColor at 22/255 alpha
+    val borderColor = (textColor and 0x00FFFFFF) or (75 shl 24)
+    val oddRowBg = (textColor and 0x00FFFFFF) or (22 shl 24)
+    val typeface = resolveTypeface(context, false, readingFont, CodeFontPreference.JetBrainsMono)
 
-    var maxColumns = 0
-    val columnWidths = mutableMapOf<Int, Float>()
+    val tableLayout = android.widget.TableLayout(context)
 
-    for (rowSpan in tableRowSpans) {
+    for ((rowIndex, rowSpan) in tableRowSpans.withIndex()) {
         @Suppress("UNCHECKED_CAST")
         val cells = try {
             cellsField.get(rowSpan) as? List<TableRowSpan.Cell> ?: continue
         } catch (_: Exception) { continue }
 
-        maxColumns = maxOf(maxColumns, cells.size)
+        val isHeader = rowIndex == 0
+        val isOdd = !isHeader && rowIndex % 2 == 1
+
+        val tableRow = android.widget.TableRow(context)
 
         for ((colIndex, cell) in cells.withIndex()) {
-            val cellText = cell.text()
-            val width = paint.measureText(cellText, 0, cellText.length)
-            columnWidths[colIndex] = maxOf(columnWidths[colIndex] ?: 0f, width)
+            val cellBg = GradientDrawable().apply {
+                setStroke(borderWidthPx, borderColor)
+                setColor(if (isOdd) oddRowBg else Color.TRANSPARENT)
+            }
+            val cellTv = TextView(context).apply {
+                this.text = cell.text()
+                textSize = fontSizeSp
+                setLineSpacing(0f, lineHeight)
+                setTextColor(textColor)
+                setPadding(cellPaddingPx, cellPaddingPx, cellPaddingPx, cellPaddingPx)
+                this.typeface = typeface
+                if (isHeader) setTypeface(this.typeface, Typeface.BOLD)
+                highlightColor = selectionHighlightColor
+                background = cellBg
+                gravity = when (cell.alignment()) {
+                    TableRowSpan.ALIGN_CENTER -> Gravity.CENTER_HORIZONTAL
+                    TableRowSpan.ALIGN_RIGHT -> Gravity.END
+                    else -> Gravity.START
+                }
+            }
+            val params = android.widget.TableRow.LayoutParams(
+                android.widget.TableRow.LayoutParams.WRAP_CONTENT,
+                android.widget.TableRow.LayoutParams.MATCH_PARENT
+            )
+            // Overlap adjacent borders so they don't double up
+            if (colIndex > 0) params.leftMargin = -borderWidthPx
+            tableRow.addView(cellTv, params)
         }
+
+        val rowParams = android.widget.TableLayout.LayoutParams(
+            android.widget.TableLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.TableLayout.LayoutParams.WRAP_CONTENT
+        )
+        if (rowIndex > 0) rowParams.topMargin = -borderWidthPx
+        tableLayout.addView(tableRow, rowParams)
     }
 
-    if (maxColumns == 0) return 0
-
-    // TableRowSpan distributes width equally among columns,
-    // so min width = widestColumn * numColumns + padding + borders
-    var maxCellWidth = 0f
-    for ((_, w) in columnWidths) {
-        maxCellWidth = maxOf(maxCellWidth, w)
-    }
-    val totalWidth = (maxCellWidth + cellPadding * 2) * maxColumns +
-        borderWidth * (maxColumns + 1)
-
-    return totalWidth.toInt()
+    return tableLayout
 }
 
 private fun stripBackgroundSpans(text: Spanned): Spanned {
