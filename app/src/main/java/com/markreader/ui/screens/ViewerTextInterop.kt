@@ -35,7 +35,13 @@ import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.ui.markdown.CodeBlockMarkerSpan
+import com.markreader.ui.markdown.TableMarkerSpan
 import com.markreader.ui.zoom.ZoomableContentLayout
+import android.graphics.Paint
+import io.noties.markwon.ext.tables.TableRowSpan
+
+private enum class SegmentType { Text, Code, Table }
+private data class Segment(val start: Int, val end: Int, val type: SegmentType)
 
 private data class ContentKey(
     val textHash: Int,
@@ -102,7 +108,7 @@ fun RenderedTextView(
     var lastTextColor by remember { mutableStateOf(textColor) }
     var lastWrapEnabledApplied by remember { mutableStateOf(isWordWrapEnabled) }
     var lastSelectionHighlightColor by remember { mutableStateOf(selectionHighlightColor) }
-    var splitBoundaries by remember { mutableStateOf<List<Triple<Int, Int, Boolean>>>(emptyList()) }
+    var splitBoundaries by remember { mutableStateOf<List<Segment>>(emptyList()) }
     val currentHeadings by rememberUpdatedState(headings)
     val currentSplitBoundaries by rememberUpdatedState(splitBoundaries)
     val onActiveHeadingChangedState by rememberUpdatedState(onActiveHeadingChanged)
@@ -120,10 +126,9 @@ fun RenderedTextView(
             factory = { context ->
                 val density = context.resources.displayMetrics.density
                 val paddingPx = (16 * density).toInt()
-                val hasCodeBlocks = text is Spanned && hasCodeBlocks(text)
                 val isSplitMode = text is Spanned && (
-                    (isWordWrapEnabled && !isCodeBlockWrapEnabled) ||
-                        (!isWordWrapEnabled && hasCodeBlocks)
+                    (isWordWrapEnabled && (!isCodeBlockWrapEnabled || hasTables(text))) ||
+                        (!isWordWrapEnabled && hasCodeBlocks(text))
                     )
                 val useGlobalHorizontalScroll = !isWordWrapEnabled
 
@@ -215,20 +220,21 @@ fun RenderedTextView(
                     else -> rootView as ScrollView
                 }
                 val child = scrollView.getChildAt(0) ?: return@AndroidView
-                val hasCodeBlocks = text is Spanned && hasCodeBlocks(text)
                 val isSplitMode = text is Spanned && (
-                    (isWordWrapEnabled && !isCodeBlockWrapEnabled) ||
-                        (!isWordWrapEnabled && hasCodeBlocks)
+                    (isWordWrapEnabled && (!isCodeBlockWrapEnabled || hasTables(text))) ||
+                        (!isWordWrapEnabled && hasCodeBlocks(text))
                     )
                 val useGlobalHorizontalScroll = !isWordWrapEnabled
-                val modeChanged = lastWrapEnabled != isWordWrapEnabled ||
+                val wrapChanged = lastWrapEnabled != isWordWrapEnabled ||
                     lastCodeBlockWrapEnabled != isCodeBlockWrapEnabled
+                val currentIsSplit = child is LinearLayout
+                val needsRestructure = wrapChanged || (isSplitMode != currentIsSplit)
                 val density = scrollView.context.resources.displayMetrics.density
                 val paddingPx = (16 * density).toInt()
 
-                if (modeChanged) {
+                if (needsRestructure) {
                     val hasGlobalHorizontalScroll = rootView is HorizontalScrollView
-                    if (useGlobalHorizontalScroll != hasGlobalHorizontalScroll) {
+                    if (wrapChanged && useGlobalHorizontalScroll != hasGlobalHorizontalScroll) {
                         val parent = scrollView.parent as? ViewGroup
                         parent?.removeView(scrollView)
                         zoomLayout.removeAllViews()
@@ -308,20 +314,13 @@ fun RenderedTextView(
 
                     lastWrapEnabled = isWordWrapEnabled
                     lastCodeBlockWrapEnabled = isCodeBlockWrapEnabled
-                    // Force text and style to be re-applied below
+                    // Force text to be re-applied; new views are already styled
                     lastTextHash = 0
-                    lastStyleKey = ContentKey(
-                        0,
-                        -1f,
-                        -1f,
-                        ReadingFontPreference.Merriweather,
-                        CodeFontPreference.JetBrainsMono,
-                        false,
-                        TextAlignmentPreference.Left
-                    )
-                    lastTextColor = textColor.inv()
+                    lastTextRef = null
+                    lastStyleKey = contentKey
+                    lastTextColor = textColor
                     lastWrapEnabledApplied = isWordWrapEnabled
-                    lastSelectionHighlightColor = selectionHighlightColor.inv()
+                    lastSelectionHighlightColor = selectionHighlightColor
                 }
 
                 // Text / style updates
@@ -332,20 +331,28 @@ fun RenderedTextView(
                     val container = currentChild
                     val spanned = text as Spanned
                     val textRefChanged = spanned !== lastTextRef
-                    val textHash = spanned.toString().hashCode()
+                    val textHash = if (textRefChanged || lastTextHash == 0) {
+                        spanned.toString().hashCode()
+                    } else {
+                        lastTextHash
+                    }
                     if (textRefChanged || textHash != lastTextHash) {
-                        val segments = splitByCodeBlocks(spanned)
+                        val splitCode = !isCodeBlockWrapEnabled || !isWordWrapEnabled
+                        val splitTables = isWordWrapEnabled
+                        val segments = splitByMarkers(spanned, splitCode, splitTables)
                         splitBoundaries = segments
                         container.removeAllViews()
-                        for ((start, end, isCode) in segments) {
+                        for ((start, end, type) in segments) {
+                            val isCode = type == SegmentType.Code
+                            val isTable = type == SegmentType.Table
                             val segText = spanned.subSequence(start, end) as Spanned
-                            val segmentBackground = if (isCode) codeBlockBackgroundColor else null
                             val segmentContent = if (isCode) {
                                 stripBackgroundSpans(segText)
                             } else {
                                 segText
                             }
-                            val needsHorizontalScroll = !useGlobalHorizontalScroll && isCode
+                            val needsCodeHScroll =
+                                !useGlobalHorizontalScroll && isCode
                             val tv = createStyledTextView(
                                 container.context, 0, fontSizeSp, lineHeight,
                                 readingFont, codeFont,
@@ -353,10 +360,45 @@ fun RenderedTextView(
                                 textAlignment = textAlignment,
                                 textColor = textColor,
                                 selectionHighlightColor = selectionHighlightColor,
-                                horizontalScroll = needsHorizontalScroll
+                                horizontalScroll = needsCodeHScroll
                             )
                             tv.text = segmentContent
-                            val contentView = if (needsHorizontalScroll) {
+                            if (isTable) {
+                                // Replicate TableRowsScheduler: set up invalidator
+                                // so tables re-measure with correct row heights
+                                val invalidateRunnable = Runnable {
+                                    tv.text = tv.text
+                                }
+                                val invalidator = TableRowSpan.Invalidator {
+                                    tv.removeCallbacks(invalidateRunnable)
+                                    tv.post(invalidateRunnable)
+                                }
+                                for (span in segmentContent.getSpans(
+                                    0, segmentContent.length,
+                                    TableRowSpan::class.java
+                                )) {
+                                    span.invalidator(invalidator)
+                                }
+                            }
+                            val contentView = if (isTable && !useGlobalHorizontalScroll) {
+                                val screenWidth = container.context.resources
+                                    .displayMetrics.widthPixels
+                                val tableMinWidth = measureTableMinWidth(
+                                    segmentContent, tv.paint, density
+                                )
+                                val tableWidth = maxOf(tableMinWidth, screenWidth)
+                                tv.minimumWidth = tableWidth
+                                HorizontalScrollView(container.context).apply {
+                                    isHorizontalScrollBarEnabled = true
+                                    addView(
+                                        tv,
+                                        ViewGroup.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.WRAP_CONTENT
+                                        )
+                                    )
+                                }
+                            } else if (needsCodeHScroll) {
                                 HorizontalScrollView(container.context).apply {
                                     isHorizontalScrollBarEnabled = true
                                     addView(
@@ -370,9 +412,9 @@ fun RenderedTextView(
                             } else {
                                 tv
                             }
-                            if (segmentBackground != null && isCode) {
+                            if (isCode) {
                                 val block = FrameLayout(container.context).apply {
-                                    setBackgroundColor(segmentBackground)
+                                    setBackgroundColor(codeBlockBackgroundColor)
                                     addView(
                                         contentView,
                                         ViewGroup.LayoutParams(
@@ -441,19 +483,19 @@ fun RenderedTextView(
 
                     when (text) {
                         is Spanned -> {
-                            val textRefChanged = text !== lastTextRef
-                            val textHash = text.toString().hashCode()
-                            if (textRefChanged || textHash != lastTextHash) {
+                            if (text !== lastTextRef) {
                                 textView.text = text
-                                lastTextHash = textHash
+                                lastTextHash = text.toString().hashCode()
                                 lastTextRef = text
                             }
                         }
                         else -> {
-                            val textHash = text.hashCode()
-                            if (textHash != lastTextHash) {
-                                textView.text = text.toString()
-                                lastTextHash = textHash
+                            if (text !== lastTextRef) {
+                                val textHash = text.hashCode()
+                                if (textHash != lastTextHash) {
+                                    textView.text = text.toString()
+                                    lastTextHash = textHash
+                                }
                                 lastTextRef = text
                             }
                         }
@@ -568,7 +610,7 @@ private fun findActiveHeadingIndex(
 
 private fun findActiveHeadingInSplit(
     container: LinearLayout,
-    boundaries: List<Triple<Int, Int, Boolean>>,
+    boundaries: List<Segment>,
     headings: List<HeadingItem>,
     scrollY: Int
 ): Int {
@@ -597,7 +639,7 @@ private fun findActiveHeadingInSplit(
 private fun getAnchorFromView(
     scrollView: ScrollView,
     child: android.view.View,
-    boundaries: List<Triple<Int, Int, Boolean>>
+    boundaries: List<Segment>
 ): Int? {
     val sy = scrollView.scrollY
     when (child) {
@@ -605,7 +647,7 @@ private fun getAnchorFromView(
             for (i in 0 until child.childCount.coerceAtMost(boundaries.size)) {
                 val seg = child.getChildAt(i)
                 if (seg.top + seg.height > sy) {
-                    val (segStart, _, _) = boundaries[i]
+                    val segStart = boundaries[i].start
                     val tv = extractTextView(seg)
                     val layout = tv?.layout
                     return if (layout != null) {
@@ -617,7 +659,7 @@ private fun getAnchorFromView(
                     }
                 }
             }
-            return boundaries.lastOrNull()?.first
+            return boundaries.lastOrNull()?.start
         }
         is HorizontalScrollView -> {
             val tv = child.getChildAt(0) as? TextView
@@ -636,7 +678,7 @@ private fun getAnchorFromView(
 
 private fun resolveScrollY(
     scrollView: ScrollView,
-    boundaries: List<Triple<Int, Int, Boolean>>,
+    boundaries: List<Segment>,
     offset: Int
 ): Int {
     val child = scrollView.getChildAt(0) ?: return 0
@@ -655,7 +697,7 @@ private fun resolveScrollY(
 
 private fun scrollToOffsetInSplit(
     container: LinearLayout,
-    boundaries: List<Triple<Int, Int, Boolean>>,
+    boundaries: List<Segment>,
     offset: Int
 ): Int {
     for (i in boundaries.indices) {
@@ -677,36 +719,99 @@ private fun scrollToOffsetInSplit(
 
 private fun extractTextView(view: android.view.View): TextView? {
     return when (view) {
-        is FrameLayout -> extractTextView(view.getChildAt(0))
+        is FrameLayout -> view.getChildAt(0)?.let { extractTextView(it) }
         is HorizontalScrollView -> view.getChildAt(0) as? TextView
         is TextView -> view
         else -> null
     }
 }
 
-private fun splitByCodeBlocks(text: Spanned): List<Triple<Int, Int, Boolean>> {
-    val markers = text.getSpans(0, text.length, CodeBlockMarkerSpan::class.java)
-    if (markers.isEmpty()) return listOf(Triple(0, text.length, false))
-    val codeRanges = markers.map {
-        text.getSpanStart(it) to text.getSpanEnd(it)
-    }.sortedBy { it.first }
-    val segments = mutableListOf<Triple<Int, Int, Boolean>>()
-    var pos = 0
-    for ((start, end) in codeRanges) {
-        if (start > pos) {
-            segments.add(Triple(pos, start, false))
+private fun splitByMarkers(
+    text: Spanned,
+    splitCode: Boolean,
+    splitTables: Boolean
+): List<Segment> {
+    val ranges = mutableListOf<Segment>()
+    if (splitCode) {
+        for (span in text.getSpans(0, text.length, CodeBlockMarkerSpan::class.java)) {
+            ranges.add(Segment(text.getSpanStart(span), text.getSpanEnd(span), SegmentType.Code))
         }
-        segments.add(Triple(start, end, true))
-        pos = end
+    }
+    if (splitTables) {
+        for (span in text.getSpans(0, text.length, TableMarkerSpan::class.java)) {
+            ranges.add(Segment(text.getSpanStart(span), text.getSpanEnd(span), SegmentType.Table))
+        }
+    }
+    if (ranges.isEmpty()) return listOf(Segment(0, text.length, SegmentType.Text))
+    ranges.sortBy { it.start }
+    val segments = mutableListOf<Segment>()
+    var pos = 0
+    for (range in ranges) {
+        if (range.start > pos) {
+            segments.add(Segment(pos, range.start, SegmentType.Text))
+        }
+        segments.add(range)
+        pos = range.end
     }
     if (pos < text.length) {
-        segments.add(Triple(pos, text.length, false))
+        segments.add(Segment(pos, text.length, SegmentType.Text))
     }
     return segments
 }
 
 private fun hasCodeBlocks(text: Spanned): Boolean {
     return text.getSpans(0, text.length, CodeBlockMarkerSpan::class.java).isNotEmpty()
+}
+
+private fun hasTables(text: Spanned): Boolean {
+    return text.getSpans(0, text.length, TableMarkerSpan::class.java).isNotEmpty()
+}
+
+private fun measureTableMinWidth(
+    text: Spanned,
+    paint: Paint,
+    density: Float
+): Int {
+    val tableRowSpans = text.getSpans(0, text.length, TableRowSpan::class.java)
+    if (tableRowSpans.isEmpty()) return 0
+
+    val cellsField = try {
+        TableRowSpan::class.java.getDeclaredField("cells").apply { isAccessible = true }
+    } catch (_: Exception) { return 0 }
+
+    val cellPadding = (4 * density).toInt()
+    val borderWidth = (density + 0.5f).toInt()
+
+    var maxColumns = 0
+    val columnWidths = mutableMapOf<Int, Float>()
+
+    for (rowSpan in tableRowSpans) {
+        @Suppress("UNCHECKED_CAST")
+        val cells = try {
+            cellsField.get(rowSpan) as? List<TableRowSpan.Cell> ?: continue
+        } catch (_: Exception) { continue }
+
+        maxColumns = maxOf(maxColumns, cells.size)
+
+        for ((colIndex, cell) in cells.withIndex()) {
+            val cellText = cell.text()
+            val width = paint.measureText(cellText, 0, cellText.length)
+            columnWidths[colIndex] = maxOf(columnWidths[colIndex] ?: 0f, width)
+        }
+    }
+
+    if (maxColumns == 0) return 0
+
+    // TableRowSpan distributes width equally among columns,
+    // so min width = widestColumn * numColumns + padding + borders
+    var maxCellWidth = 0f
+    for ((_, w) in columnWidths) {
+        maxCellWidth = maxOf(maxCellWidth, w)
+    }
+    val totalWidth = (maxCellWidth + cellPadding * 2) * maxColumns +
+        borderWidth * (maxColumns + 1)
+
+    return totalWidth.toInt()
 }
 
 private fun stripBackgroundSpans(text: Spanned): Spanned {

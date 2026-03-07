@@ -8,6 +8,7 @@ import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon
 import io.noties.markwon.MarkwonSpansFactory
 import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.ext.tables.TableSpan
 import io.noties.markwon.image.ImagesPlugin
 import io.noties.markwon.syntax.Prism4jTheme
 import io.noties.markwon.syntax.SyntaxHighlightPlugin
@@ -21,6 +22,9 @@ import kotlin.math.roundToInt
 
 /** Empty marker span applied to fenced / indented code blocks so the UI can split them out. */
 class CodeBlockMarkerSpan
+
+/** Empty marker span applied to tables so the UI can split them out for horizontal scrolling. */
+class TableMarkerSpan
 
 /**
  * Wraps a [Prism4jTheme] and overrides its background color so that
@@ -101,6 +105,20 @@ class MarkwonRenderer(
 
     suspend fun render(markdown: String): Spanned = withContext(Dispatchers.Default) {
         val node = markwon.parse(markdown)
-        markwon.render(node)
+        val spanned = markwon.render(node)
+        addTableMarkers(spanned)
+    }
+
+    private fun addTableMarkers(spanned: Spanned): Spanned {
+        val ssb = spanned as? SpannableStringBuilder ?: return spanned
+        val tableSpans = ssb.getSpans(0, ssb.length, TableSpan::class.java)
+        for (span in tableSpans) {
+            val start = ssb.getSpanStart(span)
+            val end = ssb.getSpanEnd(span)
+            if (start >= 0 && end > start) {
+                ssb.setSpan(TableMarkerSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        return ssb
     }
 }
