@@ -76,13 +76,10 @@ class ViewerViewModel(
 
     private val repository = PreferencesRepository.getInstance(application)
     private var systemDarkTheme = false
-    private var renderer = run {
-        val dark = isDarkTheme(UserPreferences(), systemDarkTheme)
-        MarkwonRenderer(application, dark, codeBackground(dark))
-    }
+    private val rendererCache = mutableMapOf<Boolean, MarkwonRenderer>()
+    private val sourceCodeRendererCache = mutableMapOf<Boolean, SourceCodeRenderer>()
     private var currentUri: String? = null
     private var detectedCodeLanguage: String? = null
-    private var sourceCodeRenderer = SourceCodeRenderer(false)
     private var loadingJob: Job? = null
     private var rebuildJob: Job? = null
     private var baseRendered: Spanned? = null
@@ -209,14 +206,8 @@ class ViewerViewModel(
             val isDark = renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
             val rendered: android.text.Spanned? = when {
                 isBinary -> null
-                isSourceCode -> {
-                    sourceCodeRenderer = SourceCodeRenderer(isDark)
-                    renderSourceCode(markdown, codeLanguage!!)
-                }
-                else -> {
-                    renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
-                    renderMarkdown(markdown)
-                }
+                isSourceCode -> renderSourceCode(isDark, markdown, codeLanguage!!)
+                else -> renderMarkdown(isDark, markdown)
             }
             val headings = if (isSourceCode) emptyList() else parseHeadings(markdown, rendered?.toString())
 
@@ -360,13 +351,18 @@ class ViewerViewModel(
                     preferencesLoaded = true
                 }
                 val previous = _uiState.value.userPreferences
-                val requiresRebuild = prefs.readingFont != previous.readingFont ||
-                    prefs.codeFont != previous.codeFont ||
-                    prefs.fontSizeSp != previous.fontSizeSp ||
-                    prefs.lineHeight != previous.lineHeight ||
-                    prefs.appThemeMode != previous.appThemeMode ||
+                val themeChanged = prefs.appThemeMode != previous.appThemeMode ||
                     prefs.readerLightTheme != previous.readerLightTheme ||
                     prefs.readerDarkTheme != previous.readerDarkTheme
+                val requiresRebuild = themeChanged ||
+                    prefs.readingFont != previous.readingFont ||
+                    prefs.codeFont != previous.codeFont ||
+                    prefs.fontSizeSp != previous.fontSizeSp ||
+                    prefs.lineHeight != previous.lineHeight
+
+                if (themeChanged) {
+                    invalidateRendererCaches()
+                }
 
                 _uiState.value = _uiState.value.copy(userPreferences = prefs)
 
@@ -382,17 +378,34 @@ class ViewerViewModel(
         }
     }
 
-    private suspend fun renderMarkdown(markdown: String): Spanned? {
+    private fun getMarkwonRenderer(isDark: Boolean): MarkwonRenderer {
+        return rendererCache.getOrPut(isDark) {
+            MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
+        }
+    }
+
+    private fun getSourceCodeRenderer(isDark: Boolean): SourceCodeRenderer {
+        return sourceCodeRendererCache.getOrPut(isDark) {
+            SourceCodeRenderer(isDark)
+        }
+    }
+
+    private fun invalidateRendererCaches() {
+        rendererCache.clear()
+        sourceCodeRendererCache.clear()
+    }
+
+    private suspend fun renderMarkdown(isDark: Boolean, markdown: String): Spanned? {
         return try {
-            renderer.render(markdown)
+            getMarkwonRenderer(isDark).render(markdown)
         } catch (ex: Exception) {
             null
         }
     }
 
-    private suspend fun renderSourceCode(code: String, language: String): Spanned? {
+    private suspend fun renderSourceCode(isDark: Boolean, code: String, language: String): Spanned? {
         return try {
-            sourceCodeRenderer.highlight(code, language)
+            getSourceCodeRenderer(isDark).highlight(code, language)
         } catch (ex: Exception) {
             null
         }
@@ -410,11 +423,9 @@ class ViewerViewModel(
                 return@launch
             }
             val rendered = if (isSourceCode && codeLanguage != null) {
-                sourceCodeRenderer = SourceCodeRenderer(isDark)
-                renderSourceCode(markdown, codeLanguage)
+                renderSourceCode(isDark, markdown, codeLanguage)
             } else {
-                renderer = MarkwonRenderer(getApplication(), isDark, codeBackground(isDark))
-                renderMarkdown(markdown)
+                renderMarkdown(isDark, markdown)
             }
             if (rendered != null) {
                 baseRendered = rendered
@@ -435,7 +446,7 @@ class ViewerViewModel(
             return
         }
         rebuildJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(120)
+            kotlinx.coroutines.delay(50)
             rebuildRenderedForTheme()
         }
     }

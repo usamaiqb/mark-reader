@@ -7,6 +7,7 @@ import androidx.annotation.ColorInt
 import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon
 import io.noties.markwon.MarkwonSpansFactory
+import io.noties.markwon.core.MarkwonTheme
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.ext.tables.TableSpan
 import io.noties.markwon.image.ImagesPlugin
@@ -50,11 +51,20 @@ class MarkwonRenderer(
     isDarkTheme: Boolean,
     @ColorInt codeBlockBackground: Int
 ) {
-    private val inlineCodePaddingH = (4f * context.resources.displayMetrics.density).roundToInt()
-    private val inlineCodePaddingV = (2f * context.resources.displayMetrics.density).roundToInt()
-    private val inlineCodeCorner = 4f * context.resources.displayMetrics.density
+    private val density = context.resources.displayMetrics.density
+    private val inlineCodePaddingH = (4f * density).roundToInt()
+    private val inlineCodePaddingV = (2f * density).roundToInt()
+    private val inlineCodeCorner = 4f * density
+    private val blockMarginPx = (8f * density).roundToInt()
 
     private val markwon: Markwon = Markwon.builder(context)
+        .usePlugin(object : AbstractMarkwonPlugin() {
+            override fun configureTheme(builder: MarkwonTheme.Builder) {
+                builder
+                    .blockMargin(blockMarginPx)
+                    .headingBreakHeight(0)
+            }
+        })
         .usePlugin(TablePlugin.create(context))
         .usePlugin(ImagesPlugin.create())
         .usePlugin(

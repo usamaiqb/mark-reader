@@ -15,9 +15,17 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private data class ThemeColors(
+    val background: String,
+    val text: String,
+    val codeBg: String,
+    val codeText: String,
+    val link: String
+)
+
 class ExportManager(private val context: Context) {
     private val parser = Parser.builder().build()
-    private val renderer = HtmlRenderer.builder().build()
+    private val renderer = HtmlRenderer.builder().escapeHtml(true).build()
 
     fun exportPdf(markdown: String, theme: ReaderThemePreference, fileName: String?) {
         val html = buildHtml(markdown, theme)
@@ -70,15 +78,15 @@ class ExportManager(private val context: Context) {
         val document = parser.parse(markdown)
         val content = renderer.render(document)
 
-        val (background, text, codeBg, codeText, link) = when (theme) {
+        val colors = when (theme) {
             ReaderThemePreference.Light ->
-                arrayOf("#F9F9FF", "#1A1B1F", "#EEF0FF", "#1A1B1F", "#2A5BD7")
+                ThemeColors("#F9F9FF", "#1A1B1F", "#EEF0FF", "#1A1B1F", "#2A5BD7")
             ReaderThemePreference.Dark ->
-                arrayOf("#121318", "#E3E2E8", "#1E1F26", "#E3E2E8", "#B5C4FF")
+                ThemeColors("#121318", "#E3E2E8", "#1E1F26", "#E3E2E8", "#B5C4FF")
             ReaderThemePreference.Amoled ->
-                arrayOf("#000000", "#E6E6EB", "#101014", "#E6E6EB", "#B5C4FF")
+                ThemeColors("#000000", "#E6E6EB", "#101014", "#E6E6EB", "#B5C4FF")
             ReaderThemePreference.Sepia ->
-                arrayOf("#F6EDE3", "#201A17", "#E8D7CA", "#201A17", "#7A4E2B")
+                ThemeColors("#F6EDE3", "#201A17", "#E8D7CA", "#201A17", "#7A4E2B")
         }
 
         val css = """
@@ -88,8 +96,8 @@ class ExportManager(private val context: Context) {
             body {
               margin: 0;
               padding: 32px 20px 48px;
-              background: $background;
-              color: $text;
+              background: ${colors.background};
+              color: ${colors.text};
               font-family: 'Merriweather', 'Georgia', 'Times New Roman', serif;
               font-size: 18px;
               line-height: 1.6;
@@ -104,11 +112,11 @@ class ExportManager(private val context: Context) {
               margin-bottom: 0.6em;
             }
             p { margin: 0 0 1em; }
-            a { color: $link; }
+            a { color: ${colors.link}; }
             code, pre {
               font-family: 'JetBrains Mono', 'Courier New', monospace;
-              background: $codeBg;
-              color: $codeText;
+              background: ${colors.codeBg};
+              color: ${colors.codeText};
             }
             code { padding: 0.1em 0.3em; border-radius: 4px; }
             pre {
@@ -117,14 +125,14 @@ class ExportManager(private val context: Context) {
               overflow-x: auto;
             }
             blockquote {
-              border-left: 3px solid $link;
+              border-left: 3px solid ${colors.link};
               margin: 1em 0;
               padding: 0.2em 1em;
-              background: $codeBg;
+              background: ${colors.codeBg};
             }
             img { max-width: 100%; height: auto; }
             table { width: 100%; border-collapse: collapse; margin: 1em 0; }
-            th, td { border: 1px solid ${link}55; padding: 8px; text-align: left; }
+            th, td { border: 1px solid ${colors.link}55; padding: 8px; text-align: left; }
         """.trimIndent()
 
         return """

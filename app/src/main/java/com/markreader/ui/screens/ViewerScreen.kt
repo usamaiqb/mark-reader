@@ -68,7 +68,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -85,6 +84,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.R
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.ReaderThemePreference
+import com.markreader.OPENABLE_MIME_TYPES
 import com.markreader.ui.export.ExportManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,7 +136,7 @@ fun ViewerScreen(
     LaunchedEffect(uiState.needsPermission) {
         if (uiState.needsPermission) {
             viewModel.onPermissionRequestConsumed()
-            launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
+            launcher.launch(OPENABLE_MIME_TYPES)
         }
     }
 
@@ -195,12 +195,12 @@ fun ViewerScreen(
 
     val surfaceColor by animateColorAsState(
         targetValue = activeReaderColors.surface,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "surfaceColor"
     )
     val contentColor by animateColorAsState(
         targetValue = activeReaderColors.content,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "contentColor"
     )
     val selectionHighlightColor = when {
@@ -525,7 +525,7 @@ fun ViewerScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.Button(
-                            onClick = { launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream")) }
+                            onClick = { launcher.launch(OPENABLE_MIME_TYPES) }
                         ) {
                             Text(text = "Open Different File")
                         }
@@ -546,47 +546,19 @@ fun ViewerScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.Button(
                             onClick = {
-                                launcher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
+                                launcher.launch(OPENABLE_MIME_TYPES)
                             }
                         ) {
                             Text(text = "Open Different File")
                         }
                     }
                 }
-                uiState.viewMode == ViewMode.Raw -> {
-                    val text = uiState.rawHighlighted ?: uiState.rawText
-                    ContentContainer(
-                        warningMessage = uiState.warningMessage
-                    ) {
-                        RenderedTextView(
-                            text = text,
-                            textColor = contentColor.toArgb(),
-                            padding = PaddingValues(0.dp),
-                            savedScrollY = savedScrollY,
-                            scrollToOffset = scrollToOffset,
-                            onScrollChanged = viewModel::onScrollPositionChanged,
-                            onScrollConsumed = viewModel::onScrollConsumed,
-                            headings = uiState.headings,
-                            onActiveHeadingChanged = viewModel::onActiveHeadingChanged,
-                            isWordWrapEnabled = isWordWrapEnabled,
-                            isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
-                            selectionHighlightColor = selectionHighlightColor,
-                            fontSizeSp = prefs.fontSizeSp,
-                            lineHeight = prefs.lineHeight,
-                            readingFont = prefs.readingFont,
-                            codeFont = prefs.codeFont,
-                            isSourceCode = uiState.isSourceCode,
-                            textAlignment = prefs.textAlignment,
-                            codeBlockBackgroundColor = if (isSurfaceDark) {
-                                0x19FFFFFF.toInt()
-                            } else {
-                                0x19000000.toInt()
-                            }
-                        )
-                    }
-                }
                 else -> {
-                    val text = uiState.rendered ?: uiState.rawText
+                    val text = if (uiState.viewMode == ViewMode.Raw) {
+                        uiState.rawHighlighted ?: uiState.rawText
+                    } else {
+                        uiState.rendered ?: uiState.rawText
+                    }
                     ContentContainer(
                         warningMessage = uiState.warningMessage
                     ) {

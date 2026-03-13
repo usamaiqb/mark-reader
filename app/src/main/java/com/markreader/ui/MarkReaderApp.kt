@@ -27,7 +27,7 @@ fun MarkReaderApp(
     launchedExternally: Boolean
 ) {
     val navController = rememberNavController()
-    val startDestination = rememberSaveable(launchedExternally, externalUri) {
+    val startDestination = rememberSaveable {
         if (launchedExternally && !externalUri.isNullOrBlank()) {
             val encoded = Uri.encode(externalUri)
             NavRoutes.Viewer.createRoute(encoded)

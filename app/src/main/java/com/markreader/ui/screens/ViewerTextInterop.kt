@@ -338,7 +338,9 @@ fun RenderedTextView(
                     } else {
                         lastTextHash
                     }
-                    if (textRefChanged || textHash != lastTextHash) {
+                    val structuralChange = textHash != lastTextHash
+                    if (structuralChange) {
+                        // Underlying text changed — full rebuild of segments
                         val splitCode = !isCodeBlockWrapEnabled || !isWordWrapEnabled
                         val splitTables = isWordWrapEnabled
                         val segments = splitByMarkers(spanned, splitCode, splitTables)
@@ -449,6 +451,44 @@ fun RenderedTextView(
                         lastStyleKey = contentKey
                         lastTextColor = textColor
                         lastSelectionHighlightColor = selectionHighlightColor
+                    } else if (textRefChanged) {
+                        // Same underlying text, different spans (search highlights) —
+                        // update existing TextViews in-place without rebuilding views
+                        val boundaries = currentSplitBoundaries
+                        for (i in 0 until container.childCount.coerceAtMost(boundaries.size)) {
+                            val (start, end, type) = boundaries[i]
+                            val segText = spanned.subSequence(start, end) as Spanned
+                            val segmentContent = if (type == SegmentType.Code) {
+                                stripBackgroundSpans(segText)
+                            } else {
+                                segText
+                            }
+                            if (type == SegmentType.Table && !useGlobalHorizontalScroll) {
+                                // Tables need a full rebuild — cells aren't simple TextViews
+                                val tableView = buildTableLayout(
+                                    segmentContent, container.context, textColor,
+                                    fontSizeSp, lineHeight, readingFont,
+                                    selectionHighlightColor, density
+                                )
+                                if (tableView != null) {
+                                    val hsv = container.getChildAt(i)
+                                    if (hsv is HorizontalScrollView) {
+                                        hsv.removeAllViews()
+                                        hsv.addView(
+                                            tableView,
+                                            ViewGroup.LayoutParams(
+                                                ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                ViewGroup.LayoutParams.WRAP_CONTENT
+                                            )
+                                        )
+                                    }
+                                }
+                            } else {
+                                val tv = extractTextView(container.getChildAt(i))
+                                tv?.text = segmentContent
+                            }
+                        }
+                        lastTextRef = spanned
                     } else if (lastStyleKey != contentKey || lastTextColor != textColor ||
                         lastSelectionHighlightColor != selectionHighlightColor
                     ) {
@@ -551,8 +591,9 @@ fun RenderedTextView(
                         val y = resolveScrollY(
                             scrollView, currentSplitBoundaries, scrollToOffset
                         )
+                        val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
                         lastRestoredKey = contentKey
-                        scrollView.smoothScrollTo(0, y)
+                        scrollView.smoothScrollTo(0, centeredY)
                         if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
                         onScrollConsumed()
                     }

@@ -38,6 +38,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.R
+import com.markreader.OPENABLE_MIME_TYPES
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,7 +88,7 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.launchPickerSignal.collectLatest {
-            openFileLauncher.launch(arrayOf("text/*", "application/json", "application/xml", "application/javascript", "application/x-yaml", "application/octet-stream"))
+            openFileLauncher.launch(OPENABLE_MIME_TYPES)
         }
     }
 

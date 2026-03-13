@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -22,7 +23,10 @@ fun NavGraphBuilder.markReaderNavGraph(
             onOpenSettings = { navController.navigateToSettings() },
             onOpenViewer = { uri ->
                 val encoded = Uri.encode(uri)
-                navController.navigate(NavRoutes.Viewer.createRoute(encoded))
+                navController.navigate(NavRoutes.Viewer.createRoute(encoded)) {
+                    popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                    launchSingleTop = true
+                }
             },
             onOpenEditor = { uri, isMarkdown ->
                 val encoded = Uri.encode(uri)
@@ -35,7 +39,9 @@ fun NavGraphBuilder.markReaderNavGraph(
         route = NavRoutes.Viewer.route,
         arguments = listOf(navArgument("uri") { nullable = true })
     ) { backStackEntry ->
-        val uri = backStackEntry.arguments?.getString("uri") ?: externalUri
+        val uri = backStackEntry.arguments?.getString("uri")
+            ?.takeIf { it.isNotBlank() }
+            ?: externalUri
         val fileSaved by backStackEntry.savedStateHandle
             .getStateFlow("file_saved", false)
             .collectAsStateWithLifecycle()

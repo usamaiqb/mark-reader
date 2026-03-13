@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.core.graphics.ColorUtils
+import com.markreader.ExternalFileCache
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
 import com.markreader.data.UserPreferences
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 enum class EditorTab { Edit, Preview }
 
@@ -179,11 +181,18 @@ class EditorViewModel(
         _uiState.value = _uiState.value.copy(isSaving = true, saveResult = null)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                getApplication<Application>().contentResolver
-                    .openOutputStream(uri, "wt")?.use { it.write(content.toByteArray()) }
-                _uiState.value = _uiState.value.copy(
-                    isSaving = false, isModified = false, saveResult = SaveResult.Success
-                )
+                val stream = getApplication<Application>().contentResolver
+                    .openOutputStream(uri, "wt")
+                if (stream != null) {
+                    stream.use { it.write(content.toByteArray()) }
+                    _uiState.value = _uiState.value.copy(
+                        isSaving = false, isModified = false, saveResult = SaveResult.Success
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isSaving = false, saveResult = SaveResult.NoPermission
+                    )
+                }
             } catch (e: SecurityException) {
                 _uiState.value = _uiState.value.copy(
                     isSaving = false, saveResult = SaveResult.NoPermission
@@ -246,6 +255,11 @@ class EditorViewModel(
     }
 
     private suspend fun readTextFromUri(uri: Uri): String? = withContext(Dispatchers.IO) {
+        val deferred = ExternalFileCache.consume(uri.toString())
+        if (deferred != null) {
+            val preloaded = withTimeoutOrNull(5_000) { deferred.await() }
+            if (preloaded != null) return@withContext preloaded
+        }
         getApplication<Application>().contentResolver
             .openInputStream(uri)?.use { it.bufferedReader().readText() }
     }

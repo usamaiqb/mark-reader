@@ -1,8 +1,6 @@
 package com.markreader.ui.screens
 
 import android.app.Application
-import android.view.ViewGroup
-import android.widget.TextView
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -80,7 +79,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.data.CodeFontPreference
@@ -279,10 +277,44 @@ fun EditorScreen(
                         }
                     } else {
                         // Preview tab
-                        MarkdownPreview(
-                            spanned = uiState.previewText,
-                            modifier = Modifier.weight(1f).fillMaxWidth()
-                        )
+                        val previewText = uiState.previewText
+                        if (previewText == null) {
+                            Box(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Rendering preview…",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            val previewTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
+                            val previewIsDark = isSystemInDarkTheme()
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                RenderedTextView(
+                                    text = previewText,
+                                    textColor = previewTextColor,
+                                    padding = PaddingValues(0.dp),
+                                    savedScrollY = 0,
+                                    scrollToOffset = null,
+                                    onScrollChanged = {},
+                                    onScrollConsumed = {},
+                                    headings = emptyList(),
+                                    onActiveHeadingChanged = {},
+                                    isWordWrapEnabled = true,
+                                    isCodeBlockWrapEnabled = true,
+                                    selectionHighlightColor = if (previewIsDark) 0x99FFD54F.toInt() else 0x994285F4.toInt(),
+                                    fontSizeSp = prefs.fontSizeSp,
+                                    lineHeight = prefs.lineHeight,
+                                    readingFont = prefs.readingFont,
+                                    codeFont = prefs.codeFont,
+                                    isSourceCode = false,
+                                    textAlignment = prefs.textAlignment,
+                                    codeBlockBackgroundColor = if (previewIsDark) 0x19FFFFFF.toInt() else 0x19000000.toInt()
+                                )
+                            }
+                        }
                     }
 
                     // Formatting toolbar — markdown edit mode, visible when keyboard is up
@@ -311,44 +343,6 @@ fun EditorScreen(
                 TextButton(onClick = { showDiscardDialog = false }) { Text("Cancel") }
             }
         )
-    }
-}
-
-@Composable
-private fun MarkdownPreview(
-    spanned: android.text.Spanned?,
-    modifier: Modifier = Modifier
-) {
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
-    val scrollState = rememberScrollState()
-    Box(modifier = modifier.verticalScroll(scrollState)) {
-        if (spanned == null) {
-            Text(
-                text = "Rendering preview…",
-                modifier = Modifier.padding(16.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            AndroidView(
-                factory = { ctx ->
-                    TextView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                        val dp16 = (16 * resources.displayMetrics.density).toInt()
-                        val dp12 = (12 * resources.displayMetrics.density).toInt()
-                        setPadding(dp16, dp12, dp16, dp12)
-                        movementMethod = android.text.method.LinkMovementMethod.getInstance()
-                    }
-                },
-                update = { tv ->
-                    tv.setTextColor(textColor)
-                    tv.text = spanned
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
     }
 }
 
