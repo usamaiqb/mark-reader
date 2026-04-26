@@ -1,0 +1,33 @@
+# Enforce consistent line endings
+* text=auto
+
+# Kotlin and Gradle source files — LF
+*.kt text eol=lf
+*.kts text eol=lf
+*.gradle text eol=lf
+
+# Shell scripts — LF
+gradlew text eol=lf
+
+# Windows scripts — CRLF
+*.bat text eol=crlf
+
+# XML and config files — LF
+*.xml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.properties text eol=lf
+
+# Binary files — no conversion
+*.apk binary
+*.aab binary
+*.jks binary
+*.keystore binary
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.zip binary

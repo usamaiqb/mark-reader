@@ -1,0 +1,7 @@
+Initial release.
+
+- Markdown rendering with tables support
+- Syntax highlighting for code files
+- Built-in editor with markdown preview
+- Open files from any file manager
+- Material You design with dark and light themes

@@ -2,38 +2,19 @@ package com.markreader.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import com.markreader.R
 
-private val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
-
 val ReadingFontFamily = FontFamily(
-    Font(
-        googleFont = GoogleFont("Merriweather"),
-        fontProvider = provider,
-        weight = FontWeight.Normal
-    ),
-    Font(
-        googleFont = GoogleFont("Merriweather"),
-        fontProvider = provider,
-        weight = FontWeight.Bold
-    )
+    Font(R.font.merriweather_regular, weight = FontWeight.Normal),
+    Font(R.font.merriweather_bold, weight = FontWeight.Bold)
 )
 
 val CodeFontFamily = FontFamily(
-    Font(
-        googleFont = GoogleFont("JetBrains Mono"),
-        fontProvider = provider,
-        weight = FontWeight.Normal
-    )
+    Font(R.font.jetbrains_mono_regular, weight = FontWeight.Normal)
 )
 
 val Typography = Typography(

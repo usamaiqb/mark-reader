@@ -1,0 +1,25 @@
+MarkReader is a lightweight, offline markdown and code file reader for Android.
+
+Open markdown files to see a clean, rendered view with support for headings, bold, italic, blockquotes, inline code, fenced code blocks, and tables. Open code files to get syntax highlighting for dozens of programming languages powered by Prism4j.
+
+FEATURES
+
+- Markdown rendering with full CommonMark support including tables
+- Syntax highlighting for code files (Kotlin, Python, JavaScript, Java, C, C++, HTML, CSS, JSON, YAML, and more)
+- Built-in editor with markdown preview — switch between Edit and Preview tabs
+- Formatting toolbar for common markdown syntax (bold, italic, headings, code blocks, links, lists)
+- Open files directly from any file manager via the standard share/open intent
+- Save edited files back in place or export to a new location via Save As
+- Create new files from scratch
+- Material You design with dynamic color, dark and light themes
+- Edge-to-edge display
+- No internet required — all processing is done locally on your device
+- No ads, no analytics, no tracking
+
+PRIVACY
+
+MarkReader does not collect, transmit, or share any data. It requires no special permissions — it only reads files that you explicitly open or create. Your files never leave your device.
+
+PERMISSIONS
+
+No permissions required. Files are opened through Android's standard content URI system, so no storage permission is needed.
