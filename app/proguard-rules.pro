@@ -6,6 +6,18 @@
 # Markwon - markdown rendering
 -keep class io.noties.markwon.** { *; }
 
+# Markwon optional image decoders (not pulled in as transitive deps, so suppress R8 warnings)
+-dontwarn com.caverock.androidsvg.SVG
+-dontwarn com.caverock.androidsvg.SVGParseException
+-dontwarn okhttp3.Call$Factory
+-dontwarn okhttp3.Call
+-dontwarn okhttp3.OkHttpClient
+-dontwarn okhttp3.Request$Builder
+-dontwarn okhttp3.Request
+-dontwarn okhttp3.Response
+-dontwarn okhttp3.ResponseBody
+-dontwarn pl.droidsonroids.gif.GifDrawable
+
 # Kotlin
 -keep class kotlin.Metadata { *; }
 -keepclassmembers class **$WhenMappings { <fields>; }
