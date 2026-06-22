@@ -3,6 +3,7 @@ package com.markreader.ui.screens
 import android.content.Context
 import android.graphics.Typeface
 import android.os.Build
+import android.graphics.text.LineBreaker
 import android.text.Layout
 import android.text.SpannableStringBuilder
 import android.text.Spanned
@@ -965,10 +966,10 @@ private fun createStyledTextView(
         if (textAlignment == TextAlignmentPreference.Justified &&
             Build.VERSION.SDK_INT >= 26
         ) {
-            justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
+            justificationMode = LineBreaker.JUSTIFICATION_MODE_INTER_WORD
         } else {
             if (Build.VERSION.SDK_INT >= 26) {
-                justificationMode = Layout.JUSTIFICATION_MODE_NONE
+                justificationMode = LineBreaker.JUSTIFICATION_MODE_NONE
             }
             this.textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_START
         }
@@ -994,10 +995,10 @@ private fun applyStyleToTextView(
     if (textAlignment == TextAlignmentPreference.Justified &&
         Build.VERSION.SDK_INT >= 26
     ) {
-        tv.justificationMode = Layout.JUSTIFICATION_MODE_INTER_WORD
+        tv.justificationMode = LineBreaker.JUSTIFICATION_MODE_INTER_WORD
     } else {
         if (Build.VERSION.SDK_INT >= 26) {
-            tv.justificationMode = Layout.JUSTIFICATION_MODE_NONE
+            tv.justificationMode = LineBreaker.JUSTIFICATION_MODE_NONE
         }
         tv.textAlignment = TextView.TEXT_ALIGNMENT_VIEW_START
     }
