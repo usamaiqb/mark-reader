@@ -1,7 +1,12 @@
 # MarkReader
 
-[![CI](https://github.com/usamaiqb/mark-reader/actions/workflows/ci.yml/badge.svg)](https://github.com/usamaiqb/mark-reader/actions/workflows/ci.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+<p align="center">
+  <a href="https://github.com/usamaiqb/mark-reader/actions/workflows/ci.yml"><img src="https://github.com/usamaiqb/mark-reader/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://f-droid.org/packages/com.markreader/"><img src="https://img.shields.io/f-droid/v/com.markreader?logo=fdroid&logoColor=white&label=F-Droid" alt="F-Droid" /></a>
+  <img src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white" alt="Platform" />
+  <img src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" />
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
+</p>
 
 A lightweight, offline markdown and code file reader for Android with syntax highlighting and a built-in editor.
 
@@ -38,7 +43,7 @@ A lightweight, offline markdown and code file reader for Android with syntax hig
 
 ### F-Droid
 
-> **F-Droid submission is currently in progress.** Once approved, MarkReader will be available on F-Droid at `com.markreader`.
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" height="60" alt="Get it on F-Droid">](https://f-droid.org/packages/com.markreader/)
 
 ### GitHub Releases
 
@@ -74,17 +79,6 @@ cd mark-reader
 ```
 
 3. The APK will be in `app/build/outputs/apk/release/`
-
-### Signed Builds
-
-To build a signed release APK, create a `keystore.properties` file in the project root:
-
-```properties
-storeFile=path/to/your.keystore
-storePassword=your_store_password
-keyAlias=your_key_alias
-keyPassword=your_key_password
-```
 
 ## Privacy
 
