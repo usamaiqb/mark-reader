@@ -5,14 +5,22 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.markreader.data.RecentFile
+import com.markreader.data.RecentFilesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
+    private val recentFilesRepository = RecentFilesRepository.getInstance(application)
+
     private val _launchPickerSignal = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val launchPickerSignal: SharedFlow<Unit> = _launchPickerSignal.asSharedFlow()
 
@@ -24,6 +32,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _navigateToEditor = MutableSharedFlow<Pair<String, Boolean>>(extraBufferCapacity = 1)
     val navigateToEditor: SharedFlow<Pair<String, Boolean>> = _navigateToEditor.asSharedFlow()
+
+    /** Null until the first DataStore emission, so the UI can avoid flashing the empty state. */
+    val recentFiles: StateFlow<List<RecentFile>?> = recentFilesRepository.recentFiles
+        .map<List<RecentFile>, List<RecentFile>?> { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun onOpenFileRequested() {
         _launchPickerSignal.tryEmit(Unit)
@@ -40,12 +53,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onRecentFileClicked(uriString: String) {
+        viewModelScope.launch {
+            _navigateToViewer.emit(uriString)
+        }
+    }
+
+    fun onRemoveRecentFile(uriString: String) {
+        viewModelScope.launch {
+            recentFilesRepository.remove(uriString)
+        }
+    }
+
     fun onNewFileCreated(uri: Uri?) {
         if (uri == null) return
         viewModelScope.launch {
             val displayName = resolveDisplayName(uri)
             val ext = displayName.substringAfterLast('.', "").lowercase()
             val isMarkdown = ext == "md" || ext == "markdown"
+            recentFilesRepository.recordOpen(uri.toString(), displayName)
             _navigateToEditor.emit(Pair(uri.toString(), isMarkdown))
         }
     }

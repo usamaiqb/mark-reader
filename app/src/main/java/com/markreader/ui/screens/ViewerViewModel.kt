@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
+import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
 import com.markreader.ui.markdown.SourceCodeRenderer
@@ -75,6 +76,7 @@ class ViewerViewModel(
     )
 
     private val repository = PreferencesRepository.getInstance(application)
+    private val recentFilesRepository = RecentFilesRepository.getInstance(application)
     private var systemDarkTheme = false
     private val rendererCache = mutableMapOf<Boolean, MarkwonRenderer>()
     private val sourceCodeRendererCache = mutableMapOf<Boolean, SourceCodeRenderer>()
@@ -176,6 +178,8 @@ class ViewerViewModel(
                 )
                 return@launch
             }
+
+            recentFilesRepository.recordOpen(uriString, fileName)
 
             val textHash = markdown.hashCode()
             if (renderCacheTextHash != textHash) {
