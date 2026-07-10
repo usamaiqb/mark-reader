@@ -165,11 +165,19 @@ fun ViewerScreen(
         else -> "Rendered mode"
     }
 
-    val dynamicLightScheme = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicLightColorScheme(context) else null
+    val dynamicLightScheme = remember(context, prefs.useDynamicColors) {
+        if (prefs.useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicLightColorScheme(context)
+        } else {
+            null
+        }
     }
-    val dynamicDarkScheme = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(context) else null
+    val dynamicDarkScheme = remember(context, prefs.useDynamicColors) {
+        if (prefs.useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicDarkColorScheme(context)
+        } else {
+            null
+        }
     }
 
     val (lightReaderColors, darkReaderColors) = resolveReaderColors(

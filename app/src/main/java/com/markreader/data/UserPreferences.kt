@@ -30,6 +30,7 @@ enum class TextAlignmentPreference {
 
 data class UserPreferences(
     val appThemeMode: AppThemeModePreference = AppThemeModePreference.System,
+    val useDynamicColors: Boolean = true,
     val readerLightTheme: ReaderThemePreference = ReaderThemePreference.Light,
     val readerDarkTheme: ReaderThemePreference = ReaderThemePreference.Dark,
     val readingFont: ReadingFontPreference = ReadingFontPreference.Merriweather,

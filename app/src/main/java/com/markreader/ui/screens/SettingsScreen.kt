@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.FormatAlignJustify
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +56,8 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -68,7 +72,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -88,6 +91,10 @@ import com.markreader.data.ReaderThemePreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.data.UserPreferences
+import com.markreader.ui.components.GroupOuterRadius
+import com.markreader.ui.components.SectionHeader
+import com.markreader.ui.components.SegmentPosition
+import com.markreader.ui.components.segmentShape
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
 import java.util.Locale
@@ -95,38 +102,7 @@ import kotlin.math.abs
 
 private const val GithubRepoUrl = "https://github.com/usamaiqb/mark-reader"
 
-// ── Segment shape helpers ──────────────────────────────────────────────────────
-
-private enum class SegmentPosition { Single, First, Middle, Last }
-
-private val GroupOuterRadius = 24.dp
-private val GroupInnerRadius = 4.dp
-
-private fun segmentShape(position: SegmentPosition): Shape = when (position) {
-    SegmentPosition.Single -> RoundedCornerShape(GroupOuterRadius)
-    SegmentPosition.First -> RoundedCornerShape(
-        topStart = GroupOuterRadius, topEnd = GroupOuterRadius,
-        bottomStart = GroupInnerRadius, bottomEnd = GroupInnerRadius
-    )
-    SegmentPosition.Middle -> RoundedCornerShape(GroupInnerRadius)
-    SegmentPosition.Last -> RoundedCornerShape(
-        topStart = GroupInnerRadius, topEnd = GroupInnerRadius,
-        bottomStart = GroupOuterRadius, bottomEnd = GroupOuterRadius
-    )
-}
-
 // ── Reusable composables ───────────────────────────────────────────────────────
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
-    )
-}
 
 @Composable
 private fun SettingsGroup(content: @Composable () -> Unit) {
@@ -322,6 +298,63 @@ private fun <T> OptionSheet(
 }
 
 @Composable
+private fun SwitchSettingsRow(
+    position: SegmentPosition,
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+    val toggle: (Boolean) -> Unit = { newValue ->
+        haptics.performHapticFeedback(
+            if (newValue) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff
+        )
+        onCheckedChange(newValue)
+    }
+
+    SettingsSurface(position = position, onClick = { toggle(!checked) }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RowLeadingIcon(icon)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Switch(
+                checked = checked,
+                onCheckedChange = toggle,
+                thumbContent = {
+                    AnimatedContent(
+                        targetState = checked,
+                        transitionSpec = {
+                            fadeIn(tween(100)) togetherWith fadeOut(tween(100))
+                        },
+                        label = "switchThumbIcon"
+                    ) { isChecked ->
+                        Icon(
+                            imageVector = if (isChecked) Icons.Rounded.Check else Icons.Rounded.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(SwitchDefaults.IconSize)
+                        )
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
 private fun SliderSettingsRow(
     position: SegmentPosition,
     icon: ImageVector,
@@ -419,11 +452,19 @@ private fun ReaderPreviewCard(
     val isSystemDark = isSystemInDarkTheme()
     val haptics = LocalHapticFeedback.current
 
-    val dynamicLightScheme = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicLightColorScheme(context) else null
+    val dynamicLightScheme = remember(context, preferences.useDynamicColors) {
+        if (preferences.useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicLightColorScheme(context)
+        } else {
+            null
+        }
     }
-    val dynamicDarkScheme = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(context) else null
+    val dynamicDarkScheme = remember(context, preferences.useDynamicColors) {
+        if (preferences.useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            dynamicDarkColorScheme(context)
+        } else {
+            null
+        }
     }
     val (lightReaderColors, darkReaderColors) = resolveReaderColors(
         readerLightTheme = preferences.readerLightTheme,
@@ -590,9 +631,10 @@ fun SettingsScreen(
             // ── Appearance ─────────────────────────────────────────────
             Column {
                 SectionHeader("Appearance")
+                val supportsDynamicColors = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 SettingsGroup {
                     SegmentedSettingsRow(
-                        position = SegmentPosition.Single,
+                        position = if (supportsDynamicColors) SegmentPosition.First else SegmentPosition.Single,
                         icon = Icons.Rounded.Palette,
                         title = "App theme",
                         subtitle = "Overall look of the app"
@@ -600,6 +642,16 @@ fun SettingsScreen(
                         AppThemeModePreferenceControl(
                             selected = preferences.appThemeMode,
                             onSelect = viewModel::setAppThemeMode
+                        )
+                    }
+                    if (supportsDynamicColors) {
+                        SwitchSettingsRow(
+                            position = SegmentPosition.Last,
+                            icon = Icons.Rounded.Wallpaper,
+                            title = "Use dynamic colors",
+                            subtitle = "Tint the app from your wallpaper",
+                            checked = preferences.useDynamicColors,
+                            onCheckedChange = viewModel::setUseDynamicColors
                         )
                     }
                 }
