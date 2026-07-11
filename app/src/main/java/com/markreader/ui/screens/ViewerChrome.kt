@@ -1,5 +1,12 @@
 package com.markreader.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -88,7 +94,7 @@ fun ViewerSearchBar(
         color = surfaceColor,
         contentColor = contentColor
     ) {
-        Column(modifier = Modifier.statusBarsPadding()) {
+        Column {
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -169,9 +175,23 @@ fun ViewerSearchBar(
                         color = tonalContainerColor.copy(alpha = 0.8f)
                     ),
                     label = {
-                        Text(
-                            text = "$modeLabel • ${if (hasMatches) "${matchIndex + 1} of $matchCount" else "No matches"}"
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "$modeLabel • ")
+                            AnimatedContent(
+                                targetState = if (hasMatches) {
+                                    "${matchIndex + 1} of $matchCount"
+                                } else {
+                                    "No matches"
+                                },
+                                transitionSpec = {
+                                    (fadeIn(tween(150)) + slideInVertically { it / 2 }) togetherWith
+                                        (fadeOut(tween(100)) + slideOutVertically { -it / 2 })
+                                },
+                                label = "matchCounter"
+                            ) { counter ->
+                                Text(text = counter)
+                            }
+                        }
                     }
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

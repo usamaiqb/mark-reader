@@ -5,12 +5,24 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -22,6 +34,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -74,6 +88,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -120,6 +135,7 @@ fun ViewerScreen(
     val isSystemDark = isSystemInDarkTheme()
 
     var isReadingSurfaceDark by rememberSaveable { mutableStateOf(false) }
+    var isChromeVisible by remember { mutableStateOf(true) }
     var isMenuExpanded by remember { mutableStateOf(false) }
     var isTocVisible by rememberSaveable { mutableStateOf(false) }
     var isExportSheetVisible by rememberSaveable { mutableStateOf(false) }
@@ -161,6 +177,26 @@ fun ViewerScreen(
     }
     LaunchedEffect(isSystemDark) {
         viewModel.onSystemDarkThemeChanged(isSystemDark)
+    }
+    // Immersive reading: hide the chrome on downward scrolls, bring it back on
+    // upward scrolls or at the top. Large deltas are programmatic jumps (TOC,
+    // search match) where the user just used the chrome — keep it visible.
+    LaunchedEffect(Unit) {
+        var lastY = 0
+        snapshotFlow { savedScrollY }.collect { y ->
+            val delta = y - lastY
+            when {
+                y <= 0 -> isChromeVisible = true
+                delta < -8 -> isChromeVisible = true
+                delta in 9..1200 -> isChromeVisible = false
+            }
+            lastY = y
+        }
+    }
+    LaunchedEffect(uiState.isSearchActive) {
+        if (uiState.isSearchActive) {
+            isChromeVisible = true
+        }
     }
     LaunchedEffect(uiState.isSourceCode) {
         isWordWrapEnabled = !uiState.isSourceCode
@@ -265,7 +301,11 @@ fun ViewerScreen(
 
     Scaffold(
         floatingActionButton = {
-            if (canEdit && !uiState.isSearchActive) {
+            AnimatedVisibility(
+                visible = canEdit && !uiState.isSearchActive && isChromeVisible,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
                 FloatingActionButton(
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -279,284 +319,306 @@ fun ViewerScreen(
             }
         },
         topBar = {
-            Column {
-                if (uiState.isSearchActive) {
-                    ViewerSearchBar(
-                        query = uiState.searchQuery,
-                        matchIndex = uiState.searchMatchIndex,
-                        matchCount = uiState.searchMatchCount,
-                        onQueryChange = viewModel::onSearchQueryChanged,
-                        onNext = viewModel::onNextMatch,
-                        onPrevious = viewModel::onPreviousMatch,
-                        onClear = {
-                            viewModel.onSearchQueryChanged("")
+            Column(
+                modifier = Modifier
+                    .background(chromeColors.surface)
+                    .statusBarsPadding()
+            ) {
+                AnimatedVisibility(
+                    visible = isChromeVisible || uiState.isSearchActive,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+                ) {
+                    AnimatedContent(
+                        targetState = uiState.isSearchActive,
+                        transitionSpec = {
+                            (fadeIn(tween(220, delayMillis = 60)) +
+                                slideInVertically(tween(220)) { -it / 6 }) togetherWith
+                                (fadeOut(tween(120)) +
+                                    slideOutVertically(tween(220)) { -it / 6 })
                         },
-                        onBack = {
-                            viewModel.onSearchQueryChanged("")
-                            viewModel.onSearchToggled()
-                        },
-                        modeLabel = viewModeLabel,
-                        surfaceColor = chromeColors.surface,
-                        contentColor = chromeColors.content,
-                        tonalContainerColor = chromeColors.tonalContainer,
-                        showBackButton = true
-                    )
-                } else {
-                    TopAppBar(
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = chromeColors.surface,
-                            titleContentColor = chromeColors.content,
-                            navigationIconContentColor = chromeColors.content,
-                            actionIconContentColor = chromeColors.content
-                        ),
-                        title = {
-                            val canToggleViewMode =
-                                !uiState.isSourceCode && uiState.rendered != null
-                            Column(horizontalAlignment = Alignment.Start) {
-                                Text(
-                                    text = fileName,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Surface(
-                                        onClick = {
-                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            viewModel.toggleViewMode()
-                                        },
-                                        enabled = canToggleViewMode,
-                                        shape = RoundedCornerShape(50),
-                                        color = chromeColors.tonalContainer.copy(alpha = 0.6f),
-                                        contentColor = chromeColors.muted
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            modifier = Modifier.padding(
-                                                horizontal = 8.dp,
-                                                vertical = 2.dp
-                                            )
-                                        ) {
-                                            if (canToggleViewMode) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.SwapHoriz,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(12.dp)
-                                                )
-                                            }
-                                            Text(
-                                                text = viewModeLabel,
-                                                style = MaterialTheme.typography.labelSmall
-                                            )
-                                        }
-                                    }
-                                    scrollProgress?.let { progress ->
-                                        Surface(
-                                            shape = RoundedCornerShape(50),
-                                            color = chromeColors.tonalContainer.copy(alpha = 0.6f),
-                                            contentColor = chromeColors.muted
-                                        ) {
-                                            Text(
-                                                text = "${(progress * 100).roundToInt()}%",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                maxLines = 1,
-                                                modifier = Modifier.padding(
-                                                    horizontal = 8.dp,
-                                                    vertical = 2.dp
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        navigationIcon = {
-                            if (!uiState.isSourceCode) {
-                                FilledTonalIconButton(
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        isTocVisible = true
-                                    },
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = chromeColors.tonalContainer,
-                                        contentColor = chromeColors.content
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.FormatListBulleted,
-                                        contentDescription = "Table of contents"
-                                    )
-                                }
-                            }
-                        },
-                        actions = {
-                            FilledTonalIconButton(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    isReadingSurfaceDark = !isReadingSurfaceDark
+                        label = "chromeBarSwap"
+                    ) { searchActive ->
+                        if (searchActive) {
+                            ViewerSearchBar(
+                                query = uiState.searchQuery,
+                                matchIndex = uiState.searchMatchIndex,
+                                matchCount = uiState.searchMatchCount,
+                                onQueryChange = viewModel::onSearchQueryChanged,
+                                onNext = viewModel::onNextMatch,
+                                onPrevious = viewModel::onPreviousMatch,
+                                onClear = {
+                                    viewModel.onSearchQueryChanged("")
                                 },
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = chromeColors.tonalContainer,
-                                    contentColor = chromeColors.content
-                                )
-                            ) {
-                                Crossfade(
-                                    targetState = isReadingSurfaceDark,
-                                    label = "surfaceFlipIcon"
-                                ) { isDark ->
-                                    Icon(
-                                        imageVector = if (isDark) {
-                                            Icons.Rounded.DarkMode
-                                        } else {
-                                            Icons.Rounded.LightMode
-                                        },
-                                        contentDescription = "Toggle reading surface"
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            FilledTonalIconButton(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onBack = {
+                                    viewModel.onSearchQueryChanged("")
                                     viewModel.onSearchToggled()
                                 },
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = chromeColors.tonalContainer,
-                                    contentColor = chromeColors.content
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Search,
-                                    contentDescription = "Search"
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            FilledTonalIconButton(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    isMenuExpanded = true
-                                },
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = chromeColors.tonalContainer,
-                                    contentColor = chromeColors.content
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MoreVert,
-                                    contentDescription = "More options"
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = isMenuExpanded,
-                                onDismissRequest = { isMenuExpanded = false },
-                                modifier = Modifier.background(chromeColors.surface)
-                            ) {
-                                DropdownMenuItem(
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.WrapText,
-                                            contentDescription = null,
-                                            tint = chromeColors.content
-                                        )
-                                    },
-                                    text = {
+                                modeLabel = viewModeLabel,
+                                surfaceColor = chromeColors.surface,
+                                contentColor = chromeColors.content,
+                                tonalContainerColor = chromeColors.tonalContainer,
+                                showBackButton = true
+                            )
+                        } else {
+                            TopAppBar(
+                                windowInsets = WindowInsets(0.dp),
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = chromeColors.surface,
+                                    titleContentColor = chromeColors.content,
+                                    navigationIconContentColor = chromeColors.content,
+                                    actionIconContentColor = chromeColors.content
+                                ),
+                                title = {
+                                    val canToggleViewMode =
+                                        !uiState.isSourceCode && uiState.rendered != null
+                                    Column(horizontalAlignment = Alignment.Start) {
                                         Text(
-                                            text = "Wrap long lines",
-                                            color = chromeColors.content
+                                            text = fileName,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
-                                    },
-                                    trailingIcon = {
-                                        androidx.compose.material3.Switch(
-                                            checked = isWordWrapEnabled,
-                                            onCheckedChange = null,
-                                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                                checkedThumbColor = chromeColors.content,
-                                                checkedTrackColor = chromeColors.tonalContainer,
-                                                uncheckedThumbColor = chromeColors.muted,
-                                                uncheckedTrackColor = chromeColors.tonalContainer
-                                            )
-                                        )
-                                    },
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        isWordWrapEnabled = !isWordWrapEnabled
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Surface(
+                                                onClick = {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                    viewModel.toggleViewMode()
+                                                },
+                                                enabled = canToggleViewMode,
+                                                shape = RoundedCornerShape(50),
+                                                color = chromeColors.tonalContainer.copy(alpha = 0.6f),
+                                                contentColor = chromeColors.muted
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                    modifier = Modifier.padding(
+                                                        horizontal = 8.dp,
+                                                        vertical = 2.dp
+                                                    )
+                                                ) {
+                                                    if (canToggleViewMode) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.SwapHoriz,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = viewModeLabel,
+                                                        style = MaterialTheme.typography.labelSmall
+                                                    )
+                                                }
+                                            }
+                                            scrollProgress?.let { progress ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(50),
+                                                    color = chromeColors.tonalContainer.copy(alpha = 0.6f),
+                                                    contentColor = chromeColors.muted
+                                                ) {
+                                                    Text(
+                                                        text = "${(progress * 100).roundToInt()}%",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        maxLines = 1,
+                                                        modifier = Modifier.padding(
+                                                            horizontal = 8.dp,
+                                                            vertical = 2.dp
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
-                                )
-                                if (isWordWrapEnabled) {
-                                    DropdownMenuItem(
-                                        leadingIcon = {
+                                },
+                                navigationIcon = {
+                                    if (!uiState.isSourceCode) {
+                                        FilledTonalIconButton(
+                                            onClick = {
+                                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                isTocVisible = true
+                                            },
+                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = chromeColors.tonalContainer,
+                                                contentColor = chromeColors.content
+                                            )
+                                        ) {
                                             Icon(
-                                                imageVector = Icons.Rounded.Code,
-                                                contentDescription = null,
-                                                tint = chromeColors.content
+                                                imageVector = Icons.AutoMirrored.Rounded.FormatListBulleted,
+                                                contentDescription = "Table of contents"
                                             )
-                                        },
-                                        text = {
-                                            Text(
-                                                text = "Wrap code blocks",
-                                                color = chromeColors.content
-                                            )
-                                        },
-                                        trailingIcon = {
-                                            androidx.compose.material3.Switch(
-                                                checked = isCodeBlockWrapEnabled,
-                                                onCheckedChange = null,
-                                                colors = androidx.compose.material3.SwitchDefaults.colors(
-                                                    checkedThumbColor = chromeColors.content,
-                                                    checkedTrackColor = chromeColors.tonalContainer,
-                                                    uncheckedThumbColor = chromeColors.muted,
-                                                    uncheckedTrackColor = chromeColors.tonalContainer
-                                                )
-                                            )
-                                        },
+                                        }
+                                    }
+                                },
+                                actions = {
+                                    FilledTonalIconButton(
                                         onClick = {
                                             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            isCodeBlockWrapEnabled = !isCodeBlockWrapEnabled
+                                            isReadingSurfaceDark = !isReadingSurfaceDark
+                                        },
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = chromeColors.tonalContainer,
+                                            contentColor = chromeColors.content
+                                        )
+                                    ) {
+                                        Crossfade(
+                                            targetState = isReadingSurfaceDark,
+                                            label = "surfaceFlipIcon"
+                                        ) { isDark ->
+                                            Icon(
+                                                imageVector = if (isDark) {
+                                                    Icons.Rounded.DarkMode
+                                                } else {
+                                                    Icons.Rounded.LightMode
+                                                },
+                                                contentDescription = "Toggle reading surface"
+                                            )
                                         }
-                                    )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            viewModel.onSearchToggled()
+                                        },
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = chromeColors.tonalContainer,
+                                            contentColor = chromeColors.content
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Search,
+                                            contentDescription = "Search"
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            isMenuExpanded = true
+                                        },
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = chromeColors.tonalContainer,
+                                            contentColor = chromeColors.content
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.MoreVert,
+                                            contentDescription = "More options"
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = isMenuExpanded,
+                                        onDismissRequest = { isMenuExpanded = false },
+                                        modifier = Modifier.background(chromeColors.surface)
+                                    ) {
+                                        DropdownMenuItem(
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Rounded.WrapText,
+                                                    contentDescription = null,
+                                                    tint = chromeColors.content
+                                                )
+                                            },
+                                            text = {
+                                                Text(
+                                                    text = "Wrap long lines",
+                                                    color = chromeColors.content
+                                                )
+                                            },
+                                            trailingIcon = {
+                                                androidx.compose.material3.Switch(
+                                                    checked = isWordWrapEnabled,
+                                                    onCheckedChange = null,
+                                                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                        checkedThumbColor = chromeColors.content,
+                                                        checkedTrackColor = chromeColors.tonalContainer,
+                                                        uncheckedThumbColor = chromeColors.muted,
+                                                        uncheckedTrackColor = chromeColors.tonalContainer
+                                                    )
+                                                )
+                                            },
+                                            onClick = {
+                                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                isWordWrapEnabled = !isWordWrapEnabled
+                                            }
+                                        )
+                                        if (isWordWrapEnabled) {
+                                            DropdownMenuItem(
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Code,
+                                                        contentDescription = null,
+                                                        tint = chromeColors.content
+                                                    )
+                                                },
+                                                text = {
+                                                    Text(
+                                                        text = "Wrap code blocks",
+                                                        color = chromeColors.content
+                                                    )
+                                                },
+                                                trailingIcon = {
+                                                    androidx.compose.material3.Switch(
+                                                        checked = isCodeBlockWrapEnabled,
+                                                        onCheckedChange = null,
+                                                        colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                            checkedThumbColor = chromeColors.content,
+                                                            checkedTrackColor = chromeColors.tonalContainer,
+                                                            uncheckedThumbColor = chromeColors.muted,
+                                                            uncheckedTrackColor = chromeColors.tonalContainer
+                                                        )
+                                                    )
+                                                },
+                                                onClick = {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                    isCodeBlockWrapEnabled = !isCodeBlockWrapEnabled
+                                                }
+                                            )
+                                        }
+                                        HorizontalDivider(color = chromeColors.tonalContainer)
+                                        DropdownMenuItem(
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Download,
+                                                    contentDescription = null,
+                                                    tint = chromeColors.content
+                                                )
+                                            },
+                                            text = {
+                                                Text(
+                                                    text = "Export & share",
+                                                    color = chromeColors.content
+                                                )
+                                            },
+                                            onClick = {
+                                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                isMenuExpanded = false
+                                                isExportSheetVisible = true
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Settings,
+                                                    contentDescription = null,
+                                                    tint = chromeColors.content
+                                                )
+                                            },
+                                            text = { Text(text = "Settings", color = chromeColors.content) },
+                                            onClick = {
+                                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                                isMenuExpanded = false
+                                                onOpenSettings()
+                                            }
+                                        )
+                                    }
                                 }
-                                HorizontalDivider(color = chromeColors.tonalContainer)
-                                DropdownMenuItem(
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Download,
-                                            contentDescription = null,
-                                            tint = chromeColors.content
-                                        )
-                                    },
-                                    text = {
-                                        Text(
-                                            text = "Export & share",
-                                            color = chromeColors.content
-                                        )
-                                    },
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        isMenuExpanded = false
-                                        isExportSheetVisible = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Settings,
-                                            contentDescription = null,
-                                            tint = chromeColors.content
-                                        )
-                                    },
-                                    text = { Text(text = "Settings", color = chromeColors.content) },
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        isMenuExpanded = false
-                                        onOpenSettings()
-                                    }
-                                )
-                            }
+                            )
                         }
-                    )
+                    }
                 }
                 val animatedReadProgress by animateFloatAsState(
                     targetValue = scrollProgress ?: 0f,
