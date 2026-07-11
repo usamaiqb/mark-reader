@@ -149,7 +149,7 @@ fun RenderedTextView(
                             )
                         )
                     } else {
-                        val textView = TextView(context).apply {
+                        val textView = SearchHighlightTextView(context).apply {
                             textSize = fontSizeSp
                             setLineSpacing(0f, lineHeight)
                             setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
@@ -870,7 +870,7 @@ private fun buildTableLayout(
                 setStroke(borderWidthPx, borderColor)
                 setColor(if (isOdd) oddRowBg else Color.TRANSPARENT)
             }
-            val cellTv = TextView(context).apply {
+            val cellTv = SearchHighlightTextView(context).apply {
                 this.text = cell.text()
                 textSize = fontSizeSp
                 setLineSpacing(0f, lineHeight)
@@ -964,7 +964,7 @@ private fun createStyledTextView(
     selectionHighlightColor: Int,
     horizontalScroll: Boolean
 ): TextView {
-    return TextView(context).apply {
+    return SearchHighlightTextView(context).apply {
         textSize = fontSizeSp
         setLineSpacing(0f, lineHeight)
         setPadding(paddingPx, paddingPx, paddingPx, paddingPx)

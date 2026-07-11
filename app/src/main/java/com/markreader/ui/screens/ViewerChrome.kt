@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,10 +22,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -36,10 +32,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -78,7 +79,6 @@ fun ViewerSearchBar(
     onPrevious: () -> Unit,
     onClear: () -> Unit,
     onBack: () -> Unit,
-    modeLabel: String,
     surfaceColor: Color,
     contentColor: Color,
     tonalContainerColor: Color,
@@ -87,6 +87,11 @@ fun ViewerSearchBar(
 ) {
     val hasMatches = matchCount > 0
     val haptics = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
     // Single Surface fills edge-to-edge exactly like TopAppBar, with the same
     // chromeColors.surface — no tonal elevation overlay, no floating gaps.
     Surface(
@@ -106,7 +111,10 @@ fun ViewerSearchBar(
                 },
                 leadingIcon = {
                     if (showBackButton) {
-                        IconButton(onClick = onBack) {
+                        IconButton(onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onBack()
+                        }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Back",
@@ -137,7 +145,10 @@ fun ViewerSearchBar(
                 } else null,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onNext() }),
+                keyboardActions = KeyboardActions(onSearch = {
+                    focusManager.clearFocus()
+                    onNext()
+                }),
                 shape = RoundedCornerShape(28.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = tonalContainerColor,
@@ -153,6 +164,7 @@ fun ViewerSearchBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .focusRequester(focusRequester)
             )
 
             // Controls row — flat, no elevation, same surface as the row above.
@@ -163,46 +175,46 @@ fun ViewerSearchBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                AssistChip(
-                    onClick = { },
-                    enabled = false,
-                    colors = AssistChipDefaults.assistChipColors(
-                        disabledContainerColor = tonalContainerColor,
-                        disabledLabelColor = contentColor
-                    ),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = tonalContainerColor.copy(alpha = 0.8f)
-                    ),
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "$modeLabel • ")
-                            AnimatedContent(
-                                targetState = if (hasMatches) {
-                                    "${matchIndex + 1} of $matchCount"
-                                } else {
-                                    "No matches"
-                                },
-                                transitionSpec = {
-                                    (fadeIn(tween(150)) + slideInVertically { it / 2 }) togetherWith
-                                        (fadeOut(tween(100)) + slideOutVertically { -it / 2 })
-                                },
-                                label = "matchCounter"
-                            ) { counter ->
-                                Text(text = counter)
-                            }
-                        }
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = tonalContainerColor.copy(alpha = 0.6f),
+                    contentColor = contentColor.copy(alpha = 0.85f)
+                ) {
+                    AnimatedContent(
+                        targetState = when {
+                            query.isBlank() -> "Type to search"
+                            hasMatches -> "${matchIndex + 1} of $matchCount"
+                            else -> "No matches"
+                        },
+                        transitionSpec = {
+                            (fadeIn(tween(150)) + slideInVertically { it / 2 }) togetherWith
+                                (fadeOut(tween(100)) + slideOutVertically { -it / 2 })
+                        },
+                        label = "matchCounter"
+                    ) { status ->
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
                     }
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                }
+                // Prev/next as a connected pair: mirrored asymmetric corners with
+                // a 2dp gap so they read as one control.
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     val disabledContent = contentColor.copy(alpha = 0.45f)
                     val disabledContainer = tonalContainerColor.copy(alpha = 0.6f)
                     FilledTonalIconButton(
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            focusManager.clearFocus()
                             onPrevious()
                         },
                         enabled = hasMatches,
+                        shape = RoundedCornerShape(
+                            topStart = 20.dp, bottomStart = 20.dp,
+                            topEnd = 4.dp, bottomEnd = 4.dp
+                        ),
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = tonalContainerColor,
                             contentColor = contentColor,
@@ -218,9 +230,14 @@ fun ViewerSearchBar(
                     FilledTonalIconButton(
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            focusManager.clearFocus()
                             onNext()
                         },
                         enabled = hasMatches,
+                        shape = RoundedCornerShape(
+                            topStart = 4.dp, bottomStart = 4.dp,
+                            topEnd = 20.dp, bottomEnd = 20.dp
+                        ),
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = tonalContainerColor,
                             contentColor = contentColor,
@@ -235,8 +252,6 @@ fun ViewerSearchBar(
                     }
                 }
             }
-
-            HorizontalDivider(color = tonalContainerColor.copy(alpha = 0.5f))
         }
     }
 }

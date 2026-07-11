@@ -354,7 +354,6 @@ fun ViewerScreen(
                                     viewModel.onSearchQueryChanged("")
                                     viewModel.onSearchToggled()
                                 },
-                                modeLabel = viewModeLabel,
                                 surfaceColor = chromeColors.surface,
                                 contentColor = chromeColors.content,
                                 tonalContainerColor = chromeColors.tonalContainer,
