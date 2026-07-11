@@ -34,14 +34,15 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -72,6 +73,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -85,6 +87,8 @@ import com.markreader.R
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.ReaderThemePreference
 import com.markreader.OPENABLE_MIME_TYPES
+import com.markreader.ui.components.SegmentPosition
+import com.markreader.ui.components.segmentShape
 import com.markreader.ui.export.ExportManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,7 +113,7 @@ fun ViewerScreen(
     var isReadingSurfaceDark by rememberSaveable { mutableStateOf(false) }
     var isMenuExpanded by remember { mutableStateOf(false) }
     var isTocVisible by rememberSaveable { mutableStateOf(false) }
-    var isExportDialogVisible by rememberSaveable { mutableStateOf(false) }
+    var isExportSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isWordWrapEnabled by rememberSaveable { mutableStateOf(true) }
     var isCodeBlockWrapEnabled by rememberSaveable { mutableStateOf(true) }
     val exportManager = remember { ExportManager(context) }
@@ -492,28 +496,16 @@ fun ViewerScreen(
                                             tint = chromeColors.content
                                         )
                                     },
-                                    text = { Text(text = "Export", color = chromeColors.content) },
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        isMenuExpanded = false
-                                        isExportDialogVisible = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Share,
-                                            contentDescription = null,
-                                            tint = chromeColors.content
+                                    text = {
+                                        Text(
+                                            text = "Export & share",
+                                            color = chromeColors.content
                                         )
                                     },
-                                    text = { Text(text = "Share Raw", color = chromeColors.content) },
                                     onClick = {
                                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         isMenuExpanded = false
-                                        if (uiState.rawText.isNotBlank()) {
-                                            exportManager.shareRawMarkdown(uiState.rawText)
-                                        }
+                                        isExportSheetVisible = true
                                     }
                                 )
                                 DropdownMenuItem(
@@ -790,39 +782,104 @@ fun ViewerScreen(
         }
     }
 
-    if (isExportDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isExportDialogVisible = false },
-            title = { Text(text = "Export") },
-            text = { Text(text = "Choose an export format.") },
-            confirmButton = {
-                Row {
-                    androidx.compose.material3.TextButton(
-                        onClick = {
-                            isExportDialogVisible = false
-                            exportManager.exportPdf(uiState.rawText, activeReaderTheme, fileName)
-                        }
-                    ) {
-                        Text(text = "PDF")
+    if (isExportSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { isExportSheetVisible = false },
+            containerColor = chromeColors.surface,
+            contentColor = chromeColors.content
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = "Export & share",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 12.dp)
+                )
+                Text(
+                    text = fileName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = chromeColors.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 12.dp, bottom = 10.dp)
+                )
+                ExportSheetItem(
+                    icon = Icons.Rounded.PictureAsPdf,
+                    title = "Export as PDF",
+                    subtitle = "Print-ready document",
+                    position = SegmentPosition.First,
+                    colors = chromeColors,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        isExportSheetVisible = false
+                        exportManager.exportPdf(uiState.rawText, activeReaderTheme, fileName)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    androidx.compose.material3.TextButton(
-                        onClick = {
-                            isExportDialogVisible = false
-                            exportManager.exportHtml(uiState.rawText, activeReaderTheme)
-                        }
-                    ) {
-                        Text(text = "HTML")
+                )
+                ExportSheetItem(
+                    icon = Icons.Rounded.Language,
+                    title = "Export as HTML",
+                    subtitle = "Styled web page",
+                    position = SegmentPosition.Middle,
+                    colors = chromeColors,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        isExportSheetVisible = false
+                        exportManager.exportHtml(uiState.rawText, activeReaderTheme)
                     }
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { isExportDialogVisible = false }
-                ) {
-                    Text(text = "Cancel")
-                }
+                )
+                ExportSheetItem(
+                    icon = Icons.Rounded.Share,
+                    title = "Share raw text",
+                    subtitle = "Send the markdown source",
+                    position = SegmentPosition.Last,
+                    colors = chromeColors,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        isExportSheetVisible = false
+                        if (uiState.rawText.isNotBlank()) {
+                            exportManager.shareRawMarkdown(uiState.rawText)
+                        }
+                    }
+                )
             }
-        )
+        }
+    }
+}
+
+@Composable
+private fun ExportSheetItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    position: SegmentPosition,
+    colors: ViewerColors,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = segmentShape(position),
+        color = colors.tonalContainer.copy(alpha = 0.55f),
+        contentColor = colors.content
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null)
+            Column {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.muted
+                )
+            }
+        }
     }
 }
