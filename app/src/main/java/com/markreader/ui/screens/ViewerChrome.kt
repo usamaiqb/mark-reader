@@ -12,11 +12,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalIconButton
@@ -33,6 +33,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
@@ -78,6 +80,7 @@ fun ViewerSearchBar(
     modifier: Modifier = Modifier
 ) {
     val hasMatches = matchCount > 0
+    val haptics = LocalHapticFeedback.current
     // Single Surface fills edge-to-edge exactly like TopAppBar, with the same
     // chromeColors.surface — no tonal elevation overlay, no floating gaps.
     Surface(
@@ -99,14 +102,14 @@ fun ViewerSearchBar(
                     if (showBackButton) {
                         IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = "Back",
                                 tint = contentColor
                             )
                         }
                     } else {
                         Icon(
-                            imageVector = Icons.Filled.Search,
+                            imageVector = Icons.Rounded.Search,
                             contentDescription = null,
                             tint = contentColor.copy(alpha = 0.72f)
                         )
@@ -114,9 +117,12 @@ fun ViewerSearchBar(
                 },
                 trailingIcon = if (query.isNotEmpty()) {
                     {
-                        IconButton(onClick = onClear) {
+                        IconButton(onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onClear()
+                        }) {
                             Icon(
-                                imageVector = Icons.Filled.Close,
+                                imageVector = Icons.Rounded.Close,
                                 contentDescription = "Clear search",
                                 tint = contentColor
                             )
@@ -172,7 +178,10 @@ fun ViewerSearchBar(
                     val disabledContent = contentColor.copy(alpha = 0.45f)
                     val disabledContainer = tonalContainerColor.copy(alpha = 0.6f)
                     FilledTonalIconButton(
-                        onClick = onPrevious,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            onPrevious()
+                        },
                         enabled = hasMatches,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = tonalContainerColor,
@@ -182,12 +191,15 @@ fun ViewerSearchBar(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.KeyboardArrowUp,
+                            imageVector = Icons.Rounded.KeyboardArrowUp,
                             contentDescription = "Previous match"
                         )
                     }
                     FilledTonalIconButton(
-                        onClick = onNext,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            onNext()
+                        },
                         enabled = hasMatches,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = tonalContainerColor,
@@ -197,7 +209,7 @@ fun ViewerSearchBar(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
                             contentDescription = "Next match"
                         )
                     }

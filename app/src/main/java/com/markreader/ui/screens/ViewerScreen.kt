@@ -14,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,24 +22,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.automirrored.filled.WrapText
+import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
+import androidx.compose.material.icons.automirrored.rounded.WrapText
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -52,7 +47,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -74,7 +68,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -113,6 +109,7 @@ fun ViewerScreen(
     var isWordWrapEnabled by rememberSaveable { mutableStateOf(true) }
     var isCodeBlockWrapEnabled by rememberSaveable { mutableStateOf(true) }
     val exportManager = remember { ExportManager(context) }
+    val haptics = LocalHapticFeedback.current
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -254,12 +251,13 @@ fun ViewerScreen(
             if (canEdit && !uiState.isSearchActive) {
                 FloatingActionButton(
                     onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         onOpenEditor(uriString!!, isMarkdownFile)
                     },
                     containerColor = chromeColors.tonalContainer,
                     contentColor = chromeColors.content
                 ) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit file")
+                    Icon(Icons.Rounded.Edit, contentDescription = "Edit file")
                 }
             }
         },
@@ -311,14 +309,17 @@ fun ViewerScreen(
                         navigationIcon = {
                             if (!uiState.isSourceCode) {
                                 FilledTonalIconButton(
-                                    onClick = { isTocVisible = true },
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        isTocVisible = true
+                                    },
                                     colors = IconButtonDefaults.filledTonalIconButtonColors(
                                         containerColor = chromeColors.tonalContainer,
                                         contentColor = chromeColors.content
                                     )
                                 ) {
                                     Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                                        imageVector = Icons.AutoMirrored.Rounded.FormatListBulleted,
                                         contentDescription = "Table of contents"
                                     )
                                 }
@@ -326,27 +327,33 @@ fun ViewerScreen(
                         },
                         actions = {
                             FilledTonalIconButton(
-                                onClick = viewModel::onSearchToggled,
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    viewModel.onSearchToggled()
+                                },
                                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                                     containerColor = chromeColors.tonalContainer,
                                     contentColor = chromeColors.content
                                 )
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.Search,
+                                    imageVector = Icons.Rounded.Search,
                                     contentDescription = "Search"
                                 )
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             FilledTonalIconButton(
-                                onClick = { isMenuExpanded = true },
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    isMenuExpanded = true
+                                },
                                 colors = IconButtonDefaults.filledTonalIconButtonColors(
                                     containerColor = chromeColors.tonalContainer,
                                     contentColor = chromeColors.content
                                 )
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.MoreVert,
+                                    imageVector = Icons.Rounded.MoreVert,
                                     contentDescription = "More options"
                                 )
                             }
@@ -358,7 +365,7 @@ fun ViewerScreen(
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.WrapText,
+                                            imageVector = Icons.AutoMirrored.Rounded.WrapText,
                                             contentDescription = null,
                                             tint = chromeColors.content
                                         )
@@ -382,6 +389,7 @@ fun ViewerScreen(
                                         )
                                     },
                                     onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         isWordWrapEnabled = !isWordWrapEnabled
                                     }
                                 )
@@ -389,7 +397,7 @@ fun ViewerScreen(
                                     DropdownMenuItem(
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = Icons.Filled.Code,
+                                                imageVector = Icons.Rounded.Code,
                                                 contentDescription = null,
                                                 tint = chromeColors.content
                                             )
@@ -413,6 +421,7 @@ fun ViewerScreen(
                                             )
                                         },
                                         onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                             isCodeBlockWrapEnabled = !isCodeBlockWrapEnabled
                                         }
                                     )
@@ -421,9 +430,9 @@ fun ViewerScreen(
                                     leadingIcon = {
                                         Icon(
                                             imageVector = if (isReadingSurfaceDark) {
-                                                Icons.Filled.DarkMode
+                                                Icons.Rounded.DarkMode
                                             } else {
-                                                Icons.Filled.LightMode
+                                                Icons.Rounded.LightMode
                                             },
                                             contentDescription = null,
                                             tint = chromeColors.content
@@ -447,6 +456,7 @@ fun ViewerScreen(
                                         )
                                     },
                                     onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         isReadingSurfaceDark = !isReadingSurfaceDark
                                     }
                                 )
@@ -454,13 +464,14 @@ fun ViewerScreen(
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Filled.Download,
+                                            imageVector = Icons.Rounded.Download,
                                             contentDescription = null,
                                             tint = chromeColors.content
                                         )
                                     },
                                     text = { Text(text = "Export", color = chromeColors.content) },
                                     onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         isMenuExpanded = false
                                         isExportDialogVisible = true
                                     }
@@ -468,13 +479,14 @@ fun ViewerScreen(
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Filled.Share,
+                                            imageVector = Icons.Rounded.Share,
                                             contentDescription = null,
                                             tint = chromeColors.content
                                         )
                                     },
                                     text = { Text(text = "Share Raw", color = chromeColors.content) },
                                     onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         isMenuExpanded = false
                                         if (uiState.rawText.isNotBlank()) {
                                             exportManager.shareRawMarkdown(uiState.rawText)
@@ -484,13 +496,14 @@ fun ViewerScreen(
                                 DropdownMenuItem(
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Filled.Settings,
+                                            imageVector = Icons.Rounded.Settings,
                                             contentDescription = null,
                                             tint = chromeColors.content
                                         )
                                     },
                                     text = { Text(text = "Settings", color = chromeColors.content) },
                                     onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         isMenuExpanded = false
                                         onOpenSettings()
                                     }
@@ -636,14 +649,17 @@ fun ViewerScreen(
                             )
                         }
                         FilledTonalIconButton(
-                            onClick = { isTocVisible = false },
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                isTocVisible = false
+                            },
                             colors = IconButtonDefaults.filledTonalIconButtonColors(
                                 containerColor = chromeColors.tonalContainer,
                                 contentColor = chromeColors.content
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Close,
+                                imageVector = Icons.Rounded.Close,
                                 contentDescription = "Close"
                             )
                         }
@@ -712,6 +728,7 @@ fun ViewerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         viewModel.onHeadingSelected(heading.offset)
                                         isTocVisible = false
                                     }
