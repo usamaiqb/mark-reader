@@ -63,7 +63,7 @@ fun RenderedTextView(
     padding: PaddingValues,
     savedScrollY: Int,
     scrollToOffset: Int?,
-    onScrollChanged: (Int) -> Unit,
+    onScrollChanged: (scrollY: Int, maxScrollY: Int) -> Unit,
     onScrollConsumed: () -> Unit,
     headings: List<HeadingItem>,
     onActiveHeadingChanged: (Int) -> Unit,
@@ -168,7 +168,7 @@ fun RenderedTextView(
                         )
                     }
                     setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                        onScrollChanged(scrollY)
+                        onScrollChanged(scrollY, computeMaxScrollY(this))
                         val list = currentHeadings
                         if (list.isEmpty()) return@setOnScrollChangeListener
                         val firstChild = getChildAt(0) ?: return@setOnScrollChangeListener
@@ -189,6 +189,11 @@ fun RenderedTextView(
                             val y = scrollY + tv.paddingTop
                             onActiveHeadingChangedState(findActiveHeadingIndex(layout, list, y))
                         }
+                    }
+                    // Report scroll extent whenever content lays out so reading
+                    // progress is available before the first scroll event.
+                    viewTreeObserver.addOnGlobalLayoutListener {
+                        onScrollChanged(scrollY, computeMaxScrollY(this))
                     }
                 }
                 val rootView = if (useGlobalHorizontalScroll) {
@@ -722,6 +727,12 @@ private fun getAnchorFromView(
         }
         else -> return null
     }
+}
+
+private fun computeMaxScrollY(scrollView: ScrollView): Int {
+    val child = scrollView.getChildAt(0) ?: return 0
+    return (child.height + scrollView.paddingTop + scrollView.paddingBottom - scrollView.height)
+        .coerceAtLeast(0)
 }
 
 private fun resolveScrollY(

@@ -100,6 +100,11 @@ class ViewerViewModel(
     private val _scrollY = MutableStateFlow(0)
     val scrollY: StateFlow<Int> = _scrollY.asStateFlow()
 
+    // Fraction of the document scrolled past, or null while the content is
+    // shorter than the viewport (no meaningful progress to show).
+    private val _scrollProgress = MutableStateFlow<Float?>(null)
+    val scrollProgress: StateFlow<Float?> = _scrollProgress.asStateFlow()
+
     init {
         observePreferences()
         if (initialUri == null) {
@@ -118,6 +123,7 @@ class ViewerViewModel(
         viewModelScope.launch {
             loadingJob?.cancel()
             _matchOffsets = emptyList()
+            _scrollProgress.value = null
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
                 isLoadingVisible = false,
@@ -315,8 +321,13 @@ class ViewerViewModel(
         _scrollToOffset.value = offset
     }
 
-    fun onScrollPositionChanged(y: Int) {
+    fun onScrollPositionChanged(y: Int, maxY: Int) {
         _scrollY.value = y
+        _scrollProgress.value = if (maxY > 0) {
+            (y.toFloat() / maxY).coerceIn(0f, 1f)
+        } else {
+            null
+        }
     }
 
     fun onScrollConsumed() {
