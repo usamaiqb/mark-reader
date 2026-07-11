@@ -8,13 +8,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,8 +50,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -78,6 +78,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -87,7 +88,10 @@ import com.markreader.R
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.ReaderThemePreference
 import com.markreader.OPENABLE_MIME_TYPES
+import com.markreader.ui.components.GroupInnerRadius
+import com.markreader.ui.components.GroupOuterRadius
 import com.markreader.ui.components.SegmentPosition
+import com.markreader.ui.components.segmentPositionFor
 import com.markreader.ui.components.segmentShape
 import com.markreader.ui.export.ExportManager
 
@@ -638,143 +642,77 @@ fun ViewerScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 4.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Surface(
-                    tonalElevation = 2.dp,
-                    color = chromeColors.surface,
-                    contentColor = chromeColors.content
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .weight(1f)
+                            .padding(start = 12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Table of Contents",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = "${uiState.headings.size} heading${if (uiState.headings.size == 1) "" else "s"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = chromeColors.muted
-                            )
-                        }
-                        FilledTonalIconButton(
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                isTocVisible = false
-                            },
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = chromeColors.tonalContainer,
-                                contentColor = chromeColors.content
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = "Close"
-                            )
-                        }
+                        Text(
+                            text = "Table of contents",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "${uiState.headings.size} heading${if (uiState.headings.size == 1) "" else "s"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = chromeColors.muted
+                        )
+                    }
+                    FilledTonalIconButton(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                            isTocVisible = false
+                        },
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = chromeColors.tonalContainer,
+                            contentColor = chromeColors.content
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close"
+                        )
                     }
                 }
-                HorizontalDivider()
                 if (uiState.headings.isEmpty()) {
                     Text(
                         text = "No headings found.",
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        color = chromeColors.muted,
+                        modifier = Modifier.padding(start = 12.dp, top = 4.dp)
                     )
                 } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        AssistChip(
-                            onClick = { },
-                            enabled = false,
-                            colors = AssistChipDefaults.assistChipColors(
-                                disabledContainerColor = chromeColors.tonalContainer,
-                                disabledLabelColor = chromeColors.content
-                            ),
-                            label = { Text("Jump to section") }
-                        )
-                        if (uiState.activeHeadingIndex >= 0) {
-                            val activeText = uiState.headings
-                                .getOrNull(uiState.activeHeadingIndex)
-                                ?.text
-                                ?.take(18)
-                                ?.ifBlank { "Active section" }
-                                ?: "Active section"
-                            AssistChip(
-                                onClick = { },
-                                enabled = false,
-                                colors = AssistChipDefaults.assistChipColors(
-                                    disabledContainerColor = chromeColors.tonalContainer,
-                                    disabledLabelColor = chromeColors.content
-                                ),
-                                label = { Text("Current: $activeText") }
-                            )
+                    val tocListState = rememberLazyListState()
+                    LaunchedEffect(Unit) {
+                        if (uiState.activeHeadingIndex > 0) {
+                            tocListState.scrollToItem(uiState.activeHeadingIndex - 1)
                         }
                     }
                     LazyColumn(
+                        state = tocListState,
                         modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(1.dp)
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         itemsIndexed(uiState.headings) { index, heading ->
-                            val indent = when (heading.level) {
-                                1 -> 0.dp
-                                2 -> 12.dp
-                                else -> 24.dp
-                            }
-                            val isActive = index == uiState.activeHeadingIndex
-                            val background =
-                                if (isActive) chromeColors.tonalContainer else chromeColors.surface
-                            val textColor =
-                                chromeColors.content
-                            Surface(
-                                color = background,
-                                shape = MaterialTheme.shapes.medium,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        viewModel.onHeadingSelected(heading.offset)
-                                        isTocVisible = false
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = indent, top = 6.dp, bottom = 6.dp, end = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Surface(
-                                        color = chromeColors.tonalContainer,
-                                        contentColor = chromeColors.content,
-                                        shape = MaterialTheme.shapes.small
-                                    ) {
-                                        Text(
-                                            text = "H${heading.level}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                    Text(
-                                        text = heading.text,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = textColor,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                            TocHeadingRow(
+                                heading = heading,
+                                position = segmentPositionFor(index, uiState.headings.size),
+                                isActive = index == uiState.activeHeadingIndex,
+                                colors = chromeColors,
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    viewModel.onHeadingSelected(heading.offset)
+                                    isTocVisible = false
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -845,6 +783,101 @@ fun ViewerScreen(
                         }
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TocHeadingRow(
+    heading: HeadingItem,
+    position: SegmentPosition,
+    isActive: Boolean,
+    colors: ViewerColors,
+    onClick: () -> Unit
+) {
+    val innerRadius by animateDpAsState(
+        targetValue = if (isActive) 20.dp else GroupInnerRadius,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tocCornerMorph"
+    )
+    val topRadius = when (position) {
+        SegmentPosition.Single, SegmentPosition.First -> GroupOuterRadius
+        else -> innerRadius
+    }
+    val bottomRadius = when (position) {
+        SegmentPosition.Single, SegmentPosition.Last -> GroupOuterRadius
+        else -> innerRadius
+    }
+    val containerColor by animateColorAsState(
+        targetValue = if (isActive) {
+            colors.tonalContainer
+        } else {
+            colors.tonalContainer.copy(alpha = 0.4f)
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tocContainerColor"
+    )
+    val indent = when (heading.level) {
+        1 -> 0.dp
+        2 -> 12.dp
+        else -> 24.dp
+    }
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(
+            topStart = topRadius,
+            topEnd = topRadius,
+            bottomStart = bottomRadius,
+            bottomEnd = bottomRadius
+        ),
+        color = containerColor,
+        contentColor = colors.content
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                start = 16.dp + indent,
+                top = 12.dp,
+                bottom = 12.dp,
+                end = 12.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                color = colors.surface,
+                contentColor = colors.muted,
+                shape = CircleShape
+            ) {
+                Text(
+                    text = "H${heading.level}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+            Text(
+                text = heading.text,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (isActive) {
+                Surface(
+                    color = colors.surface,
+                    contentColor = colors.content,
+                    shape = CircleShape
+                ) {
+                    Text(
+                        text = "Reading",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
             }
         }
     }
