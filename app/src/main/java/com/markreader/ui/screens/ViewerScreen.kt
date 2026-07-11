@@ -5,9 +5,11 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -36,6 +39,7 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -293,17 +297,45 @@ fun ViewerScreen(
                             actionIconContentColor = chromeColors.content
                         ),
                         title = {
-                            Column {
+                            val canToggleViewMode =
+                                !uiState.isSourceCode && uiState.rendered != null
+                            Column(horizontalAlignment = Alignment.Start) {
                                 Text(
                                     text = fileName,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text(
-                                    text = viewModeLabel,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = chromeColors.muted
-                                )
+                                Surface(
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        viewModel.toggleViewMode()
+                                    },
+                                    enabled = canToggleViewMode,
+                                    shape = RoundedCornerShape(50),
+                                    color = chromeColors.tonalContainer.copy(alpha = 0.6f),
+                                    contentColor = chromeColors.muted
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(
+                                            horizontal = 8.dp,
+                                            vertical = 2.dp
+                                        )
+                                    ) {
+                                        if (canToggleViewMode) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.SwapHoriz,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = viewModeLabel,
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
                             }
                         },
                         navigationIcon = {
@@ -326,6 +358,31 @@ fun ViewerScreen(
                             }
                         },
                         actions = {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    isReadingSurfaceDark = !isReadingSurfaceDark
+                                },
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = chromeColors.tonalContainer,
+                                    contentColor = chromeColors.content
+                                )
+                            ) {
+                                Crossfade(
+                                    targetState = isReadingSurfaceDark,
+                                    label = "surfaceFlipIcon"
+                                ) { isDark ->
+                                    Icon(
+                                        imageVector = if (isDark) {
+                                            Icons.Rounded.DarkMode
+                                        } else {
+                                            Icons.Rounded.LightMode
+                                        },
+                                        contentDescription = "Toggle reading surface"
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
                             FilledTonalIconButton(
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -426,40 +483,6 @@ fun ViewerScreen(
                                         }
                                     )
                                 }
-                                DropdownMenuItem(
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = if (isReadingSurfaceDark) {
-                                                Icons.Rounded.DarkMode
-                                            } else {
-                                                Icons.Rounded.LightMode
-                                            },
-                                            contentDescription = null,
-                                            tint = chromeColors.content
-                                        )
-                                    },
-                                    text = {
-                                        Text(
-                                            text = if (isReadingSurfaceDark) {
-                                                "Reader surface: Dark"
-                                            } else {
-                                                "Reader surface: Light"
-                                            },
-                                            color = chromeColors.content
-                                        )
-                                    },
-                                    trailingIcon = {
-                                        Text(
-                                            text = if (isReadingSurfaceDark) "Dark" else "Light",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = chromeColors.muted
-                                        )
-                                    },
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        isReadingSurfaceDark = !isReadingSurfaceDark
-                                    }
-                                )
                                 HorizontalDivider(color = chromeColors.tonalContainer)
                                 DropdownMenuItem(
                                     leadingIcon = {
