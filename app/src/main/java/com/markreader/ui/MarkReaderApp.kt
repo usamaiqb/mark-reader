@@ -1,6 +1,5 @@
 package com.markreader.ui
 
-import android.net.Uri
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -29,8 +28,7 @@ fun MarkReaderApp(
     val navController = rememberNavController()
     val startDestination = rememberSaveable {
         if (launchedExternally && !externalUri.isNullOrBlank()) {
-            val encoded = Uri.encode(externalUri)
-            NavRoutes.Viewer.createRoute(encoded)
+            NavRoutes.Viewer.createRoute(externalUri)
         } else {
             NavRoutes.Home.route
         }
@@ -86,8 +84,7 @@ private fun navigateToViewerClearingBackStack(
     navController: NavHostController,
     uriString: String
 ) {
-    val encoded = Uri.encode(uriString)
-    navController.navigate(NavRoutes.Viewer.createRoute(encoded)) {
+    navController.navigate(NavRoutes.Viewer.createRoute(uriString)) {
         popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
         launchSingleTop = true
     }

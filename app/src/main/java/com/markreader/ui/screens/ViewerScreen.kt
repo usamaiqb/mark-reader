@@ -106,6 +106,7 @@ import com.markreader.R
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.ReaderThemePreference
 import com.markreader.OPENABLE_MIME_TYPES
+import com.markreader.tryTakePersistablePermission
 import com.markreader.ui.components.GroupInnerRadius
 import com.markreader.ui.components.GroupOuterRadius
 import com.markreader.ui.components.SegmentPosition
@@ -148,16 +149,10 @@ fun ViewerScreen(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
             if (uri != null) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (ex: SecurityException) {
-                    // Ignore: provider may not allow persistable grants.
-                } catch (ex: IllegalArgumentException) {
-                    // Ignore: not a persistable URI.
-                }
+                context.contentResolver.tryTakePersistablePermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
                 viewModel.loadUri(uri.toString())
             }
         }

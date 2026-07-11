@@ -107,7 +107,9 @@ fun EditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val saveAsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("*/*"),
+        contract = ActivityResultContracts.CreateDocument(
+            if (isMarkdown) "text/markdown" else "text/plain"
+        ),
         onResult = { uri -> if (uri != null) viewModel.onSaveAs(uri) }
     )
 

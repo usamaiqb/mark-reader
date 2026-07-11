@@ -1,6 +1,5 @@
 package com.markreader.ui.navigation
 
-import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -22,15 +21,13 @@ fun NavGraphBuilder.markReaderNavGraph(
         HomeScreen(
             onOpenSettings = { navController.navigateToSettings() },
             onOpenViewer = { uri ->
-                val encoded = Uri.encode(uri)
-                navController.navigate(NavRoutes.Viewer.createRoute(encoded)) {
+                navController.navigate(NavRoutes.Viewer.createRoute(uri)) {
                     popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
                     launchSingleTop = true
                 }
             },
             onOpenEditor = { uri, isMarkdown ->
-                val encoded = Uri.encode(uri)
-                navController.navigate(NavRoutes.Editor.createRoute(encoded, isMarkdown))
+                navController.navigate(NavRoutes.Editor.createRoute(uri, isMarkdown))
             }
         )
     }
@@ -48,8 +45,7 @@ fun NavGraphBuilder.markReaderNavGraph(
         ViewerScreen(
             onOpenSettings = { navController.navigateToSettings() },
             onOpenEditor = { editorUri, isMarkdown ->
-                val encoded = Uri.encode(editorUri)
-                navController.navigate(NavRoutes.Editor.createRoute(encoded, isMarkdown))
+                navController.navigate(NavRoutes.Editor.createRoute(editorUri, isMarkdown))
             },
             uriString = uri,
             fileSaved = fileSaved,

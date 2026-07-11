@@ -21,6 +21,8 @@ import com.markreader.ui.theme.AppTheme
 import com.markreader.ui.theme.MarkReaderTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private var externalUri by mutableStateOf<String?>(null)
@@ -31,7 +33,12 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        handleIntent(intent)
+        // Only handle the intent on a fresh launch. After a config change the
+        // ViewerViewModel already holds the content; re-running handleIntent would
+        // re-read the whole file into ExternalFileCache with nothing to consume it.
+        if (savedInstanceState == null) {
+            handleIntent(intent)
+        }
         setContent {
             val preferences by PreferencesRepository
                 .getInstance(applicationContext)
@@ -63,23 +70,17 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         val action = intent?.action ?: return
         val data: Uri? = resolveIncomingUri(intent)
-        if (data == null) return
+        if (data == null) {
+            if (action == Intent.ACTION_SEND) handleSharedText(intent)
+            return
+        }
 
         if (action == Intent.ACTION_VIEW || action == Intent.ACTION_SEND) {
-            val flags = intent.flags and (
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-            )
-            if (flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0) {
-                try {
-                    contentResolver.takePersistableUriPermission(
-                        data,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (ex: SecurityException) {
-                    // Ignore: the provider may not allow persistable grants.
-                } catch (ex: IllegalArgumentException) {
-                    // Ignore: not a persistable URI.
-                }
+            if (intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0) {
+                contentResolver.tryTakePersistablePermission(
+                    data,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
             val uriString = data.toString()
             externalUri = uriString
@@ -91,16 +92,39 @@ class MainActivity : ComponentActivity() {
             // providers) reject reads from ViewModelScope but allow them here because
             // the Activity is the direct recipient of the FLAG_GRANT_READ_URI_PERMISSION
             // grant. The result (or null on failure) is published to ExternalFileCache
-            // so ViewerViewModel can consume it instead of re-opening the URI.
+            // so ViewerViewModel can consume it instead of re-opening the URI. The
+            // deferred is guaranteed to complete — even if this scope is cancelled —
+            // so consumers can await it without a timeout.
             val deferred = ExternalFileCache.register(uriString)
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val content = contentResolver.openInputStream(data)
-                        ?.use { it.bufferedReader().readText() }
-                    deferred.complete(content)
+            val job = lifecycleScope.launch(Dispatchers.IO) {
+                val content = try {
+                    contentResolver.openInputStream(data)?.use { readBoundedText(it) }
                 } catch (_: Exception) {
-                    deferred.complete(null)
+                    null
                 }
+                deferred.complete(content)
+            }
+            job.invokeOnCompletion {
+                if (!deferred.isCompleted) deferred.complete(null)
+            }
+        }
+    }
+
+    /**
+     * ACTION_SEND of plain text usually carries EXTRA_TEXT rather than a stream.
+     * Persist it to a cache file so the viewer can treat it like any other document.
+     */
+    private fun handleSharedText(intent: Intent) {
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            val file = File(cacheDir, "shared-text.md")
+            file.writeText(text)
+            val uriString = Uri.fromFile(file).toString()
+            ExternalFileCache.register(uriString).complete(text)
+            withContext(Dispatchers.Main) {
+                externalUri = uriString
+                externalUriNonce++
+                launchedExternally = true
             }
         }
     }
