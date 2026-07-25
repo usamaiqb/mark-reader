@@ -8,7 +8,7 @@
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
 </p>
 
-A lightweight, offline markdown and code file reader for Android with syntax highlighting and a built-in editor.
+A lightweight, offline markdown and code file reader for Android with syntax highlighting and a built-in editor for markdown notes.
 
 ## Features
 
@@ -18,10 +18,10 @@ A lightweight, offline markdown and code file reader for Android with syntax hig
 - 🌓 **Material You** - Dynamic color, dark and light themes, edge-to-edge display
 
 ### Editing
-- ✏️ **Built-in Editor** - Edit markdown files with a live preview tab; edit code files with syntax-aware display
+- ✏️ **Built-in Editor** - Write notes and edit markdown files with a live preview tab; edit code files with syntax-aware display
 - 🔧 **Formatting Toolbar** - Quick access to bold, italic, headings, code blocks, links, and lists while editing
 - 💾 **Save & Export** - Save edited files in place or export to a new location with Save As
-- 🆕 **Create New Files** - Start a new markdown or code file from scratch
+- 🆕 **Create New Files** - Start a new note, markdown, or code file from scratch
 
 ### App
 - 📂 **Open from Anywhere** - Open files directly from any file manager via the standard share/open intent
