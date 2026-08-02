@@ -3,6 +3,25 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.2] - 2026-08-02
+
+### Added
+- Added a recent files list on the home screen for quicker access to previously opened documents.
+- Added a dynamic colors toggle in settings, with preference persistence and viewer UI support.
+
+### Improved
+- Updated app descriptions to better highlight note-taking support.
+- Updated GitHub Actions dependencies for checkout, Java setup, and release publishing.
+
+## [1.0.1] - 2026-07-14
+
+### Added
+- Live reader preview in Settings, rendering sample prose and code with your actual colors, fonts, size, spacing, and alignment, with a light/dark toggle
+- GitHub repository link in the About section
+
+### Improved
+- Redesigned Settings screen with Material 3 expressive UI: grouped rows with leading icons and animated value badges, a collapsing top app bar, restyled picker sheets, and haptic feedback on selections
+
 ## [1.0.0] - 2026-04-08
 
 ### Added
