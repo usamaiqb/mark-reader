@@ -72,6 +72,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -91,10 +92,6 @@ import com.markreader.data.ReaderThemePreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.data.UserPreferences
-import com.markreader.ui.components.GroupOuterRadius
-import com.markreader.ui.components.SectionHeader
-import com.markreader.ui.components.SegmentPosition
-import com.markreader.ui.components.segmentShape
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
 import java.util.Locale
@@ -102,7 +99,38 @@ import kotlin.math.abs
 
 private const val GithubRepoUrl = "https://github.com/usamaiqb/mark-reader"
 
+// ── Segment shape helpers ──────────────────────────────────────────────────────
+
+private enum class SegmentPosition { Single, First, Middle, Last }
+
+private val GroupOuterRadius = 24.dp
+private val GroupInnerRadius = 4.dp
+
+private fun segmentShape(position: SegmentPosition): Shape = when (position) {
+    SegmentPosition.Single -> RoundedCornerShape(GroupOuterRadius)
+    SegmentPosition.First -> RoundedCornerShape(
+        topStart = GroupOuterRadius, topEnd = GroupOuterRadius,
+        bottomStart = GroupInnerRadius, bottomEnd = GroupInnerRadius
+    )
+    SegmentPosition.Middle -> RoundedCornerShape(GroupInnerRadius)
+    SegmentPosition.Last -> RoundedCornerShape(
+        topStart = GroupInnerRadius, topEnd = GroupInnerRadius,
+        bottomStart = GroupOuterRadius, bottomEnd = GroupOuterRadius
+    )
+}
+
 // ── Reusable composables ───────────────────────────────────────────────────────
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+    )
+}
 
 @Composable
 private fun SettingsGroup(content: @Composable () -> Unit) {
