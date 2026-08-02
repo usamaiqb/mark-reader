@@ -6,10 +6,8 @@ import android.provider.OpenableColumns
 import android.text.SpannableString
 import android.text.Spanned
 import android.graphics.Typeface
-import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
-import android.text.style.UnderlineSpan
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -84,6 +82,7 @@ class ViewerViewModel(
     private var detectedCodeLanguage: String? = null
     private var loadingJob: Job? = null
     private var rebuildJob: Job? = null
+    private var searchJob: Job? = null
     private var baseRendered: Spanned? = null
     private var renderDarkModeOverride: Boolean? = null
     private var preferencesLoaded = false
@@ -99,6 +98,11 @@ class ViewerViewModel(
 
     private val _scrollY = MutableStateFlow(0)
     val scrollY: StateFlow<Int> = _scrollY.asStateFlow()
+
+    // Fraction of the document scrolled past, or null while the content is
+    // shorter than the viewport (no meaningful progress to show).
+    private val _scrollProgress = MutableStateFlow<Float?>(null)
+    val scrollProgress: StateFlow<Float?> = _scrollProgress.asStateFlow()
 
     init {
         observePreferences()
@@ -117,7 +121,9 @@ class ViewerViewModel(
         currentUri = uriString
         viewModelScope.launch {
             loadingJob?.cancel()
+            searchJob?.cancel()
             _matchOffsets = emptyList()
+            _scrollProgress.value = null
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
                 isLoadingVisible = false,
@@ -281,6 +287,7 @@ class ViewerViewModel(
             searchMatchIndex = 0
         )
         if (!active) {
+            searchJob?.cancel()
             applySearchQuery("")
         }
     }
@@ -290,7 +297,20 @@ class ViewerViewModel(
             searchQuery = query,
             searchMatchIndex = 0
         )
-        applySearchQuery(query)
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            applySearchQuery(query)
+            return
+        }
+        // Debounced: the highlight pass rebuilds a span per match over the whole
+        // document, which is too heavy to run per keystroke on large files.
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(200)
+            applySearchQuery(query)
+            // Bring the first match into view; without this, a query whose
+            // matches are all off-screen gives no visible feedback.
+            _matchOffsets.firstOrNull()?.let { _scrollToOffset.value = it }
+        }
     }
 
     fun onNextMatch() {
@@ -315,8 +335,13 @@ class ViewerViewModel(
         _scrollToOffset.value = offset
     }
 
-    fun onScrollPositionChanged(y: Int) {
+    fun onScrollPositionChanged(y: Int, maxY: Int) {
         _scrollY.value = y
+        _scrollProgress.value = if (maxY > 0) {
+            (y.toFloat() / maxY).coerceIn(0f, 1f)
+        } else {
+            null
+        }
     }
 
     fun onScrollConsumed() {
@@ -591,17 +616,14 @@ class ViewerViewModel(
             isSepia -> 0xFFFFFFFF.toInt()
             else -> 0xFFFFFFFF.toInt()
         }
-        for (range in ranges) {
+        // Passive highlights are capped: thousands of spans stall the TextView.
+        // Every match stays countable and navigable via _matchOffsets, and the
+        // active match is always styled below regardless of this cap.
+        for (range in ranges.take(400)) {
             val start = range.first
             val end = (range.last + 1).coerceAtMost(highlighted.length)
             highlighted.setSpan(
-                BackgroundColorSpan(matchBackgroundColor),
-                start,
-                end,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            highlighted.setSpan(
-                UnderlineSpan(),
+                SearchHighlightSpan(matchBackgroundColor, isActive = false),
                 start,
                 end,
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
@@ -613,7 +635,7 @@ class ViewerViewModel(
             val activeOffset = activeRange.first
             val activeEnd = (activeRange.last + 1).coerceAtMost(highlighted.length)
             highlighted.setSpan(
-                BackgroundColorSpan(activeMatchBackgroundColor),
+                SearchHighlightSpan(activeMatchBackgroundColor, isActive = true),
                 activeOffset,
                 activeEnd,
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE

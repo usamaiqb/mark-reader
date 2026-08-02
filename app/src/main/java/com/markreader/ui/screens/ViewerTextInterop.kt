@@ -63,7 +63,7 @@ fun RenderedTextView(
     padding: PaddingValues,
     savedScrollY: Int,
     scrollToOffset: Int?,
-    onScrollChanged: (Int) -> Unit,
+    onScrollChanged: (scrollY: Int, maxScrollY: Int) -> Unit,
     onScrollConsumed: () -> Unit,
     headings: List<HeadingItem>,
     onActiveHeadingChanged: (Int) -> Unit,
@@ -149,7 +149,7 @@ fun RenderedTextView(
                             )
                         )
                     } else {
-                        val textView = TextView(context).apply {
+                        val textView = SearchHighlightTextView(context).apply {
                             textSize = fontSizeSp
                             setLineSpacing(0f, lineHeight)
                             setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
@@ -168,7 +168,7 @@ fun RenderedTextView(
                         )
                     }
                     setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                        onScrollChanged(scrollY)
+                        onScrollChanged(scrollY, computeMaxScrollY(this))
                         val list = currentHeadings
                         if (list.isEmpty()) return@setOnScrollChangeListener
                         val firstChild = getChildAt(0) ?: return@setOnScrollChangeListener
@@ -189,6 +189,11 @@ fun RenderedTextView(
                             val y = scrollY + tv.paddingTop
                             onActiveHeadingChangedState(findActiveHeadingIndex(layout, list, y))
                         }
+                    }
+                    // Report scroll extent whenever content lays out so reading
+                    // progress is available before the first scroll event.
+                    viewTreeObserver.addOnGlobalLayoutListener {
+                        onScrollChanged(scrollY, computeMaxScrollY(this))
                     }
                 }
                 val rootView = if (useGlobalHorizontalScroll) {
@@ -724,6 +729,12 @@ private fun getAnchorFromView(
     }
 }
 
+private fun computeMaxScrollY(scrollView: ScrollView): Int {
+    val child = scrollView.getChildAt(0) ?: return 0
+    return (child.height + scrollView.paddingTop + scrollView.paddingBottom - scrollView.height)
+        .coerceAtLeast(0)
+}
+
 private fun resolveScrollY(
     scrollView: ScrollView,
     boundaries: List<Segment>,
@@ -859,7 +870,7 @@ private fun buildTableLayout(
                 setStroke(borderWidthPx, borderColor)
                 setColor(if (isOdd) oddRowBg else Color.TRANSPARENT)
             }
-            val cellTv = TextView(context).apply {
+            val cellTv = SearchHighlightTextView(context).apply {
                 this.text = cell.text()
                 textSize = fontSizeSp
                 setLineSpacing(0f, lineHeight)
@@ -953,7 +964,7 @@ private fun createStyledTextView(
     selectionHighlightColor: Int,
     horizontalScroll: Boolean
 ): TextView {
-    return TextView(context).apply {
+    return SearchHighlightTextView(context).apply {
         textSize = fontSizeSp
         setLineSpacing(0f, lineHeight)
         setPadding(paddingPx, paddingPx, paddingPx, paddingPx)

@@ -298,7 +298,7 @@ fun EditorScreen(
                                     padding = PaddingValues(0.dp),
                                     savedScrollY = 0,
                                     scrollToOffset = null,
-                                    onScrollChanged = {},
+                                    onScrollChanged = { _, _ -> },
                                     onScrollConsumed = {},
                                     headings = emptyList(),
                                     onActiveHeadingChanged = {},
