@@ -3,6 +3,7 @@ package com.markreader.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -22,6 +23,7 @@ class PreferencesRepository private constructor(private val context: Context) {
     private object Keys {
         val LEGACY_THEME = stringPreferencesKey("theme")
         val APP_THEME_MODE = stringPreferencesKey("app_theme_mode")
+        val USE_DYNAMIC_COLORS = booleanPreferencesKey("use_dynamic_colors")
         val READER_LIGHT_THEME = stringPreferencesKey("reader_light_theme")
         val READER_DARK_THEME = stringPreferencesKey("reader_dark_theme")
         val READING_FONT = stringPreferencesKey("reading_font")
@@ -74,6 +76,7 @@ class PreferencesRepository private constructor(private val context: Context) {
 
             UserPreferences(
                 appThemeMode = appThemeMode,
+                useDynamicColors = prefs[Keys.USE_DYNAMIC_COLORS] ?: true,
                 readerLightTheme = readerLightTheme,
                 readerDarkTheme = readerDarkTheme,
                 readingFont = readingFont,
@@ -86,6 +89,10 @@ class PreferencesRepository private constructor(private val context: Context) {
 
     suspend fun setAppThemeMode(themeMode: AppThemeModePreference) {
         context.dataStore.edit { it[Keys.APP_THEME_MODE] = themeMode.name }
+    }
+
+    suspend fun setUseDynamicColors(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.USE_DYNAMIC_COLORS] = enabled }
     }
 
     suspend fun setReaderLightTheme(theme: ReaderThemePreference) {

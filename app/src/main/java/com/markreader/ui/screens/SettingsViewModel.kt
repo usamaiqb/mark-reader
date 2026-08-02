@@ -27,6 +27,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { repository.setAppThemeMode(theme) }
     }
 
+    fun setUseDynamicColors(enabled: Boolean) {
+        viewModelScope.launch { repository.setUseDynamicColors(enabled) }
+    }
+
     fun setReaderLightTheme(theme: ReaderThemePreference) {
         viewModelScope.launch { repository.setReaderLightTheme(theme) }
     }

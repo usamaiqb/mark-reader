@@ -37,7 +37,10 @@ class MainActivity : ComponentActivity() {
                 .getInstance(applicationContext)
                 .preferences
                 .collectAsStateWithLifecycle(initialValue = UserPreferences())
-            MarkReaderTheme(theme = preferences.appThemeMode.toAppTheme()) {
+            MarkReaderTheme(
+                theme = preferences.appThemeMode.toAppTheme(),
+                dynamicColor = preferences.useDynamicColors
+            ) {
                 MarkReaderApp(
                     externalUri = externalUri,
                     externalUriNonce = externalUriNonce,
