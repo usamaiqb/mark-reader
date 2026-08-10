@@ -1,0 +1,4 @@
+• Redesigned Settings screen with Material 3 expressive UI
+• Added a live reader preview with light/dark toggle
+• Added haptic feedback for selections in Settings
+• Added a GitHub repo link to the About section

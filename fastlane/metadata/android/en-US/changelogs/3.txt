@@ -1,0 +1,4 @@
+• Added recent files on the home screen.
+• Added a dynamic colors toggle in settings.
+• Updated app descriptions to mention note-taking.
+• Refreshed CI release workflow dependencies.
