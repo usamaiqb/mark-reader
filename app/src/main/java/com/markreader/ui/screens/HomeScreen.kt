@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.OPENABLE_MIME_TYPES
 import com.markreader.R
+import com.markreader.tryTakePersistablePermission
 import com.markreader.data.RecentFile
 import com.markreader.ui.components.SectionHeader
 import com.markreader.ui.components.SegmentPosition
@@ -83,16 +84,10 @@ fun HomeScreen(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
             if (uri != null) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (ex: SecurityException) {
-                    // Ignore: provider may not allow persistable grants.
-                } catch (ex: IllegalArgumentException) {
-                    // Ignore: not a persistable URI.
-                }
+                context.contentResolver.tryTakePersistablePermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
             viewModel.onFilePicked(uri)
         }
@@ -102,13 +97,11 @@ fun HomeScreen(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
         onResult = { uri ->
             if (uri != null) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    )
-                } catch (ex: SecurityException) { } catch (ex: IllegalArgumentException) { }
+                context.contentResolver.tryTakePersistablePermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
             }
             viewModel.onNewFileCreated(uri)
         }

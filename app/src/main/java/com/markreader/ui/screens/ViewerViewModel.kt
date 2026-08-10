@@ -19,8 +19,13 @@ import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
 import com.markreader.ui.markdown.SourceCodeRenderer
 import com.markreader.ExternalFileCache
+import com.markreader.FileTooLargeException
+import com.markreader.MAX_FILE_BYTES
+import com.markreader.readBoundedText
+import com.markreader.tryTakePersistablePermission
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +33,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 enum class ViewMode {
     Rendered,
@@ -80,6 +84,7 @@ class ViewerViewModel(
     private val sourceCodeRendererCache = mutableMapOf<Boolean, SourceCodeRenderer>()
     private var currentUri: String? = null
     private var detectedCodeLanguage: String? = null
+    private var loadJob: Job? = null
     private var loadingJob: Job? = null
     private var rebuildJob: Job? = null
     private var searchJob: Job? = null
@@ -119,7 +124,10 @@ class ViewerViewModel(
             return
         }
         currentUri = uriString
-        viewModelScope.launch {
+        // Cancel any in-flight load: a slow read for a previous URI must not
+        // finish after this one and overwrite the newer content.
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             loadingJob?.cancel()
             searchJob?.cancel()
             _matchOffsets = emptyList()
@@ -149,7 +157,6 @@ class ViewerViewModel(
                 }
             }
 
-            val context = getApplication<Application>()
             val uri = Uri.parse(uriString)
 
             ensureReadPermission(uri)
@@ -159,6 +166,8 @@ class ViewerViewModel(
             var readError: Exception? = null
             val markdown = try {
                 readTextFromUri(uri)
+            } catch (ex: CancellationException) {
+                throw ex
             } catch (ex: Exception) {
                 readError = ex
                 null
@@ -167,15 +176,20 @@ class ViewerViewModel(
             if (markdown == null) {
                 loadingJob?.cancel()
                 val needsPermission = readError is SecurityException
-                val errorDetails = readError?.let { ex ->
-                    val message = ex.message?.takeIf { it.isNotBlank() } ?: "no details"
-                    " (${ex.javaClass.simpleName}: $message)"
-                } ?: ""
+                val errorMessage = if (readError is FileTooLargeException) {
+                    "This file is too large to open (over ${MAX_FILE_BYTES / (1024 * 1024)} MB)."
+                } else {
+                    val errorDetails = readError?.let { ex ->
+                        val message = ex.message?.takeIf { it.isNotBlank() } ?: "no details"
+                        " (${ex.javaClass.simpleName}: $message)"
+                    } ?: ""
+                    "Unable to open this file.$errorDetails"
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     isLoadingVisible = false,
                     fileName = fileName,
-                    errorMessage = "Unable to open this file.$errorDetails",
+                    errorMessage = errorMessage,
                     needsPermission = needsPermission,
                     rawHighlighted = null,
                     searchQuery = "",
@@ -427,6 +441,8 @@ class ViewerViewModel(
     private suspend fun renderMarkdown(isDark: Boolean, markdown: String): Spanned? {
         return try {
             getMarkwonRenderer(isDark).render(markdown)
+        } catch (ex: CancellationException) {
+            throw ex
         } catch (ex: Exception) {
             null
         }
@@ -435,6 +451,8 @@ class ViewerViewModel(
     private suspend fun renderSourceCode(isDark: Boolean, code: String, language: String): Spanned? {
         return try {
             getSourceCodeRenderer(isDark).highlight(code, language)
+        } catch (ex: CancellationException) {
+            throw ex
         } catch (ex: Exception) {
             null
         }
@@ -510,8 +528,10 @@ class ViewerViewModel(
                     return@withContext it.getString(0)
                 }
             }
-        } catch (ex: SecurityException) {
-            // Fall back to the last path segment if we don't have query permission.
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: Exception) {
+            // Fall back to the last path segment if the provider can't be queried.
         }
         return@withContext uri.lastPathSegment
     }
@@ -522,20 +542,22 @@ class ViewerViewModel(
         // If MainActivity registered a pre-read for this URI (ACTION_VIEW flow), await
         // its result. This handles restricted providers like DownloadStorageProvider that
         // require ACTION_OPEN_DOCUMENT-style access and reject reads from ViewModel scope.
+        // The Activity guarantees the deferred completes (null on failure/cancellation),
+        // so awaiting without a timeout cannot hang.
         val deferred = ExternalFileCache.consume(uriString)
         if (deferred != null) {
-            val preloaded = withTimeoutOrNull(5_000) { deferred.await() }
+            val preloaded = deferred.await()
             if (preloaded != null) return@withContext preloaded
-            // Pre-read failed or timed out; fall through to a direct attempt below.
+            // Pre-read failed; fall through to a direct attempt below.
         }
 
         val resolver = getApplication<Application>().contentResolver
         resolver.openInputStream(uri)?.use { stream ->
-            return@withContext stream.bufferedReader().readText()
+            return@withContext readBoundedText(stream)
         }
         resolver.openFileDescriptor(uri, "r")?.use { pfd ->
-            java.io.FileInputStream(pfd.fileDescriptor).bufferedReader().use { reader ->
-                return@withContext reader.readText()
+            java.io.FileInputStream(pfd.fileDescriptor).use { stream ->
+                return@withContext readBoundedText(stream)
             }
         }
         return@withContext null
@@ -543,17 +565,10 @@ class ViewerViewModel(
 
     private fun ensureReadPermission(uri: Uri) {
         if (uri.scheme != "content") return
-        val context = getApplication<Application>()
-        try {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        } catch (ex: SecurityException) {
-            // Ignore: we may already have permission or the provider may not support persistable grants.
-        } catch (ex: IllegalArgumentException) {
-            // Ignore: not a persistable URI.
-        }
+        getApplication<Application>().contentResolver.tryTakePersistablePermission(
+            uri,
+            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
     }
 
     private var _matchOffsets: List<Int> = emptyList()

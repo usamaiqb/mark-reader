@@ -12,17 +12,21 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.core.graphics.ColorUtils
 import com.markreader.ExternalFileCache
+import com.markreader.FileTooLargeException
+import com.markreader.readBoundedText
+import com.markreader.tryTakePersistablePermission
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
+import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 enum class EditorTab { Edit, Preview }
 
@@ -52,6 +56,7 @@ class EditorViewModel(
 ) : AndroidViewModel(application) {
 
     private val repository = PreferencesRepository.getInstance(application)
+    private val recentFilesRepository = RecentFilesRepository.getInstance(application)
     private var currentUri: String? = initialUri
     private var systemDarkTheme = false
     private var renderer: MarkwonRenderer? = null
@@ -90,8 +95,14 @@ class EditorViewModel(
         viewModelScope.launch {
             val uri = Uri.parse(initialUri)
             val fileName = resolveFileName(uri) ?: "Untitled"
+            var tooLarge = false
             val content = try {
                 readTextFromUri(uri)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FileTooLargeException) {
+                tooLarge = true
+                null
             } catch (e: Exception) {
                 null
             }
@@ -99,7 +110,11 @@ class EditorViewModel(
                 isLoading = false,
                 fileName = fileName,
                 textFieldValue = TextFieldValue(content ?: ""),
-                errorMessage = if (content == null) "Unable to read file." else null
+                errorMessage = when {
+                    tooLarge -> "This file is too large to edit."
+                    content == null -> "Unable to read file."
+                    else -> null
+                }
             )
         }
     }
@@ -193,7 +208,11 @@ class EditorViewModel(
                         isSaving = false, saveResult = SaveResult.NoPermission
                     )
                 }
-            } catch (e: SecurityException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // SecurityException (revoked grant), FileNotFoundException (deleted
+                // document), IOException — all remedied by saving a copy instead.
                 _uiState.value = _uiState.value.copy(
                     isSaving = false, saveResult = SaveResult.NoPermission
                 )
@@ -210,7 +229,15 @@ class EditorViewModel(
                     getApplication<Application>().contentResolver
                         .openOutputStream(newUri, "wt")?.use { it.write(content.toByteArray()) }
                 }
+                // Keep the new document reachable after this session: without a
+                // persisted grant it can't be reopened, and recordOpen would skip it.
+                getApplication<Application>().contentResolver.tryTakePersistablePermission(
+                    newUri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
                 val newFileName = resolveFileName(newUri) ?: newUri.lastPathSegment ?: _uiState.value.fileName
+                recentFilesRepository.recordOpen(newUri.toString(), newFileName)
                 currentUri = newUri.toString()
                 _uiState.value = _uiState.value.copy(
                     isSaving = false, isModified = false,
@@ -240,7 +267,13 @@ class EditorViewModel(
             renderer = MarkwonRenderer(getApplication(), isDark, bg)
         }
         val spanned = withContext(Dispatchers.Default) {
-            try { renderer!!.render(text) } catch (e: Exception) { null }
+            try {
+                renderer!!.render(text)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
         }
         _uiState.value = _uiState.value.copy(previewText = spanned)
     }
@@ -250,18 +283,20 @@ class EditorViewModel(
         try {
             val cursor = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             cursor?.use { if (it.moveToFirst()) return@withContext it.getString(0) }
-        } catch (ex: SecurityException) { }
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: Exception) { }
         return@withContext uri.lastPathSegment
     }
 
     private suspend fun readTextFromUri(uri: Uri): String? = withContext(Dispatchers.IO) {
         val deferred = ExternalFileCache.consume(uri.toString())
         if (deferred != null) {
-            val preloaded = withTimeoutOrNull(5_000) { deferred.await() }
+            val preloaded = deferred.await()
             if (preloaded != null) return@withContext preloaded
         }
         getApplication<Application>().contentResolver
-            .openInputStream(uri)?.use { it.bufferedReader().readText() }
+            .openInputStream(uri)?.use { readBoundedText(it) }
     }
 
     companion object {
