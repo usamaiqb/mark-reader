@@ -97,6 +97,7 @@ import com.markreader.ui.components.SegmentPosition
 import com.markreader.ui.components.segmentShape
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
+import com.markreader.ui.theme.SansReadingFontFamily
 import java.util.Locale
 import kotlin.math.abs
 
@@ -702,7 +703,8 @@ fun SettingsScreen(
                         subtitle = "Typeface for prose and headings",
                         options = listOf(
                             ReadingFontPreference.Merriweather,
-                            ReadingFontPreference.SystemSerif
+                            ReadingFontPreference.SystemSerif,
+                            ReadingFontPreference.MerriweatherSans
                         ),
                         optionLabel = { it.displayLabel() },
                         selectedLabel = preferences.readingFont.displayLabel(),
@@ -951,6 +953,7 @@ private fun ReaderThemePreference.displayLabel(): String = when (this) {
 private fun ReadingFontPreference.displayLabel(): String = when (this) {
     ReadingFontPreference.Merriweather -> "Merriweather"
     ReadingFontPreference.SystemSerif -> "System serif"
+    ReadingFontPreference.MerriweatherSans -> "Merriweather Sans"
 }
 
 private fun CodeFontPreference.displayLabel(): String = when (this) {
@@ -961,6 +964,7 @@ private fun CodeFontPreference.displayLabel(): String = when (this) {
 private fun ReadingFontPreference.fontFamily(): FontFamily = when (this) {
     ReadingFontPreference.Merriweather -> ReadingFontFamily
     ReadingFontPreference.SystemSerif -> FontFamily.Serif
+    ReadingFontPreference.MerriweatherSans -> SansReadingFontFamily
 }
 
 private fun CodeFontPreference.fontFamily(): FontFamily = when (this) {

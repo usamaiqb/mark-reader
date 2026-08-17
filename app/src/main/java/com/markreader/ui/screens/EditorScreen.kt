@@ -85,6 +85,7 @@ import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
+import com.markreader.ui.theme.SansReadingFontFamily
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -226,6 +227,7 @@ fun EditorScreen(
                         when (prefs.readingFont) {
                             ReadingFontPreference.Merriweather -> ReadingFontFamily
                             ReadingFontPreference.SystemSerif -> FontFamily.Serif
+                            ReadingFontPreference.MerriweatherSans -> SansReadingFontFamily
                         }
                     } else {
                         when (prefs.codeFont) {

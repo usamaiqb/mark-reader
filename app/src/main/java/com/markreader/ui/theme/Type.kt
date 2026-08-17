@@ -13,6 +13,11 @@ val ReadingFontFamily = FontFamily(
     Font(R.font.merriweather_bold, weight = FontWeight.Bold)
 )
 
+val SansReadingFontFamily = FontFamily(
+    Font(R.font.merriweather_sans_regular, weight = FontWeight.Normal),
+    Font(R.font.merriweather_sans_bold, weight = FontWeight.Bold)
+)
+
 val CodeFontFamily = FontFamily(
     Font(R.font.jetbrains_mono_regular, weight = FontWeight.Normal)
 )
