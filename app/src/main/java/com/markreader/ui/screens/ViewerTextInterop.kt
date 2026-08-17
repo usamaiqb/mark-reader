@@ -948,6 +948,11 @@ private fun resolveTypeface(
             ) ?: Typeface.SERIF
         } catch (_: Exception) { Typeface.SERIF }
         ReadingFontPreference.SystemSerif -> Typeface.SERIF
+        ReadingFontPreference.MerriweatherSans -> try {
+            ResourcesCompat.getFont(
+                context, R.font.merriweather_sans_regular
+            ) ?: Typeface.SANS_SERIF
+        } catch (_: Exception) { Typeface.SANS_SERIF }
     }
 }
 

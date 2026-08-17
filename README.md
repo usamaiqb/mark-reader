@@ -99,6 +99,8 @@ Contributions are welcome! Please open an issue or pull request on [GitHub](http
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
+Third-party font notices are listed in [licenses/THIRD_PARTY_LICENSES.md](licenses/THIRD_PARTY_LICENSES.md).
+
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/usamaiqb/mark-reader/issues)
@@ -112,6 +114,7 @@ Built with:
 - [Markwon](https://github.com/noties/Markwon) - Markdown rendering for Android
 - [Prism4j](https://github.com/noties/Prism4j) - Syntax highlighting
 - [Merriweather](https://github.com/SorkinType/Merriweather) - Reading font (OFL)
+- [Merriweather Sans](https://github.com/SorkinType/Merriweather-Sans) - Sans-serif reading font (OFL)
 - [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) - Code font (OFL)
 
 ## Changelog

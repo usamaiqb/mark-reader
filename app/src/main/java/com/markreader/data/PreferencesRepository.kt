@@ -65,13 +65,22 @@ class PreferencesRepository private constructor(private val context: Context) {
                     ReaderThemePreference.Amoled -> ReaderThemePreference.Amoled
                     else -> ReaderThemePreference.Dark
                 }
-            val readingFont = prefs[Keys.READING_FONT]?.let { ReadingFontPreference.valueOf(it) }
+            val readingFont = prefs[Keys.READING_FONT]?.let {
+                when (it) {
+                    "SystemSans" -> ReadingFontPreference.MerriweatherSans
+                    else -> runCatching { ReadingFontPreference.valueOf(it) }.getOrNull()
+                }
+            }
                 ?: ReadingFontPreference.Merriweather
-            val codeFont = prefs[Keys.CODE_FONT]?.let { CodeFontPreference.valueOf(it) }
+            val codeFont = prefs[Keys.CODE_FONT]?.let {
+                runCatching { CodeFontPreference.valueOf(it) }.getOrNull()
+            }
                 ?: CodeFontPreference.JetBrainsMono
             val fontSize = prefs[Keys.FONT_SIZE] ?: 18f
             val lineHeight = prefs[Keys.LINE_HEIGHT] ?: 1.6f
-            val alignment = prefs[Keys.TEXT_ALIGNMENT]?.let { TextAlignmentPreference.valueOf(it) }
+            val alignment = prefs[Keys.TEXT_ALIGNMENT]?.let {
+                runCatching { TextAlignmentPreference.valueOf(it) }.getOrNull()
+            }
                 ?: TextAlignmentPreference.Left
 
             UserPreferences(

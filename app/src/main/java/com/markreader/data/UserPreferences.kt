@@ -15,7 +15,8 @@ enum class ReaderThemePreference {
 
 enum class ReadingFontPreference {
     Merriweather,
-    SystemSerif
+    SystemSerif,
+    MerriweatherSans
 }
 
 enum class CodeFontPreference {
