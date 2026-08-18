@@ -1,6 +1,7 @@
 package com.markreader.ui.screens
 
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
 import android.graphics.text.LineBreaker
@@ -21,11 +22,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -41,10 +44,78 @@ import com.markreader.ui.zoom.ZoomableContentLayout
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import io.noties.markwon.ext.tables.TableRowSpan
+import kotlin.math.abs
 
 private enum class SegmentType { Text, Code, Table }
 private data class Segment(val start: Int, val end: Int, val type: SegmentType)
+
+private class DirectionalHorizontalScrollView(context: Context) : HorizontalScrollView(context) {
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var downX = 0f
+    private var downY = 0f
+    private var directionDecided = false
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        updateParentIntercept(ev)
+        return super.onInterceptTouchEvent(ev)
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        updateParentIntercept(ev)
+        return super.onTouchEvent(ev)
+    }
+
+    private fun updateParentIntercept(ev: MotionEvent) {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x
+                downY = ev.y
+                directionDecided = false
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (!directionDecided) {
+                    val dx = abs(ev.x - downX)
+                    val dy = abs(ev.y - downY)
+                    if (dx > touchSlop || dy > touchSlop) {
+                        directionDecided = true
+                        parent?.requestDisallowInterceptTouchEvent(dx > dy)
+                    }
+                }
+            }
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL -> {
+                directionDecided = false
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+        }
+    }
+}
+
+/**
+ * A [ScrollView] that never scrolls itself to keep a focused descendant on screen.
+ *
+ * Code blocks are selectable TextViews, and `setTextIsSelectable(true)` makes them
+ * focusable. Android's ScrollView reacts to a focused descendant in two ways, and
+ * both fight the user here:
+ *
+ *  - `requestChildFocus()` scrolls the focused child into view.
+ *  - `onSizeChanged()` re-scrolls to keep it on screen whenever the viewport
+ *    height changes — and the chrome show/hide animation changes that height on
+ *    every frame.
+ *
+ * The second one is the damaging one: the automatic `doScrollY` lands in the
+ * middle of the user's drag, and the scroll deltas it emits feed straight back
+ * into the chrome's show/hide threshold, so the bar re-hides itself as it is
+ * appearing. Both paths route through [computeScrollDeltaToGetChildRectOnScreen],
+ * so neutralising it disables both while leaving the text selectable.
+ */
+private class FocusStableScrollView(context: Context) : ScrollView(context) {
+    override fun computeScrollDeltaToGetChildRectOnScreen(rect: Rect?): Int = 0
+}
 
 private data class ContentKey(
     val textHash: Int,
@@ -56,14 +127,32 @@ private data class ContentKey(
     val textAlignment: TextAlignmentPreference
 )
 
+/**
+ * Identity of a scroll restore. [ContentKey] alone is not enough: toggling a
+ * wrap setting rebuilds the view tree without changing the content, so a
+ * restore for the new structure must not be confused with one already applied
+ * to the old structure.
+ */
+private data class RestoreKey(
+    val content: ContentKey,
+    val isWordWrapEnabled: Boolean,
+    val isCodeBlockWrapEnabled: Boolean
+)
+
 @Composable
 fun RenderedTextView(
     text: Any,
     textColor: Int,
     padding: PaddingValues,
-    savedScrollY: Int,
+    // Held as State, not Int: the live scroll position changes every frame while
+    // scrolling, and taking it as a value would recompose this composable — and
+    // re-run the AndroidView update block — on every one of those frames. It is
+    // only ever read to restore a position, so it is read without snapshot
+    // observation below.
+    savedScrollY: State<Int>,
     scrollToOffset: Int?,
     onScrollChanged: (scrollY: Int, maxScrollY: Int) -> Unit,
+    onScrollExtentChanged: (maxScrollY: Int) -> Unit,
     onScrollConsumed: () -> Unit,
     headings: List<HeadingItem>,
     onActiveHeadingChanged: (Int) -> Unit,
@@ -89,7 +178,23 @@ fun RenderedTextView(
             textAlignment = textAlignment
         )
     }
-    var lastRestoredKey by remember { mutableStateOf<ContentKey?>(null) }
+    // Span scans over the whole document — cached per text, never per frame.
+    val docHasCodeBlocks = remember(text) { text is Spanned && hasCodeBlocks(text) }
+    val docHasTables = remember(text) { text is Spanned && hasTables(text) }
+    // Split mode gives code blocks and tables their own horizontally scrollable
+    // views. Only worth the cost when the document actually contains one.
+    val isSplitMode = remember(
+        text, isWordWrapEnabled, isCodeBlockWrapEnabled, docHasCodeBlocks, docHasTables
+    ) {
+        text is Spanned && (
+            (isWordWrapEnabled && ((!isCodeBlockWrapEnabled && docHasCodeBlocks) || docHasTables)) ||
+                (!isWordWrapEnabled && docHasCodeBlocks)
+            )
+    }
+    val restoreKey = remember(contentKey, isWordWrapEnabled, isCodeBlockWrapEnabled) {
+        RestoreKey(contentKey, isWordWrapEnabled, isCodeBlockWrapEnabled)
+    }
+    var lastRestoredKey by remember { mutableStateOf<RestoreKey?>(null) }
     var lastWrapEnabled by remember { mutableStateOf(isWordWrapEnabled) }
     var lastCodeBlockWrapEnabled by remember { mutableStateOf(isCodeBlockWrapEnabled) }
     var pendingAnchorOffset by remember { mutableStateOf<Int?>(null) }
@@ -111,6 +216,7 @@ fun RenderedTextView(
     var lastTextColor by remember { mutableStateOf(textColor) }
     var lastWrapEnabledApplied by remember { mutableStateOf(isWordWrapEnabled) }
     var lastSelectionHighlightColor by remember { mutableStateOf(selectionHighlightColor) }
+    var lastCodeBlockBackgroundColor by remember { mutableStateOf(codeBlockBackgroundColor) }
     var splitBoundaries by remember { mutableStateOf<List<Segment>>(emptyList()) }
     val currentHeadings by rememberUpdatedState(headings)
     val currentSplitBoundaries by rememberUpdatedState(splitBoundaries)
@@ -129,13 +235,9 @@ fun RenderedTextView(
             factory = { context ->
                 val density = context.resources.displayMetrics.density
                 val paddingPx = (16 * density).toInt()
-                val isSplitMode = text is Spanned && (
-                    (isWordWrapEnabled && (!isCodeBlockWrapEnabled || hasTables(text))) ||
-                        (!isWordWrapEnabled && hasCodeBlocks(text))
-                    )
                 val useGlobalHorizontalScroll = !isWordWrapEnabled
 
-                val scrollView = ScrollView(context).apply {
+                val scrollView = FocusStableScrollView(context).apply {
                     if (isSplitMode) {
                         val container = LinearLayout(context).apply {
                             orientation = LinearLayout.VERTICAL
@@ -191,9 +293,13 @@ fun RenderedTextView(
                         }
                     }
                     // Report scroll extent whenever content lays out so reading
-                    // progress is available before the first scroll event.
+                    // progress is available before the first scroll event. This
+                    // reports the extent only — never a position. It fires on every
+                    // window-wide layout, including every frame of the chrome's
+                    // show/hide animation, and reporting a position from here would
+                    // feed those frames into the chrome's scroll-delta threshold.
                     viewTreeObserver.addOnGlobalLayoutListener {
-                        onScrollChanged(scrollY, computeMaxScrollY(this))
+                        onScrollExtentChanged(computeMaxScrollY(this))
                     }
                 }
                 val rootView = if (useGlobalHorizontalScroll) {
@@ -228,10 +334,6 @@ fun RenderedTextView(
                     else -> rootView as ScrollView
                 }
                 val child = scrollView.getChildAt(0) ?: return@AndroidView
-                val isSplitMode = text is Spanned && (
-                    (isWordWrapEnabled && (!isCodeBlockWrapEnabled || hasTables(text))) ||
-                        (!isWordWrapEnabled && hasCodeBlocks(text))
-                    )
                 val useGlobalHorizontalScroll = !isWordWrapEnabled
                 val wrapChanged = lastWrapEnabled != isWordWrapEnabled ||
                     lastCodeBlockWrapEnabled != isCodeBlockWrapEnabled
@@ -239,6 +341,7 @@ fun RenderedTextView(
                 val needsRestructure = wrapChanged || (isSplitMode != currentIsSplit)
                 val density = scrollView.context.resources.displayMetrics.density
                 val paddingPx = (16 * density).toInt()
+                var activeSplitBoundaries = currentSplitBoundaries
 
                 if (needsRestructure) {
                     val hasGlobalHorizontalScroll = rootView is HorizontalScrollView
@@ -329,6 +432,7 @@ fun RenderedTextView(
                     lastTextColor = textColor
                     lastWrapEnabledApplied = isWordWrapEnabled
                     lastSelectionHighlightColor = selectionHighlightColor
+                    lastCodeBlockBackgroundColor = codeBlockBackgroundColor
                 }
 
                 // Text / style updates
@@ -351,6 +455,7 @@ fun RenderedTextView(
                         val splitTables = isWordWrapEnabled
                         val segments = splitByMarkers(spanned, splitCode, splitTables)
                         splitBoundaries = segments
+                        activeSplitBoundaries = segments
                         container.removeAllViews()
                         for ((start, end, type) in segments) {
                             val isCode = type == SegmentType.Code
@@ -368,7 +473,7 @@ fun RenderedTextView(
                                     selectionHighlightColor, density
                                 )
                                 val contentView = if (tableView != null) {
-                                    HorizontalScrollView(container.context).apply {
+                                    DirectionalHorizontalScrollView(container.context).apply {
                                         isHorizontalScrollBarEnabled = true
                                         addView(
                                             tableView,
@@ -410,7 +515,7 @@ fun RenderedTextView(
                                 )
                                 tv.text = segmentContent
                                 val contentView = if (needsCodeHScroll) {
-                                    HorizontalScrollView(container.context).apply {
+                                    DirectionalHorizontalScrollView(container.context).apply {
                                         isHorizontalScrollBarEnabled = true
                                         addView(
                                             tv,
@@ -457,10 +562,11 @@ fun RenderedTextView(
                         lastStyleKey = contentKey
                         lastTextColor = textColor
                         lastSelectionHighlightColor = selectionHighlightColor
+                        lastCodeBlockBackgroundColor = codeBlockBackgroundColor
                     } else if (textRefChanged) {
                         // Same underlying text, different spans (search highlights) —
                         // update existing TextViews in-place without rebuilding views
-                        val boundaries = currentSplitBoundaries
+                        val boundaries = activeSplitBoundaries
                         for (i in 0 until container.childCount.coerceAtMost(boundaries.size)) {
                             val (start, end, type) = boundaries[i]
                             val segText = spanned.subSequence(start, end) as Spanned
@@ -495,36 +601,47 @@ fun RenderedTextView(
                             }
                         }
                         lastTextRef = spanned
-                    } else if (lastStyleKey != contentKey || lastTextColor != textColor ||
-                        lastSelectionHighlightColor != selectionHighlightColor
-                    ) {
-                        // Rebuild segments to refresh table colors and code spans
-                        lastTextHash = 0
                     }
                     if (lastStyleKey != contentKey || lastTextColor != textColor ||
-                        lastSelectionHighlightColor != selectionHighlightColor
+                        lastSelectionHighlightColor != selectionHighlightColor ||
+                        lastCodeBlockBackgroundColor != codeBlockBackgroundColor
                     ) {
+                        // Restyle in place. This must never fall back to a segment
+                        // rebuild: textColor comes from an animated Color, so a
+                        // rebuild here would tear down and recreate the whole view
+                        // tree on alternating frames of that animation — which also
+                        // cancels any touch gesture in flight.
                         for (i in 0 until container.childCount) {
                             val seg = container.getChildAt(i)
                             val target = when (seg) {
-                                is FrameLayout -> seg.getChildAt(0)
+                                is FrameLayout -> {
+                                    // Code block wrapper — carries the block tint.
+                                    seg.setBackgroundColor(codeBlockBackgroundColor)
+                                    seg.getChildAt(0)
+                                }
                                 else -> seg
                             }
-                            val tv = if (target is HorizontalScrollView) {
-                                target.getChildAt(0) as? TextView
+                            val inner = if (target is HorizontalScrollView) {
+                                target.getChildAt(0)
                             } else {
-                                target as? TextView
+                                target
                             }
-                            tv?.let {
-                                applyStyleToTextView(
-                                    it, fontSizeSp, lineHeight, readingFont, codeFont, isSourceCode,
-                                    textAlignment, textColor, selectionHighlightColor
+                            when (inner) {
+                                is android.widget.TableLayout -> restyleTableLayout(
+                                    inner, textColor, fontSizeSp, lineHeight, readingFont,
+                                    selectionHighlightColor, density
+                                )
+                                is TextView -> applyStyleToTextView(
+                                    inner, fontSizeSp, lineHeight, readingFont, codeFont,
+                                    isSourceCode, textAlignment, textColor,
+                                    selectionHighlightColor
                                 )
                             }
                         }
                         lastStyleKey = contentKey
                         lastTextColor = textColor
                         lastSelectionHighlightColor = selectionHighlightColor
+                        lastCodeBlockBackgroundColor = codeBlockBackgroundColor
                     }
                 } else {
                     // Single-TV mode
@@ -574,31 +691,38 @@ fun RenderedTextView(
                     }
                 }
 
-                // Scroll handling
-                if (pendingAnchorOffset != null) {
-                    val targetOffset = pendingAnchorOffset
+                // Scroll handling. Every branch claims restoreKey synchronously,
+                // before posting: the state writes above cause another pass through
+                // this block before the posted runnable gets to run, and a claim made
+                // inside the runnable would let that pass queue a second, conflicting
+                // restore behind this one.
+                val targetOffset = pendingAnchorOffset
+                if (targetOffset != null) {
                     pendingAnchorOffset = null
+                    lastRestoredKey = restoreKey
                     scrollView.post {
                         val y = resolveScrollY(
-                            scrollView, currentSplitBoundaries, targetOffset ?: return@post
+                            scrollView, activeSplitBoundaries, targetOffset
                         )
-                        lastRestoredKey = contentKey
                         scrollView.smoothScrollTo(0, y)
                     }
-                } else if (scrollToOffset == null && savedScrollY > 0 &&
-                    lastRestoredKey != contentKey
-                ) {
-                    lastRestoredKey = contentKey
-                    scrollView.post { scrollView.scrollTo(0, savedScrollY) }
+                } else if (scrollToOffset == null && lastRestoredKey != restoreKey) {
+                    // Restore-only read: observing it here would resubscribe this
+                    // block to a value that changes on every scroll frame.
+                    val restoreY = Snapshot.withoutReadObservation { savedScrollY.value }
+                    if (restoreY > 0) {
+                        lastRestoredKey = restoreKey
+                        scrollView.post { scrollView.scrollTo(0, restoreY) }
+                    }
                 }
 
                 if (scrollToOffset != null) {
+                    lastRestoredKey = restoreKey
                     scrollView.post {
                         val y = resolveScrollY(
-                            scrollView, currentSplitBoundaries, scrollToOffset
+                            scrollView, activeSplitBoundaries, scrollToOffset
                         )
                         val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
-                        lastRestoredKey = contentKey
                         scrollView.smoothScrollTo(0, centeredY)
                         if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
                         onScrollConsumed()
@@ -611,7 +735,7 @@ fun RenderedTextView(
                     if (curChild is LinearLayout) {
                         onActiveHeadingChangedState(
                             findActiveHeadingInSplit(
-                                curChild, currentSplitBoundaries,
+                                curChild, activeSplitBoundaries,
                                 currentHeadings, scrollView.scrollY
                             )
                         )
@@ -846,10 +970,7 @@ private fun buildTableLayout(
     } catch (_: Exception) { return null }
 
     val cellPaddingPx = (8 * density).toInt()
-    val borderWidthPx = maxOf(1, density.toInt())
-    // Markwon defaults: border = textColor at 75/255 alpha, odd row bg = textColor at 22/255 alpha
-    val borderColor = (textColor and 0x00FFFFFF) or (75 shl 24)
-    val oddRowBg = (textColor and 0x00FFFFFF) or (22 shl 24)
+    val borderWidthPx = tableBorderWidthPx(density)
     val typeface = resolveTypeface(context, false, readingFont, CodeFontPreference.JetBrainsMono)
 
     val tableLayout = android.widget.TableLayout(context)
@@ -866,10 +987,7 @@ private fun buildTableLayout(
         val tableRow = android.widget.TableRow(context)
 
         for ((colIndex, cell) in cells.withIndex()) {
-            val cellBg = GradientDrawable().apply {
-                setStroke(borderWidthPx, borderColor)
-                setColor(if (isOdd) oddRowBg else Color.TRANSPARENT)
-            }
+            val cellBg = tableCellBackground(textColor, isOdd, borderWidthPx)
             val cellTv = SearchHighlightTextView(context).apply {
                 this.text = cell.text()
                 textSize = fontSizeSp
@@ -904,6 +1022,57 @@ private fun buildTableLayout(
     }
 
     return tableLayout
+}
+
+private fun tableBorderWidthPx(density: Float): Int = maxOf(1, density.toInt())
+
+// Markwon defaults: border = textColor at 75/255 alpha, odd row bg = textColor at 22/255 alpha
+private fun tableCellBackground(
+    textColor: Int,
+    isOdd: Boolean,
+    borderWidthPx: Int
+): GradientDrawable = GradientDrawable().apply {
+    setStroke(borderWidthPx, (textColor and 0x00FFFFFF) or (75 shl 24))
+    setColor(if (isOdd) (textColor and 0x00FFFFFF) or (22 shl 24) else Color.TRANSPARENT)
+}
+
+/**
+ * Reapply colors and text styling to an existing table without rebuilding it.
+ * Cell backgrounds bake in [textColor], so a theme change has to touch them —
+ * but tearing the table down to do it would also tear down the view tree the
+ * user may be mid-gesture on.
+ */
+private fun restyleTableLayout(
+    table: android.widget.TableLayout,
+    textColor: Int,
+    fontSizeSp: Float,
+    lineHeight: Float,
+    readingFont: ReadingFontPreference,
+    selectionHighlightColor: Int,
+    density: Float
+) {
+    val borderWidthPx = tableBorderWidthPx(density)
+    val typeface = resolveTypeface(
+        table.context, false, readingFont, CodeFontPreference.JetBrainsMono
+    )
+    for (rowIndex in 0 until table.childCount) {
+        val row = table.getChildAt(rowIndex) as? android.widget.TableRow ?: continue
+        val isHeader = rowIndex == 0
+        val isOdd = !isHeader && rowIndex % 2 == 1
+        for (colIndex in 0 until row.childCount) {
+            val cell = row.getChildAt(colIndex) as? TextView ?: continue
+            cell.textSize = fontSizeSp
+            cell.setLineSpacing(0f, lineHeight)
+            cell.setTextColor(textColor)
+            cell.highlightColor = selectionHighlightColor
+            cell.typeface = if (isHeader) {
+                Typeface.create(typeface, Typeface.BOLD)
+            } else {
+                typeface
+            }
+            cell.background = tableCellBackground(textColor, isOdd, borderWidthPx)
+        }
+    }
 }
 
 private fun stripBackgroundSpans(text: Spanned): Spanned {

@@ -2,6 +2,7 @@ package com.markreader.ui.screens
 
 import android.app.Application
 import android.os.Build
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,10 +80,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -115,6 +118,12 @@ import com.markreader.ui.components.segmentShape
 import com.markreader.ui.export.ExportManager
 import kotlin.math.roundToInt
 
+/**
+ * How long the chrome's visibility decision is held after it changes, covering the
+ * show/hide animation and the relayout it causes.
+ */
+private const val CHROME_SETTLE_MS = 350L
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerScreen(
@@ -130,8 +139,13 @@ fun ViewerScreen(
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollToOffset by viewModel.scrollToOffset.collectAsStateWithLifecycle()
-    val savedScrollY by viewModel.scrollY.collectAsStateWithLifecycle()
-    val scrollProgress by viewModel.scrollProgress.collectAsStateWithLifecycle()
+    // Deliberately not read with `by` here. Both change on every scroll frame, so
+    // reading them in this scope would recompose the whole screen — including the
+    // viewer's AndroidView update block — 60+ times a second while scrolling.
+    // They are read inside the leaf composables that actually display them, and
+    // inside snapshotFlow below, so the reads stay out of this scope.
+    val savedScrollY = viewModel.scrollY.collectAsStateWithLifecycle()
+    val scrollProgress = viewModel.scrollProgress.collectAsStateWithLifecycle()
     val prefs = uiState.userPreferences
     val isSystemDark = isSystemInDarkTheme()
 
@@ -176,16 +190,32 @@ fun ViewerScreen(
     // Immersive reading: hide the chrome on downward scrolls, bring it back on
     // upward scrolls or at the top. Large deltas are programmatic jumps (TOC,
     // search match) where the user just used the chrome — keep it visible.
+    // Showing or hiding the bar changes the content's top inset, which resizes the
+    // ScrollView and can clamp its position — emitting a scroll delta that points
+    // the opposite way and immediately flips the decision back. Hold the decision
+    // briefly after each change so the bar can finish animating instead of
+    // stuttering against its own layout effect.
     LaunchedEffect(Unit) {
         var lastY = 0
-        snapshotFlow { savedScrollY }.collect { y ->
+        var settleUntil = 0L
+        snapshotFlow { savedScrollY.value }.collect { y ->
             val delta = y - lastY
-            when {
-                y <= 0 -> isChromeVisible = true
-                delta < -8 -> isChromeVisible = true
-                delta in 9..1200 -> isChromeVisible = false
-            }
             lastY = y
+            if (y <= 0) {
+                isChromeVisible = true
+                settleUntil = 0L
+                return@collect
+            }
+            if (SystemClock.uptimeMillis() < settleUntil) return@collect
+            val target = when {
+                delta < -8 -> true
+                delta in 9..1200 -> false
+                else -> return@collect
+            }
+            if (target != isChromeVisible) {
+                isChromeVisible = target
+                settleUntil = SystemClock.uptimeMillis() + CHROME_SETTLE_MS
+            }
         }
     }
     LaunchedEffect(uiState.isSearchActive) {
@@ -407,23 +437,11 @@ fun ViewerScreen(
                                                     )
                                                 }
                                             }
-                                            scrollProgress?.let { progress ->
-                                                Surface(
-                                                    shape = RoundedCornerShape(50),
-                                                    color = chromeColors.tonalContainer.copy(alpha = 0.6f),
-                                                    contentColor = chromeColors.muted
-                                                ) {
-                                                    Text(
-                                                        text = "${(progress * 100).roundToInt()}%",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        maxLines = 1,
-                                                        modifier = Modifier.padding(
-                                                            horizontal = 8.dp,
-                                                            vertical = 2.dp
-                                                        )
-                                                    )
-                                                }
-                                            }
+                                            ReadingProgressChip(
+                                                progress = scrollProgress,
+                                                containerColor = chromeColors.tonalContainer,
+                                                contentColor = chromeColors.muted
+                                            )
                                         }
                                     }
                                 },
@@ -614,26 +632,11 @@ fun ViewerScreen(
                         }
                     }
                 }
-                val animatedReadProgress by animateFloatAsState(
-                    targetValue = scrollProgress ?: 0f,
-                    animationSpec = spring(stiffness = Spring.StiffnessLow),
-                    label = "readingProgress"
+                ReadingProgressBar(
+                    progress = scrollProgress,
+                    trackColor = chromeColors.tonalContainer,
+                    barColor = chromeColors.content
                 )
-                if (scrollProgress != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .background(chromeColors.tonalContainer.copy(alpha = 0.5f))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(animatedReadProgress.coerceIn(0f, 1f))
-                                .fillMaxHeight()
-                                .background(chromeColors.content.copy(alpha = 0.7f))
-                        )
-                    }
-                }
             }
         }
     ) { paddingValues: PaddingValues ->
@@ -712,6 +715,7 @@ fun ViewerScreen(
                             savedScrollY = savedScrollY,
                             scrollToOffset = scrollToOffset,
                             onScrollChanged = viewModel::onScrollPositionChanged,
+                            onScrollExtentChanged = viewModel::onScrollExtentChanged,
                             onScrollConsumed = viewModel::onScrollConsumed,
                             headings = uiState.headings,
                             onActiveHeadingChanged = viewModel::onActiveHeadingChanged,
@@ -888,6 +892,65 @@ fun ViewerScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * Reading-progress percentage chip.
+ *
+ * Takes progress as [State] and reads it here rather than in [ViewerScreen], so
+ * that a scroll frame recomposes only this chip instead of the entire screen.
+ */
+@Composable
+private fun ReadingProgressChip(
+    progress: State<Float?>,
+    containerColor: Color,
+    contentColor: Color
+) {
+    val value = progress.value ?: return
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = containerColor.copy(alpha = 0.6f),
+        contentColor = contentColor
+    ) {
+        Text(
+            text = "${(value * 100).roundToInt()}%",
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
+    }
+}
+
+/**
+ * Reading-progress bar under the chrome. Reads progress in its own scope for the
+ * same reason as [ReadingProgressChip].
+ */
+@Composable
+private fun ReadingProgressBar(
+    progress: State<Float?>,
+    trackColor: Color,
+    barColor: Color
+) {
+    val value = progress.value
+    val animatedReadProgress by animateFloatAsState(
+        targetValue = value ?: 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "readingProgress"
+    )
+    if (value == null) return
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(3.dp)
+            .background(trackColor.copy(alpha = 0.5f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(animatedReadProgress.coerceIn(0f, 1f))
+                .fillMaxHeight()
+                .background(barColor.copy(alpha = 0.7f))
+        )
     }
 }
 
