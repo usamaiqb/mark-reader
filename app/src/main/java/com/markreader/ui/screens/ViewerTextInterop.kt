@@ -44,56 +44,10 @@ import com.markreader.ui.zoom.ZoomableContentLayout
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.ViewConfiguration
 import io.noties.markwon.ext.tables.TableRowSpan
-import kotlin.math.abs
 
 private enum class SegmentType { Text, Code, Table }
 private data class Segment(val start: Int, val end: Int, val type: SegmentType)
-
-private class DirectionalHorizontalScrollView(context: Context) : HorizontalScrollView(context) {
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-    private var downX = 0f
-    private var downY = 0f
-    private var directionDecided = false
-
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        updateParentIntercept(ev)
-        return super.onInterceptTouchEvent(ev)
-    }
-
-    override fun onTouchEvent(ev: MotionEvent): Boolean {
-        updateParentIntercept(ev)
-        return super.onTouchEvent(ev)
-    }
-
-    private fun updateParentIntercept(ev: MotionEvent) {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = ev.x
-                downY = ev.y
-                directionDecided = false
-                parent?.requestDisallowInterceptTouchEvent(false)
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (!directionDecided) {
-                    val dx = abs(ev.x - downX)
-                    val dy = abs(ev.y - downY)
-                    if (dx > touchSlop || dy > touchSlop) {
-                        directionDecided = true
-                        parent?.requestDisallowInterceptTouchEvent(dx > dy)
-                    }
-                }
-            }
-            MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> {
-                directionDecided = false
-                parent?.requestDisallowInterceptTouchEvent(false)
-            }
-        }
-    }
-}
 
 /**
  * A [ScrollView] that never scrolls itself to keep a focused descendant on screen.
@@ -110,11 +64,37 @@ private class DirectionalHorizontalScrollView(context: Context) : HorizontalScro
  * The second one is the damaging one: the automatic `doScrollY` lands in the
  * middle of the user's drag, and the scroll deltas it emits feed straight back
  * into the chrome's show/hide threshold, so the bar re-hides itself as it is
- * appearing. Both paths route through [computeScrollDeltaToGetChildRectOnScreen],
- * so neutralising it disables both while leaving the text selectable.
+ * appearing.
+ *
+ * Both paths route through [computeScrollDeltaToGetChildRectOnScreen], but so
+ * does `requestChildRectangleOnScreen` — which is what scrolls when a selection
+ * handle is dragged past the edge of the viewport, and is worth keeping. So the
+ * suppression is scoped to the two callers that misbehave rather than applied to
+ * the method outright.
  */
 private class FocusStableScrollView(context: Context) : ScrollView(context) {
-    override fun computeScrollDeltaToGetChildRectOnScreen(rect: Rect?): Int = 0
+    private var suppressFocusScroll = false
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        suppressFocusScroll = true
+        try {
+            super.onSizeChanged(w, h, oldw, oldh)
+        } finally {
+            suppressFocusScroll = false
+        }
+    }
+
+    override fun requestChildFocus(child: android.view.View?, focused: android.view.View?) {
+        suppressFocusScroll = true
+        try {
+            super.requestChildFocus(child, focused)
+        } finally {
+            suppressFocusScroll = false
+        }
+    }
+
+    override fun computeScrollDeltaToGetChildRectOnScreen(rect: Rect?): Int =
+        if (suppressFocusScroll) 0 else super.computeScrollDeltaToGetChildRectOnScreen(rect)
 }
 
 private data class ContentKey(
@@ -473,7 +453,7 @@ fun RenderedTextView(
                                     selectionHighlightColor, density
                                 )
                                 val contentView = if (tableView != null) {
-                                    DirectionalHorizontalScrollView(container.context).apply {
+                                    HorizontalScrollView(container.context).apply {
                                         isHorizontalScrollBarEnabled = true
                                         addView(
                                             tableView,
@@ -515,7 +495,7 @@ fun RenderedTextView(
                                 )
                                 tv.text = segmentContent
                                 val contentView = if (needsCodeHScroll) {
-                                    DirectionalHorizontalScrollView(container.context).apply {
+                                    HorizontalScrollView(container.context).apply {
                                         isHorizontalScrollBarEnabled = true
                                         addView(
                                             tv,
@@ -704,7 +684,8 @@ fun RenderedTextView(
                         val y = resolveScrollY(
                             scrollView, activeSplitBoundaries, targetOffset
                         )
-                        scrollView.smoothScrollTo(0, y)
+                        // Unresolvable anchor — hold position rather than jumping.
+                        if (y != null) scrollView.smoothScrollTo(0, y)
                     }
                 } else if (scrollToOffset == null && lastRestoredKey != restoreKey) {
                     // Restore-only read: observing it here would resubscribe this
@@ -722,9 +703,13 @@ fun RenderedTextView(
                         val y = resolveScrollY(
                             scrollView, activeSplitBoundaries, scrollToOffset
                         )
-                        val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
-                        scrollView.smoothScrollTo(0, centeredY)
-                        if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
+                        if (y != null) {
+                            val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
+                            scrollView.smoothScrollTo(0, centeredY)
+                            if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
+                        }
+                        // Consumed either way, so an unresolvable target does not
+                        // leave the request pending forever.
                         onScrollConsumed()
                     }
                 }
@@ -841,12 +826,14 @@ private fun getAnchorFromView(
         is HorizontalScrollView -> {
             val tv = child.getChildAt(0) as? TextView
             val layout = tv?.layout ?: return null
-            val line = layout.getLineForVertical(sy)
+            // sy is in the ScrollView's space; the layout's line 0 starts below
+            // the TextView's top padding.
+            val line = layout.getLineForVertical((sy - tv.paddingTop).coerceAtLeast(0))
             return layout.getLineStart(line)
         }
         is TextView -> {
             val layout = child.layout ?: return null
-            val line = layout.getLineForVertical(sy)
+            val line = layout.getLineForVertical((sy - child.paddingTop).coerceAtLeast(0))
             return layout.getLineStart(line)
         }
         else -> return null
@@ -859,12 +846,18 @@ private fun computeMaxScrollY(scrollView: ScrollView): Int {
         .coerceAtLeast(0)
 }
 
+/**
+ * Scroll position that puts [offset] at the top of the viewport, or null if it
+ * cannot be resolved — the views may not be laid out yet. Null means "leave the
+ * scroll position alone"; returning 0 here would silently jump to the top of the
+ * document.
+ */
 private fun resolveScrollY(
     scrollView: ScrollView,
     boundaries: List<Segment>,
     offset: Int
-): Int {
-    val child = scrollView.getChildAt(0) ?: return 0
+): Int? {
+    val child = scrollView.getChildAt(0) ?: return null
     if (child is LinearLayout && boundaries.isNotEmpty()) {
         return scrollToOffsetInSplit(child, boundaries, offset)
     }
@@ -872,32 +865,44 @@ private fun resolveScrollY(
         is HorizontalScrollView -> child.getChildAt(0) as? TextView
         is TextView -> child
         else -> null
-    } ?: return 0
-    val layout = tv.layout ?: return 0
+    } ?: return null
+    val layout = tv.layout ?: return null
     val line = layout.getLineForOffset(offset)
-    return layout.getLineTop(line)
+    return layout.getLineTop(line) + tv.paddingTop
 }
 
 private fun scrollToOffsetInSplit(
     container: LinearLayout,
     boundaries: List<Segment>,
     offset: Int
-): Int {
+): Int? {
+    // Child positions are meaningless until the container has been laid out.
+    if (!container.isLaidOut) return null
     for (i in boundaries.indices) {
         val (segStart, segEnd, _) = boundaries[i]
         if (offset < segStart || offset >= segEnd) continue
         if (i >= container.childCount) break
         val child = container.getChildAt(i)
-        val tv = extractTextView(child) ?: continue
-        val layout = tv.layout ?: continue
+        val tv = extractTextView(child)
+        // child.top is already measured from the container's padded origin, so the
+        // container's own padding must not be added again.
+        val layout = if (tv == null) {
+            // No TextView at all — a table. Still anchorable, just at segment
+            // granularity rather than line granularity.
+            return child.top
+        } else {
+            // A TextView whose layout has not been built yet is not the same thing:
+            // guessing here is what used to send the viewer to the top.
+            tv.layout ?: return null
+        }
         val localOffset = (offset - segStart).coerceIn(
             0,
             layout.text.length.coerceAtLeast(1) - 1
         )
         val line = layout.getLineForOffset(localOffset)
-        return child.top + layout.getLineTop(line) + container.paddingTop
+        return child.top + layout.getLineTop(line)
     }
-    return 0
+    return null
 }
 
 private fun extractTextView(view: android.view.View): TextView? {
