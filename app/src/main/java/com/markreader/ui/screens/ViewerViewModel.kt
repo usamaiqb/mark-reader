@@ -351,11 +351,22 @@ class ViewerViewModel(
 
     fun onScrollPositionChanged(y: Int, maxY: Int) {
         _scrollY.value = y
-        _scrollProgress.value = if (maxY > 0) {
-            (y.toFloat() / maxY).coerceIn(0f, 1f)
-        } else {
-            null
-        }
+        _scrollProgress.value = progressFor(y, maxY)
+    }
+
+    /**
+     * The scrollable extent changed without the position moving — a relayout
+     * rather than a scroll. Updates progress only: publishing a position here
+     * would make layout passes indistinguishable from user scrolling.
+     */
+    fun onScrollExtentChanged(maxY: Int) {
+        _scrollProgress.value = progressFor(_scrollY.value, maxY)
+    }
+
+    private fun progressFor(y: Int, maxY: Int): Float? = if (maxY > 0) {
+        (y.toFloat() / maxY).coerceIn(0f, 1f)
+    } else {
+        null
     }
 
     fun onScrollConsumed() {

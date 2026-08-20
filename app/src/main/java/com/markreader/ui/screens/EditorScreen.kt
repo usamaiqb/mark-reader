@@ -295,14 +295,17 @@ fun EditorScreen(
                         } else {
                             val previewTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
                             val previewIsDark = isSystemInDarkTheme()
+                            // The preview never restores a scroll position.
+                            val previewScrollY = remember { mutableStateOf(0) }
                             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                 RenderedTextView(
                                     text = previewText,
                                     textColor = previewTextColor,
                                     padding = PaddingValues(0.dp),
-                                    savedScrollY = 0,
+                                    savedScrollY = previewScrollY,
                                     scrollToOffset = null,
                                     onScrollChanged = { _, _ -> },
+                                    onScrollExtentChanged = {},
                                     onScrollConsumed = {},
                                     headings = emptyList(),
                                     onActiveHeadingChanged = {},
