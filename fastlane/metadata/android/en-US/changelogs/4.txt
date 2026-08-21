@@ -1,0 +1,5 @@
+• Added a bundled sans reading font and a reading progress bar.
+• Reworked the reader: new search, raw-mode toggle, haptics, and an export sheet.
+• Added a reader surface-flip button and auto-hiding chrome on scroll.
+• Fixed scroll stutter and preserved position when toggling line wrap.
+• Hardened file open, read, and save handling.
