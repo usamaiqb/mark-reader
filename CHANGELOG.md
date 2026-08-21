@@ -3,6 +3,23 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.3] - 2026-08-21
+
+### Added
+- Bundled a sans reading font for better on-screen readability.
+- Reading progress bar with a percentage badge in the viewer.
+- A tappable Rendered/Raw mode pill and a dedicated reader surface-flip button.
+- Auto-hiding viewer chrome on scroll and an animated search transition.
+- Overhauled search UX: auto-focus, debounced highlighting, jump-to-first-match, and rounded text-hugging match highlights.
+
+### Improved
+- Reworked the reader screen with rounded icons, haptic feedback on controls, a restyled table-of-contents sheet, and an expressive export bottom sheet.
+- Updated GitHub Actions CI dependencies.
+
+### Fixed
+- Stopped scroll stutter on upward scroll and preserved the scroll anchor across line-wrap toggles.
+- Hardened file open, read, and save paths: safer error handling, bounded reads with BOM stripping, shared-text handling via cache file, and more reliable persistable URI grants.
+
 ## [1.0.2] - 2026-08-02
 
 ### Added
