@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -97,6 +99,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -149,6 +152,7 @@ fun ViewerScreen(
     val scrollProgress = viewModel.scrollProgress.collectAsStateWithLifecycle()
     val prefs = uiState.userPreferences
     val isSystemDark = isSystemInDarkTheme()
+    val layoutDirection = LocalLayoutDirection.current
 
     var isReadingSurfaceDark by rememberSaveable { mutableStateOf(false) }
     var isChromeVisible by remember { mutableStateOf(true) }
@@ -326,6 +330,9 @@ fun ViewerScreen(
         uiState.fileName.substringAfterLast('.', "").lowercase().let { it == "md" || it == "markdown" }
 
     Scaffold(
+        // Matches the reading surface, so the strip the top bar leaves behind when it
+        // collapses reads as page margin instead of as a band of a different colour.
+        containerColor = surfaceColor,
         floatingActionButton = {
             AnimatedVisibility(
                 visible = canEdit && !uiState.isSearchActive && isChromeVisible,
@@ -641,10 +648,30 @@ fun ViewerScreen(
             }
         }
     ) { paddingValues: PaddingValues ->
+        // The top bar expands and collapses, so `paddingValues.top` changes on every
+        // frame of that animation. Applied directly, it resizes the content — and with
+        // it the ScrollView inside — which moves `maxScrollY` and lets Android clamp
+        // `scrollY`. That clamp is indistinguishable from a user scroll, reaches the
+        // delta logic above, and flips the bar straight back: the loop CHROME_SETTLE_MS
+        // exists to paper over. Hold the top inset at its full-bar height instead, so
+        // the bar animates over a content area that never changes size. The bar's own
+        // space is not reclaimed while it is hidden; `containerColor` below makes that
+        // strip the reading surface so it reads as margin rather than as a gap.
+        val topInset = remember { mutableStateOf(paddingValues.calculateTopPadding()) }
+        val liveTopInset = paddingValues.calculateTopPadding()
+        LaunchedEffect(liveTopInset) {
+            if (liveTopInset > topInset.value) topInset.value = liveTopInset
+        }
+        val stableInsets = PaddingValues(
+            start = paddingValues.calculateStartPadding(layoutDirection),
+            top = topInset.value,
+            end = paddingValues.calculateEndPadding(layoutDirection),
+            bottom = paddingValues.calculateBottomPadding()
+        )
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
+                .padding(stableInsets),
             color = surfaceColor,
             contentColor = contentColor
         ) {

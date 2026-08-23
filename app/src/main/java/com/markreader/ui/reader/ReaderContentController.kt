@@ -1,5 +1,6 @@
 package com.markreader.ui.reader
 
+import android.view.ViewTreeObserver
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
@@ -81,6 +82,19 @@ internal class ReaderContentController(
 
     /** Segment ranges the split container's children were built from. */
     var splitBoundaries: List<Segment> = emptyList()
+
+    /**
+     * The global-layout listener reporting scroll extent, held so it can be
+     * detached when the view tree is released rather than outliving it.
+     */
+    var extentListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+
+    /**
+     * Last extent reported upstream. The listener fires on every window-wide
+     * layout, so most calls carry a value that has not changed; comparing here
+     * keeps those from reaching the ViewModel.
+     */
+    var lastReportedExtent: Int = -1
 
     private companion object {
         /** A key no real content can match, so the first pass always styles. */
