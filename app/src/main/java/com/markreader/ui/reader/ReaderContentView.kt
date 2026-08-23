@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Rect
 import android.text.Spanned
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -227,9 +228,21 @@ fun RenderedTextView(
                     // window-wide layout, including every frame of the chrome's
                     // show/hide animation, and reporting a position from here would
                     // feed those frames into the chrome's scroll-delta threshold.
-                    viewTreeObserver.addOnGlobalLayoutListener {
-                        onScrollExtentChanged(computeMaxScrollY(this))
+                    //
+                    // Held in the controller and detached in `onRelease` below: a
+                    // global-layout listener is registered against the whole window's
+                    // ViewTreeObserver, so an anonymous one keeps this ScrollView —
+                    // and the document attached to it — reachable for as long as the
+                    // window lives, across every document opened after it.
+                    val extentListener = ViewTreeObserver.OnGlobalLayoutListener {
+                        val extent = computeMaxScrollY(this)
+                        if (extent != controller.lastReportedExtent) {
+                            controller.lastReportedExtent = extent
+                            onScrollExtentChanged(extent)
+                        }
                     }
+                    controller.extentListener = extentListener
+                    viewTreeObserver.addOnGlobalLayoutListener(extentListener)
                 }
                 val rootView = if (useGlobalHorizontalScroll) {
                     HorizontalScrollView(context).apply {
@@ -684,6 +697,17 @@ fun RenderedTextView(
                             )
                         }
                     }
+                }
+            },
+            onRelease = { zoomLayout ->
+                controller.extentListener?.let { listener ->
+                    val rootView = zoomLayout.getChildAt(0)
+                    val scrollView = when (rootView) {
+                        is HorizontalScrollView -> rootView.getChildAt(0) as? ScrollView
+                        else -> rootView as? ScrollView
+                    }
+                    scrollView?.viewTreeObserver?.removeOnGlobalLayoutListener(listener)
+                    controller.extentListener = null
                 }
             }
         )
