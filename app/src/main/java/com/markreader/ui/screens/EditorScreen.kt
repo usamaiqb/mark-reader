@@ -83,6 +83,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
+import com.markreader.ui.reader.RenderedTextView
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
 import com.markreader.ui.theme.SansReadingFontFamily
