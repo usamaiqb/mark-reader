@@ -68,6 +68,13 @@ internal fun createStyledTextView(
         setTextColor(textColor)
         highlightColor = selectionHighlightColor
         typeface = resolveTypeface(context, isSourceCode, readingFont, codeFont)
+        // Derive paragraph direction from the text, not from the app locale.
+        // TEXT_ALIGNMENT_VIEW_START below resolves against the *view's* layout
+        // direction, which follows the locale — so an Arabic or Hebrew document opened
+        // in an English-locale app was laid out LTR and "start" resolved to left.
+        // Set outside the branch below: direction is independent of justification, and
+        // justified right-to-left text needs it just as much.
+        textDirection = android.view.View.TEXT_DIRECTION_FIRST_STRONG
         if (textAlignment == TextAlignmentPreference.Justified &&
             Build.VERSION.SDK_INT >= 26
         ) {
@@ -97,6 +104,9 @@ internal fun applyStyleToTextView(
     tv.setTextColor(textColor)
     tv.highlightColor = selectionHighlightColor
     tv.typeface = resolveTypeface(tv.context, isSourceCode, readingFont, codeFont)
+    // See createStyledTextView: content-derived direction, set outside the
+    // justification branch because it applies either way.
+    tv.textDirection = TextView.TEXT_DIRECTION_FIRST_STRONG
     if (textAlignment == TextAlignmentPreference.Justified &&
         Build.VERSION.SDK_INT >= 26
     ) {
