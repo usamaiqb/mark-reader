@@ -323,9 +323,12 @@ fun ViewerScreen(
         viewModel.onSearchToggled()
     }
 
-    // Determine if this file is editable (loaded, not binary, not error)
+    // Determine if this file is editable (loaded, not binary, not error).
+    //
+    // An empty file is deliberately *not* excluded. It used to be, which made a newly
+    // created note the one file the app refused to edit — exactly backwards.
     val canEdit = !uiState.isLoading && uiState.errorMessage == null &&
-        !uiState.isEmptyFile && uriString != null
+        uriString != null
     val isMarkdownFile = !uiState.isSourceCode &&
         uiState.fileName.substringAfterLast('.', "").lowercase().let { it == "md" || it == "markdown" }
 
@@ -713,7 +716,17 @@ fun ViewerScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        androidx.compose.material3.Button(
+                        // The FAB is the other way in, but an empty page gives no hint
+                        // that it exists — so the primary action is offered here too.
+                        if (canEdit) {
+                            androidx.compose.material3.Button(
+                                onClick = { onOpenEditor(uriString!!, isMarkdownFile) }
+                            ) {
+                                Text(text = "Edit")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        androidx.compose.material3.TextButton(
                             onClick = { launcher.launch(OPENABLE_MIME_TYPES) }
                         ) {
                             Text(text = "Open Different File")
