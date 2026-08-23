@@ -24,6 +24,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.markreader.data.CodeFontPreference
@@ -85,6 +86,13 @@ fun RenderedTextView(
     text: Any,
     textColor: Int,
     padding: PaddingValues,
+    /**
+     * Height of the chrome the reader draws underneath, added to the content's own top
+     * padding *inside* the ScrollView. Kept out of [padding] deliberately: [padding] insets
+     * the viewport, which resizes the scroll container and moves `maxScrollY`, and that is
+     * the feedback loop this avoids.
+     */
+    contentTopInset: Dp = 0.dp,
     // Held as State, not Int: the live scroll position changes every frame while
     // scrolling, and taking it as a value would recompose this composable — and
     // re-run the AndroidView update block — on every one of those frames. It is
@@ -374,6 +382,26 @@ fun RenderedTextView(
                     controller.lastWrapEnabledApplied = isWordWrapEnabled
                     controller.lastSelectionHighlightColor = selectionHighlightColor
                     controller.lastCodeBlockBackgroundColor = codeBlockBackgroundColor
+                }
+
+                // The chrome overlays the reader, so its height belongs to the content
+                // rather than to the viewport. Putting it in `paddingTop` keeps the
+                // viewport a constant size — `maxScrollY` never moves, Android never
+                // clamps `scrollY`, and the text scrolls up into the space the bar leaves
+                // when it collapses. `paddingTop` specifically, because the heading math
+                // further down already reads `tv.paddingTop`, so it stays consistent for
+                // free rather than needing a second term threaded through it.
+                val contentTopPx = paddingPx + (contentTopInset.value * density).toInt()
+                val paddedChild = scrollView.getChildAt(0)?.let {
+                    if (it is HorizontalScrollView) it.getChildAt(0) else it
+                }
+                if (paddedChild != null && paddedChild.paddingTop != contentTopPx) {
+                    paddedChild.setPadding(
+                        paddedChild.paddingLeft,
+                        contentTopPx,
+                        paddedChild.paddingRight,
+                        paddedChild.paddingBottom
+                    )
                 }
 
                 // Text / style updates

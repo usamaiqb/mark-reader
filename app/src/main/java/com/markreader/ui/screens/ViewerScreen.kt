@@ -330,8 +330,9 @@ fun ViewerScreen(
         uiState.fileName.substringAfterLast('.', "").lowercase().let { it == "md" || it == "markdown" }
 
     Scaffold(
-        // Matches the reading surface, so the strip the top bar leaves behind when it
-        // collapses reads as page margin instead of as a band of a different colour.
+        // Matches the reading surface. The content now runs full height under the
+        // chrome so there is no strip to disguise, but this still keeps the Scaffold
+        // ground from flashing a different colour behind the reader during layout.
         containerColor = surfaceColor,
         floatingActionButton = {
             AnimatedVisibility(
@@ -648,37 +649,50 @@ fun ViewerScreen(
             }
         }
     ) { paddingValues: PaddingValues ->
-        // The top bar expands and collapses, so `paddingValues.top` changes on every
-        // frame of that animation. Applied directly, it resizes the content — and with
-        // it the ScrollView inside — which moves `maxScrollY` and lets Android clamp
-        // `scrollY`. That clamp is indistinguishable from a user scroll, reaches the
-        // delta logic above, and flips the bar straight back: the loop CHROME_SETTLE_MS
-        // exists to paper over. Hold the top inset at its full-bar height instead, so
-        // the bar animates over a content area that never changes size. The bar's own
-        // space is not reclaimed while it is hidden; `containerColor` below makes that
-        // strip the reading surface so it reads as margin rather than as a gap.
-        val topInset = remember { mutableStateOf(paddingValues.calculateTopPadding()) }
+        // The chrome overlays the reader; it does not inset it.
+        //
+        // `paddingValues.top` changes on every frame of the top bar's collapse. Applied
+        // to the content it resized the ScrollView, moved `maxScrollY`, and let Android
+        // clamp `scrollY` — a clamp indistinguishable from a user scroll, which reached
+        // the delta logic above and flipped the bar straight back. #25 broke that loop by
+        // latching the inset at its full-bar height, and paid for it: the bar's space was
+        // never given back, so collapsing it left a blank strip and immersive reading
+        // gained no reading area at all.
+        //
+        // So the content fills the whole area and the bar draws over it. The bar's height
+        // moves into the *content's* top padding, inside the ScrollView — see
+        // `contentTopInset` in RenderedTextView. The viewport is then a constant size, so
+        // `maxScrollY` never moves and the clamp never fires; and when the bar collapses,
+        // the text scrolls up into the space it leaves. Nothing shows through underneath
+        // the bar because the topBar Column is opaque and keeps its status-bar padding,
+        // so the strip covering the status bar and the progress bar is always painted.
+        //
+        // The latch stays, but it now measures the bar rather than reserving space for it:
+        // the expanded height is what the content has to be padded by.
+        val expandedTopInset = remember { mutableStateOf(paddingValues.calculateTopPadding()) }
         val liveTopInset = paddingValues.calculateTopPadding()
         LaunchedEffect(liveTopInset) {
-            if (liveTopInset > topInset.value) topInset.value = liveTopInset
+            if (liveTopInset > expandedTopInset.value) expandedTopInset.value = liveTopInset
         }
-        val stableInsets = PaddingValues(
+        val chromeTopInset = expandedTopInset.value
+        val sideInsets = PaddingValues(
             start = paddingValues.calculateStartPadding(layoutDirection),
-            top = topInset.value,
             end = paddingValues.calculateEndPadding(layoutDirection),
             bottom = paddingValues.calculateBottomPadding()
         )
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(stableInsets),
+                .padding(sideInsets),
             color = surfaceColor,
             contentColor = contentColor
         ) {
             when {
                 uiState.isLoadingVisible -> {
                     Column(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = chromeTopInset),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -689,6 +703,7 @@ fun ViewerScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .padding(top = chromeTopInset)
                             .padding(24.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -709,6 +724,7 @@ fun ViewerScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .padding(top = chromeTopInset)
                             .padding(24.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -733,13 +749,19 @@ fun ViewerScreen(
                     } else {
                         uiState.rendered ?: uiState.rawText
                     }
+                    // A warning banner sits above the reader and outside its scroll
+                    // container, so it takes the inset itself and the reader starts below
+                    // it. Rare enough that losing the overlay in that case is fine.
+                    val hasWarning = !uiState.warningMessage.isNullOrBlank()
                     ContentContainer(
-                        warningMessage = uiState.warningMessage
+                        warningMessage = uiState.warningMessage,
+                        topInset = if (hasWarning) chromeTopInset else 0.dp
                     ) {
                         RenderedTextView(
                             text = text,
                             textColor = contentColor.toArgb(),
                             padding = PaddingValues(0.dp),
+                            contentTopInset = if (hasWarning) 0.dp else chromeTopInset,
                             savedScrollY = savedScrollY,
                             scrollToOffset = scrollToOffset,
                             onScrollChanged = viewModel::onScrollPositionChanged,
