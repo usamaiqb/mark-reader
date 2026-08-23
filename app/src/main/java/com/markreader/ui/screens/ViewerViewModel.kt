@@ -18,6 +18,7 @@ import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
 import com.markreader.ui.markdown.SourceCodeRenderer
+import com.markreader.ui.reader.SearchHighlightSpan
 import com.markreader.ExternalFileCache
 import com.markreader.FileTooLargeException
 import com.markreader.MAX_FILE_BYTES

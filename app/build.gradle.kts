@@ -67,6 +67,14 @@ android {
         disable += "NullSafeMutableLiveData"
     }
 
+    testOptions {
+        unitTests {
+            // The JVM tests below cover logic that only touches Android types at
+            // its edges; stubs returning defaults keep them from throwing there.
+            isReturnDefaultValues = true
+        }
+    }
+
     dependenciesInfo {
         // Disables dependency metadata when building APKs (required for F-Droid reproducible builds)
         includeInApk = false
@@ -130,4 +138,6 @@ dependencies {
     kapt("io.noties:prism4j-bundler:2.0.0")
 
     implementation("androidx.core:core-splashscreen:1.0.1")
+
+    testImplementation("junit:junit:4.13.2")
 }

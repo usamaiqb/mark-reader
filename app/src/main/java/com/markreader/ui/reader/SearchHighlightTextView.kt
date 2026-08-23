@@ -1,4 +1,4 @@
-package com.markreader.ui.screens
+package com.markreader.ui.reader
 
 import android.annotation.SuppressLint
 import android.content.Context

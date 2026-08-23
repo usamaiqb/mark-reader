@@ -116,6 +116,7 @@ import com.markreader.ui.components.SegmentPosition
 import com.markreader.ui.components.segmentPositionFor
 import com.markreader.ui.components.segmentShape
 import com.markreader.ui.export.ExportManager
+import com.markreader.ui.reader.RenderedTextView
 import kotlin.math.roundToInt
 
 /**
