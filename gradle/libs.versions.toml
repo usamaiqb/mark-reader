@@ -1,0 +1,73 @@
+# Version catalog.
+#
+# Every version of someone else's artifact lives here — libraries and build plugins alike.
+# The app's own `versionCode` and `versionName` deliberately do NOT: they identify our
+# release rather than a dependency, and `.github/workflows/release-checks.yml` greps
+# `app/build.gradle.kts` for them directly.
+
+[versions]
+# Build tooling
+agp = "9.2.0"
+kotlin = "2.0.21"
+detekt = "1.23.8"
+detektComposeRules = "0.4.28"
+
+# AndroidX and Material
+androidxCore = "1.15.0"
+activityCompose = "1.10.0"
+composeBom = "2025.12.00"
+navigationCompose = "2.8.5"
+lifecycle = "2.8.7"
+datastore = "1.1.1"
+splashscreen = "1.0.1"
+material = "1.12.0"
+
+# Rendering. Both Prism4j coordinates must move together — the bundler is an annotation
+# processor generating against the runtime it is paired with.
+markwon = "4.6.2"
+prism4j = "2.0.0"
+
+# Test
+junit = "4.13.2"
+
+# Forced, not declared — see the `resolutionStrategy` block in app/build.gradle.kts
+jetbrainsAnnotations = "23.0.0"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+
+# Versionless entries are governed by the Compose BOM below them.
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+androidx-compose-animation = { module = "androidx.compose.animation:animation" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+google-material = { module = "com.google.android.material:material", version.ref = "material" }
+
+markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
+markwon-ext-tables = { module = "io.noties.markwon:ext-tables", version.ref = "markwon" }
+markwon-syntax-highlight = { module = "io.noties.markwon:syntax-highlight", version.ref = "markwon" }
+markwon-image = { module = "io.noties.markwon:image", version.ref = "markwon" }
+prism4j = { module = "io.noties:prism4j", version.ref = "prism4j" }
+prism4j-bundler = { module = "io.noties:prism4j-bundler", version.ref = "prism4j" }
+
+detekt-compose-rules = { module = "io.nlopez.compose.rules:detekt", version.ref = "detektComposeRules" }
+
+junit = { module = "junit:junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-legacy-kapt = { id = "com.android.legacy-kapt", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

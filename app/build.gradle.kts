@@ -3,9 +3,10 @@ import java.util.Properties
 import java.io.FileInputStream
 
 plugins {
-    id("com.android.application")
-    id("com.android.legacy-kapt")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.legacy.kapt)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.detekt)
 }
 
 // Load signing config from keystore.properties (local) or environment variables (CI)
@@ -64,7 +65,9 @@ android {
     }
 
     lint {
-        disable += "NullSafeMutableLiveData"
+        // Suppressions and severities live in lint.xml so the IDE, the CLI and CI all read
+        // the same policy. Warnings are not errors yet — see the note in that file.
+        lintConfig = file("lint.xml")
     }
 
     testOptions {
@@ -103,41 +106,63 @@ android {
     }
 }
 
+detekt {
+    config.setFrom("$rootDir/detekt.yml")
+    // Findings that predate detekt, so the rules bind to new code without this PR
+    // rewriting the app. Working the baseline off is follow-up work, not build hygiene.
+    baseline = file("$rootDir/detekt-baseline.xml")
+    // Our config only overrides thresholds, so the rest of detekt's defaults still apply.
+    buildUponDefaultConfig = true
+    allRules = false
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = JavaVersion.VERSION_17.toString()
+    reports {
+        html.required.set(true)
+        sarif.required.set(false)
+        md.required.set(false)
+        txt.required.set(false)
+    }
+}
+
 configurations.all {
     resolutionStrategy {
-        force("org.jetbrains:annotations:23.0.0")
+        force("org.jetbrains:annotations:${libs.versions.jetbrainsAnnotations.get()}")
     }
     exclude(group = "org.jetbrains", module = "annotations-java5")
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2025.12.00"))
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.activity:activity-compose:1.10.0")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.animation:animation")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material:material-icons-extended")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    implementation("com.google.android.material:material:1.12.0")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material.icons.extended)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation(libs.google.material)
 
-    implementation("androidx.navigation:navigation-compose:2.8.5")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation(libs.androidx.datastore.preferences)
 
-    implementation("io.noties.markwon:core:4.6.2")
-    implementation("io.noties.markwon:ext-tables:4.6.2")
-    implementation("io.noties.markwon:syntax-highlight:4.6.2")
-    implementation("io.noties.markwon:image:4.6.2") {
+    implementation(libs.markwon.core)
+    implementation(libs.markwon.ext.tables)
+    implementation(libs.markwon.syntax.highlight)
+    implementation(libs.markwon.image) {
         exclude(group = "com.google.guava", module = "guava")
     }
-    implementation("io.noties:prism4j:2.0.0")
-    kapt("io.noties:prism4j-bundler:2.0.0")
+    implementation(libs.prism4j)
+    kapt(libs.prism4j.bundler)
 
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation(libs.androidx.core.splashscreen)
 
-    testImplementation("junit:junit:4.13.2")
+    detektPlugins(libs.detekt.compose.rules)
+
+    testImplementation(libs.junit)
 }
