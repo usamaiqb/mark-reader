@@ -22,8 +22,8 @@ import com.markreader.ui.navigation.markReaderNavGraph
 @Composable
 fun MarkReaderApp(
     externalUri: String?,
-    externalUriNonce: Long = 0L,
-    launchedExternally: Boolean
+    launchedExternally: Boolean,
+    externalUriNonce: Long = 0L
 ) {
     val navController = rememberNavController()
     val startDestination = rememberSaveable {

@@ -4,11 +4,9 @@
   <CurrentIssues>
     <ID>ComplexCondition:ReaderContentView.kt$controller.lastStyleKey != contentKey || controller.lastTextColor != textColor || controller.lastSelectionHighlightColor != selectionHighlightColor || controller.lastCodeBlockBackgroundColor != codeBlockBackgroundColor</ID>
     <ID>ComplexCondition:ZoomableContentLayout.kt$ZoomableContentLayout$(goingUp &amp;&amp; scrollY &lt;= 0 &amp;&amp; translationYOffset &lt; getMaxTranslationY()) || (goingDown &amp;&amp; scrollY &gt;= maxScrollY &amp;&amp; translationYOffset &gt; -getMaxTranslationY())</ID>
-    <ID>ComposableParamOrder:MarkReaderApp.kt$MarkReaderApp</ID>
     <ID>ComposableParamOrder:ReaderContentView.kt$RenderedTextView</ID>
     <ID>ComposableParamOrder:ViewerScreen.kt$ViewerScreen</ID>
-    <ID>ContentSlotReused:SettingsScreen.kt$content</ID>
-    <ID>CyclomaticComplexMethod:EditorScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun EditorScreen( uriString: String?, isMarkdown: Boolean, onNavigateBack: () -&gt; Unit, onFileSaved: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:EditorScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun EditorScreen( uriString: String?, isMarkdown: Boolean, onNavigateBack: () -&gt; Unit, onFileSaved: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: EditorViewModel = viewModel( factory = EditorViewModel.factory( LocalContext.current.applicationContext as Application, uriString, isMarkdown ) ) )</ID>
     <ID>CyclomaticComplexMethod:Prism4jThemes.kt$Prism4jThemeOneDark$private fun colorFor(type: String): Int?</ID>
     <ID>CyclomaticComplexMethod:Prism4jThemes.kt$Prism4jThemeOneLight$private fun colorFor(type: String): Int?</ID>
     <ID>CyclomaticComplexMethod:ReaderContentView.kt$@Composable fun RenderedTextView( text: Any, textColor: Int, padding: PaddingValues, /** * Height of the chrome the reader draws underneath, added to the content's own top * padding *inside* the ScrollView. Kept out of [padding] deliberately: [padding] insets * the viewport, which resizes the scroll container and moves `maxScrollY`, and that is * the feedback loop this avoids. */ contentTopInset: Dp = 0.dp, // Held as State, not Int: the live scroll position changes every frame while // scrolling, and taking it as a value would recompose this composable — and // re-run the AndroidView update block — on every one of those frames. It is // only ever read to restore a position, so it is read without snapshot // observation below. savedScrollY: State&lt;Int&gt;, scrollToOffset: Int?, onScrollChanged: (scrollY: Int, maxScrollY: Int) -&gt; Unit, onScrollExtentChanged: (maxScrollY: Int) -&gt; Unit, onScrollConsumed: () -&gt; Unit, headings: List&lt;HeadingItem&gt;, onActiveHeadingChanged: (Int) -&gt; Unit, isWordWrapEnabled: Boolean, isCodeBlockWrapEnabled: Boolean, selectionHighlightColor: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono, isSourceCode: Boolean = false, textAlignment: TextAlignmentPreference, codeBlockBackgroundColor: Int )</ID>
@@ -20,10 +18,6 @@
     <ID>CyclomaticComplexMethod:ViewerViewModel.kt$ViewerViewModel.Companion$private fun detectCodeLanguage(fileName: String): String?</ID>
     <ID>CyclomaticComplexMethod:ZoomableContentLayout.kt$ZoomableContentLayout$override fun onInterceptTouchEvent(ev: MotionEvent): Boolean</ID>
     <ID>EmptyCatchBlock:EditorViewModel.kt$EditorViewModel${ }</ID>
-    <ID>LambdaParameterInRestartableEffect:EditorScreen.kt$onFileSaved</ID>
-    <ID>LambdaParameterInRestartableEffect:HomeScreen.kt$onOpenEditor</ID>
-    <ID>LambdaParameterInRestartableEffect:HomeScreen.kt$onOpenViewer</ID>
-    <ID>LambdaParameterInRestartableEffect:ViewerScreen.kt$onFileSavedConsumed</ID>
     <ID>LongMethod:ViewerViewModel.kt$ViewerViewModel$fun loadUri(uriString: String, forceReload: Boolean = false)</ID>
     <ID>LongParameterList:ReaderTextStyle.kt$( context: Context, paddingPx: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, codeFont: CodeFontPreference, isSourceCode: Boolean, textAlignment: TextAlignmentPreference, textColor: Int, selectionHighlightColor: Int, horizontalScroll: Boolean )</ID>
     <ID>LoopWithTooManyJumpStatements:ScrollAnchor.kt$for</ID>
@@ -69,16 +63,9 @@
     <ID>MaxLineLength:PreferencesRepository.kt$PreferencesRepository$val legacyTheme = prefs[Keys.LEGACY_THEME]?.let { runCatching { ReaderThemePreference.valueOf(it) }.getOrNull() }</ID>
     <ID>MaxLineLength:PreferencesRepository.kt$PreferencesRepository$val safeTheme = if (theme == ReaderThemePreference.Amoled) ReaderThemePreference.Amoled else ReaderThemePreference.Dark</ID>
     <ID>MaxLineLength:PreferencesRepository.kt$PreferencesRepository$val safeTheme = if (theme == ReaderThemePreference.Sepia) ReaderThemePreference.Sepia else ReaderThemePreference.Light</ID>
-    <ID>ModifierMissing:EditorScreen.kt$EditorScreen</ID>
-    <ID>ModifierMissing:ExpressiveList.kt$SectionHeader</ID>
-    <ID>ModifierMissing:HomeScreen.kt$HomeScreen</ID>
     <ID>ModifierMissing:ReaderContentView.kt$RenderedTextView</ID>
-    <ID>ModifierMissing:SettingsScreen.kt$SettingsScreen</ID>
     <ID>ModifierMissing:ViewerChrome.kt$ContentContainer</ID>
     <ID>ModifierMissing:ViewerScreen.kt$ViewerScreen</ID>
-    <ID>MultipleEmitters:EditorScreen.kt$FormatDivider</ID>
-    <ID>MutableStateAutoboxing:EditorScreen.kt$mutableStateOf(0)</ID>
-    <ID>MutableStateAutoboxing:MainActivity.kt$MainActivity$mutableStateOf(0L)</ID>
     <ID>NestedBlockDepth:TableRenderer.kt$internal fun buildTableLayout( text: Spanned, context: Context, textColor: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, selectionHighlightColor: Int, density: Float ): TableLayout?</ID>
     <ID>NestedBlockDepth:ViewerViewModel.kt$ViewerViewModel$private fun parseHeadings(markdown: String, renderedText: String?): List&lt;HeadingItem&gt;</ID>
     <ID>NestedBlockDepth:ZoomableContentLayout.kt$ZoomableContentLayout$override fun onInterceptTouchEvent(ev: MotionEvent): Boolean</ID>
@@ -108,8 +95,7 @@
     <ID>TooManyFunctions:SettingsScreen.kt$com.markreader.ui.screens.SettingsScreen.kt</ID>
     <ID>TooManyFunctions:ViewerViewModel.kt$ViewerViewModel : AndroidViewModel</ID>
     <ID>TopLevelPropertyNaming:SettingsScreen.kt$private const val GithubRepoUrl = "https://github.com/usamaiqb/mark-reader"</ID>
-    <ID>ViewModelInjection:EditorScreen.kt$viewModel</ID>
-    <ID>ViewModelInjection:SettingsScreen.kt$viewModel</ID>
+    <ID>ViewModelForwarding:EditorScreen.kt$FormattingToolbar(viewModel = viewModel)</ID>
     <ID>ViewModelInjection:ViewerScreen.kt$viewModel</ID>
   </CurrentIssues>
 </SmellBaseline>

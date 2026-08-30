@@ -91,6 +91,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -231,10 +232,12 @@ fun ViewerScreen(
     LaunchedEffect(uiState.isSourceCode) {
         isWordWrapEnabled = !uiState.isSourceCode
     }
+    // Keyed on fileSaved, so read the caller's current callback rather than the first one.
+    val currentOnFileSavedConsumed by rememberUpdatedState(onFileSavedConsumed)
     LaunchedEffect(fileSaved) {
         if (fileSaved) {
             uriString?.let { viewModel.loadUri(it, forceReload = true) }
-            onFileSavedConsumed()
+            currentOnFileSavedConsumed()
         }
     }
 
