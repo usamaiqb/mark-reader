@@ -107,10 +107,11 @@ android {
 }
 
 detekt {
-    config.setFrom("$rootDir/detekt.yml")
-    // Findings that predate detekt, so the rules bind to new code without this PR
-    // rewriting the app. Working the baseline off is follow-up work, not build hygiene.
-    baseline = file("$rootDir/detekt-baseline.xml")
+    config.setFrom("$rootDir/config/detekt/detekt.yml")
+    // Findings that predate detekt, so the rules bind to new code without the change that
+    // introduced them rewriting the app. This file is meant to shrink and then be deleted —
+    // regenerating it wholesale during a refactor turns a temporary debt into a permanent one.
+    baseline = file("$rootDir/config/detekt/baseline.xml")
     // Our config only overrides thresholds, so the rest of detekt's defaults still apply.
     buildUponDefaultConfig = true
     allRules = false
