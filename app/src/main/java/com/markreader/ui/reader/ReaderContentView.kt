@@ -31,7 +31,6 @@ import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.ui.screens.HeadingItem
-import com.markreader.ui.zoom.ZoomableContentLayout
 
 /**
  * A [ScrollView] that never scrolls itself to keep a focused descendant on screen.
@@ -266,7 +265,9 @@ fun RenderedTextView(
                 } else {
                     scrollView
                 }
-                val zoomLayout = ZoomableContentLayout(context).apply {
+                // A plain container the update block can swap the scroll root inside when
+                // the word-wrap setting changes.
+                FrameLayout(context).apply {
                     addView(
                         rootView,
                         ViewGroup.LayoutParams(
@@ -275,10 +276,9 @@ fun RenderedTextView(
                         )
                     )
                 }
-                zoomLayout
             },
-            update = { zoomLayout ->
-                val rootView = zoomLayout.getChildAt(0)
+            update = { viewRoot ->
+                val rootView = viewRoot.getChildAt(0)
                 val scrollView = when (rootView) {
                     is HorizontalScrollView -> rootView.getChildAt(0) as ScrollView
                     else -> rootView as ScrollView
@@ -297,7 +297,7 @@ fun RenderedTextView(
                     if (wrapChanged && useGlobalHorizontalScroll != hasGlobalHorizontalScroll) {
                         val parent = scrollView.parent as? ViewGroup
                         parent?.removeView(scrollView)
-                        zoomLayout.removeAllViews()
+                        viewRoot.removeAllViews()
                         if (useGlobalHorizontalScroll) {
                             val hsv = HorizontalScrollView(scrollView.context).apply {
                                 isHorizontalScrollBarEnabled = true
@@ -309,7 +309,7 @@ fun RenderedTextView(
                                     )
                                 )
                             }
-                            zoomLayout.addView(
+                            viewRoot.addView(
                                 hsv,
                                 ViewGroup.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -317,7 +317,7 @@ fun RenderedTextView(
                                 )
                             )
                         } else {
-                            zoomLayout.addView(
+                            viewRoot.addView(
                                 scrollView,
                                 ViewGroup.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -693,7 +693,6 @@ fun RenderedTextView(
                         if (y != null) {
                             val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
                             scrollView.smoothScrollTo(0, centeredY)
-                            if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
                         }
                         // Consumed either way, so an unresolvable target does not
                         // leave the request pending forever.
@@ -727,9 +726,9 @@ fun RenderedTextView(
                     }
                 }
             },
-            onRelease = { zoomLayout ->
+            onRelease = { viewRoot ->
                 controller.extentListener?.let { listener ->
-                    val rootView = zoomLayout.getChildAt(0)
+                    val rootView = viewRoot.getChildAt(0)
                     val scrollView = when (rootView) {
                         is HorizontalScrollView -> rootView.getChildAt(0) as? ScrollView
                         else -> rootView as? ScrollView
