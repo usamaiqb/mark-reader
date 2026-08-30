@@ -24,7 +24,6 @@ internal data class ContentKey(
  */
 internal data class RestoreKey(
     val content: ContentKey,
-    val isWordWrapEnabled: Boolean,
     val isCodeBlockWrapEnabled: Boolean
 )
 
@@ -53,7 +52,6 @@ internal data class RestoreKey(
  * the main thread.
  */
 internal class ReaderContentController(
-    isWordWrapEnabled: Boolean,
     isCodeBlockWrapEnabled: Boolean,
     textColor: Int,
     selectionHighlightColor: Int,
@@ -62,8 +60,7 @@ internal class ReaderContentController(
     /** The restore already claimed, so the same one is never applied twice. */
     var lastRestoredKey: RestoreKey? = null
 
-    /** Wrap settings the current view *structure* was built for. */
-    var lastWrapEnabled: Boolean = isWordWrapEnabled
+    /** Wrap setting the current view *structure* was built for. */
     var lastCodeBlockWrapEnabled: Boolean = isCodeBlockWrapEnabled
 
     /** Anchor saved before a restructure, consumed once the new views exist. */
@@ -76,7 +73,6 @@ internal class ReaderContentController(
     /** Styling currently applied to the views. */
     var lastStyleKey: ContentKey = UNSTYLED
     var lastTextColor: Int = textColor
-    var lastWrapEnabledApplied: Boolean = isWordWrapEnabled
     var lastSelectionHighlightColor: Int = selectionHighlightColor
     var lastCodeBlockBackgroundColor: Int = codeBlockBackgroundColor
 

@@ -50,7 +50,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
-import androidx.compose.material.icons.automirrored.rounded.WrapText
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
@@ -160,7 +159,6 @@ fun ViewerScreen(
     var isMenuExpanded by remember { mutableStateOf(false) }
     var isTocVisible by rememberSaveable { mutableStateOf(false) }
     var isExportSheetVisible by rememberSaveable { mutableStateOf(false) }
-    var isWordWrapEnabled by rememberSaveable { mutableStateOf(true) }
     var isCodeBlockWrapEnabled by rememberSaveable { mutableStateOf(true) }
     val exportManager = remember { ExportManager(context) }
     val haptics = LocalHapticFeedback.current
@@ -228,9 +226,6 @@ fun ViewerScreen(
         if (uiState.isSearchActive) {
             isChromeVisible = true
         }
-    }
-    LaunchedEffect(uiState.isSourceCode) {
-        isWordWrapEnabled = !uiState.isSourceCode
     }
     // Keyed on fileSaved, so read the caller's current callback rather than the first one.
     val currentOnFileSavedConsumed by rememberUpdatedState(onFileSavedConsumed)
@@ -544,20 +539,20 @@ fun ViewerScreen(
                                         DropdownMenuItem(
                                             leadingIcon = {
                                                 Icon(
-                                                    imageVector = Icons.AutoMirrored.Rounded.WrapText,
+                                                    imageVector = Icons.Rounded.Code,
                                                     contentDescription = null,
                                                     tint = chromeColors.content
                                                 )
                                             },
                                             text = {
                                                 Text(
-                                                    text = "Wrap long lines",
+                                                    text = "Wrap code blocks",
                                                     color = chromeColors.content
                                                 )
                                             },
                                             trailingIcon = {
                                                 androidx.compose.material3.Switch(
-                                                    checked = isWordWrapEnabled,
+                                                    checked = isCodeBlockWrapEnabled,
                                                     onCheckedChange = null,
                                                     colors = androidx.compose.material3.SwitchDefaults.colors(
                                                         checkedThumbColor = chromeColors.content,
@@ -569,42 +564,9 @@ fun ViewerScreen(
                                             },
                                             onClick = {
                                                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                isWordWrapEnabled = !isWordWrapEnabled
+                                                isCodeBlockWrapEnabled = !isCodeBlockWrapEnabled
                                             }
                                         )
-                                        if (isWordWrapEnabled) {
-                                            DropdownMenuItem(
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.Code,
-                                                        contentDescription = null,
-                                                        tint = chromeColors.content
-                                                    )
-                                                },
-                                                text = {
-                                                    Text(
-                                                        text = "Wrap code blocks",
-                                                        color = chromeColors.content
-                                                    )
-                                                },
-                                                trailingIcon = {
-                                                    androidx.compose.material3.Switch(
-                                                        checked = isCodeBlockWrapEnabled,
-                                                        onCheckedChange = null,
-                                                        colors = androidx.compose.material3.SwitchDefaults.colors(
-                                                            checkedThumbColor = chromeColors.content,
-                                                            checkedTrackColor = chromeColors.tonalContainer,
-                                                            uncheckedThumbColor = chromeColors.muted,
-                                                            uncheckedTrackColor = chromeColors.tonalContainer
-                                                        )
-                                                    )
-                                                },
-                                                onClick = {
-                                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                    isCodeBlockWrapEnabled = !isCodeBlockWrapEnabled
-                                                }
-                                            )
-                                        }
                                         HorizontalDivider(color = chromeColors.tonalContainer)
                                         DropdownMenuItem(
                                             leadingIcon = {
@@ -785,7 +747,6 @@ fun ViewerScreen(
                             onScrollConsumed = viewModel::onScrollConsumed,
                             headings = uiState.headings,
                             onActiveHeadingChanged = viewModel::onActiveHeadingChanged,
-                            isWordWrapEnabled = isWordWrapEnabled,
                             isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
                             selectionHighlightColor = selectionHighlightColor,
                             fontSizeSp = prefs.fontSizeSp,
