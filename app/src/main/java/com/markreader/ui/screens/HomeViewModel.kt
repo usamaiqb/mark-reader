@@ -30,8 +30,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _navigateToViewer = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val navigateToViewer: SharedFlow<String> = _navigateToViewer.asSharedFlow()
 
-    private val _navigateToEditor = MutableSharedFlow<Pair<String, Boolean>>(extraBufferCapacity = 1)
-    val navigateToEditor: SharedFlow<Pair<String, Boolean>> = _navigateToEditor.asSharedFlow()
+    private val _navigateToEditor = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val navigateToEditor: SharedFlow<String> = _navigateToEditor.asSharedFlow()
 
     /** Null until the first DataStore emission, so the UI can avoid flashing the empty state. */
     val recentFiles: StateFlow<List<RecentFile>?> = recentFilesRepository.recentFiles
@@ -69,10 +69,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         if (uri == null) return
         viewModelScope.launch {
             val displayName = resolveDisplayName(uri)
-            val ext = displayName.substringAfterLast('.', "").lowercase()
-            val isMarkdown = ext == "md" || ext == "markdown"
             recentFilesRepository.recordOpen(uri.toString(), displayName)
-            _navigateToEditor.emit(Pair(uri.toString(), isMarkdown))
+            _navigateToEditor.emit(uri.toString())
         }
     }
 

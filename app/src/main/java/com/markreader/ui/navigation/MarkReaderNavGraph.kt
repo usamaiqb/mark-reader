@@ -5,7 +5,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.composable
 import com.markreader.ui.screens.EditorScreen
@@ -26,8 +25,8 @@ fun NavGraphBuilder.markReaderNavGraph(
                     launchSingleTop = true
                 }
             },
-            onOpenEditor = { uri, isMarkdown ->
-                navController.navigate(NavRoutes.Editor.createRoute(uri, isMarkdown))
+            onOpenEditor = { uri ->
+                navController.navigate(NavRoutes.Editor.createRoute(uri))
             }
         )
     }
@@ -44,8 +43,8 @@ fun NavGraphBuilder.markReaderNavGraph(
             .collectAsStateWithLifecycle()
         ViewerScreen(
             onOpenSettings = { navController.navigateToSettings() },
-            onOpenEditor = { editorUri, isMarkdown ->
-                navController.navigate(NavRoutes.Editor.createRoute(editorUri, isMarkdown))
+            onOpenEditor = { editorUri ->
+                navController.navigate(NavRoutes.Editor.createRoute(editorUri))
             },
             uriString = uri,
             fileSaved = fileSaved,
@@ -61,16 +60,11 @@ fun NavGraphBuilder.markReaderNavGraph(
 
     composable(
         route = NavRoutes.Editor.route,
-        arguments = listOf(
-            navArgument("uri") { nullable = true },
-            navArgument("isMarkdown") { type = NavType.BoolType; defaultValue = false }
-        )
+        arguments = listOf(navArgument("uri") { nullable = true })
     ) { backStackEntry ->
         val uri = backStackEntry.arguments?.getString("uri")
-        val isMarkdown = backStackEntry.arguments?.getBoolean("isMarkdown") ?: false
         EditorScreen(
             uriString = uri,
-            isMarkdown = isMarkdown,
             onNavigateBack = { navController.popBackStack() },
             onFileSaved = {
                 navController.previousBackStackEntry?.savedStateHandle?.set("file_saved", true)

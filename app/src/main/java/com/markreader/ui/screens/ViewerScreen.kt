@@ -111,7 +111,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.R
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.ReaderThemePreference
-import com.markreader.OPENABLE_MIME_TYPES
+import com.markreader.file.DocumentType
+import com.markreader.file.OPENABLE_MIME_TYPES
 import com.markreader.tryTakePersistablePermission
 import com.markreader.ui.components.GroupInnerRadius
 import com.markreader.ui.components.GroupOuterRadius
@@ -133,7 +134,7 @@ private const val CHROME_SETTLE_MS = 350L
 @Composable
 fun ViewerScreen(
     onOpenSettings: () -> Unit,
-    onOpenEditor: (String, Boolean) -> Unit = { _, _ -> },
+    onOpenEditor: (String) -> Unit = {},
     uriString: String?,
     fileSaved: Boolean = false,
     onFileSavedConsumed: () -> Unit = {}
@@ -244,12 +245,12 @@ fun ViewerScreen(
     }
     val viewModeLabel = stringResource(
         when {
-            uiState.isSourceCode -> R.string.viewer_subtitle_source_code
+            uiState.documentType is DocumentType.SourceCode -> R.string.viewer_subtitle_source_code
             uiState.viewMode == ViewMode.Raw -> R.string.viewer_subtitle_raw_mode
             else -> R.string.viewer_subtitle_rendered_mode
         }
     )
-    val canToggleViewMode = !uiState.isSourceCode && uiState.rendered != null
+    val canToggleViewMode = uiState.documentType == DocumentType.Markdown && uiState.rendered != null
 
     val dynamicLightScheme = remember(context, prefs.useDynamicColors) {
         if (prefs.useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -335,8 +336,6 @@ fun ViewerScreen(
     // created note the one file the app refused to edit — exactly backwards.
     val canEdit = !uiState.isLoading && uiState.errorMessage == null &&
         uriString != null
-    val isMarkdownFile = !uiState.isSourceCode &&
-        uiState.fileName.substringAfterLast('.', "").lowercase().let { it == "md" || it == "markdown" }
 
     Scaffold(
         // Matches the reading surface. The content now runs full height under the
@@ -352,7 +351,7 @@ fun ViewerScreen(
                 FloatingActionButton(
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onOpenEditor(uriString!!, isMarkdownFile)
+                        onOpenEditor(uriString!!)
                     },
                     containerColor = chromeColors.tonalContainer,
                     contentColor = chromeColors.content
@@ -448,7 +447,7 @@ fun ViewerScreen(
                                     }
                                 },
                                 navigationIcon = {
-                                    if (!uiState.isSourceCode) {
+                                    if (uiState.documentType == DocumentType.Markdown) {
                                         FilledTonalIconButton(
                                             onClick = {
                                                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -721,7 +720,7 @@ fun ViewerScreen(
                         // that it exists — so the primary action is offered here too.
                         if (canEdit) {
                             androidx.compose.material3.Button(
-                                onClick = { onOpenEditor(uriString!!, isMarkdownFile) }
+                                onClick = { onOpenEditor(uriString!!) }
                             ) {
                                 Text(text = stringResource(R.string.action_edit))
                             }
@@ -791,7 +790,7 @@ fun ViewerScreen(
                             lineHeight = prefs.lineHeight,
                             readingFont = prefs.readingFont,
                             codeFont = prefs.codeFont,
-                            isSourceCode = uiState.isSourceCode,
+                            isSourceCode = uiState.documentType is DocumentType.SourceCode,
                             textAlignment = prefs.textAlignment,
                             codeBlockBackgroundColor = if (isSurfaceDark) {
                                 0x19FFFFFF.toInt()

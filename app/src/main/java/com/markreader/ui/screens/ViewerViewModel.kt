@@ -16,6 +16,8 @@ import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
 import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
+import com.markreader.file.DocumentType
+import com.markreader.file.DocumentTypeResolver
 import com.markreader.ui.markdown.MarkwonRenderer
 import com.markreader.ui.markdown.SourceCodeRenderer
 import com.markreader.ui.UiMessage
@@ -67,7 +69,7 @@ data class ViewerUiState(
     val searchMatchCount: Int = 0,
     val searchMatchIndex: Int = 0,
     val userPreferences: UserPreferences = UserPreferences(),
-    val isSourceCode: Boolean = false
+    val documentType: DocumentType = DocumentType.PlainText
 )
 
 class ViewerViewModel(
@@ -75,9 +77,8 @@ class ViewerViewModel(
     private val initialUri: String?
 ) : AndroidViewModel(application) {
     private data class RenderCacheKey(
-        val isDark: Boolean,
-        val isSourceCode: Boolean,
-        val codeLanguage: String?
+        val documentType: DocumentType,
+        val isDark: Boolean
     )
 
     private val repository = PreferencesRepository.getInstance(application)
@@ -86,7 +87,6 @@ class ViewerViewModel(
     private val rendererCache = mutableMapOf<Boolean, MarkwonRenderer>()
     private val sourceCodeRendererCache = mutableMapOf<Boolean, SourceCodeRenderer>()
     private var currentUri: String? = null
-    private var detectedCodeLanguage: String? = null
     private var loadJob: Job? = null
     private var loadingJob: Job? = null
     private var rebuildJob: Job? = null
@@ -165,6 +165,7 @@ class ViewerViewModel(
             ensureReadPermission(uri)
 
             val fileName = resolveFileName(uri) ?: getApplication<Application>().getString(R.string.untitled)
+            val mimeType = resolveMimeType(uri)
 
             var readError: Exception? = null
             val markdown = try {
@@ -225,17 +226,14 @@ class ViewerViewModel(
                 return@launch
             }
 
-            val codeLanguage = detectCodeLanguage(fileName)
-            detectedCodeLanguage = codeLanguage
-            val isSourceCode = codeLanguage != null
-            val isBinary = isProbablyBinary(markdown)
+            val documentType = DocumentTypeResolver.resolve(fileName, mimeType, markdown)
             val isDark = renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
-            val rendered: android.text.Spanned? = when {
-                isBinary -> null
-                isSourceCode -> renderSourceCode(isDark, markdown, codeLanguage!!)
-                else -> renderMarkdown(isDark, markdown)
+            val rendered = render(documentType, isDark, markdown)
+            val headings = if (documentType == DocumentType.Markdown) {
+                parseHeadings(markdown, rendered?.toString())
+            } else {
+                emptyList()
             }
-            val headings = if (isSourceCode) emptyList() else parseHeadings(markdown, rendered?.toString())
 
             if (rendered == null) {
                 loadingJob?.cancel()
@@ -250,9 +248,9 @@ class ViewerViewModel(
                     searchMatchCount = 0,
                     searchMatchIndex = 0,
                     warningMessage = UiMessage(
-                        when {
-                            isBinary -> R.string.viewer_warning_binary
-                            isSourceCode -> R.string.viewer_warning_source_code
+                        when (documentType) {
+                            DocumentType.Binary -> R.string.viewer_warning_binary
+                            is DocumentType.SourceCode -> R.string.viewer_warning_source_code
                             else -> R.string.viewer_warning_markdown
                         }
                     )
@@ -263,7 +261,7 @@ class ViewerViewModel(
 
             loadingJob?.cancel()
             baseRendered = rendered
-            renderCache[RenderCacheKey(isDark, isSourceCode, codeLanguage)] = rendered
+            renderCache[RenderCacheKey(documentType, isDark)] = rendered
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 isLoadingVisible = false,
@@ -275,7 +273,7 @@ class ViewerViewModel(
                 warningMessage = null,
                 headings = headings,
                 activeHeadingIndex = clampActiveHeadingIndex(_uiState.value.activeHeadingIndex, headings),
-                isSourceCode = isSourceCode
+                documentType = documentType
             )
 
             applySearchQuery(_uiState.value.searchQuery)
@@ -463,6 +461,21 @@ class ViewerViewModel(
         }
     }
 
+    /**
+     * The one dispatch point. Null means "there is nothing to render" — only [DocumentType.Binary]
+     * says so outright; the others return null when their renderer fails, and the caller drops
+     * to raw text with a warning either way.
+     */
+    private suspend fun render(documentType: DocumentType, isDark: Boolean, text: String): Spanned? =
+        when (documentType) {
+            DocumentType.Binary -> null
+            DocumentType.Markdown -> renderMarkdown(isDark, text)
+            is DocumentType.SourceCode -> renderSourceCode(isDark, text, documentType.language)
+            // Csv keeps its own reader for later; until then it reads as what it also is,
+            // which is text — and text that is not pretending to be Markdown prose.
+            DocumentType.Csv, DocumentType.PlainText -> SpannableString(text)
+        }
+
     private suspend fun renderSourceCode(isDark: Boolean, code: String, language: String): Spanned? {
         return try {
             getSourceCodeRenderer(isDark).highlight(code, language)
@@ -478,20 +491,15 @@ class ViewerViewModel(
         if (markdown.isBlank()) return
         val prefs = _uiState.value.userPreferences
         val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-        val codeLanguage = detectedCodeLanguage
-        val isSourceCode = _uiState.value.isSourceCode
+        val documentType = _uiState.value.documentType
         viewModelScope.launch {
-            if (tryApplyCachedRender(isDark, isSourceCode, codeLanguage)) {
+            if (tryApplyCachedRender(documentType, isDark)) {
                 return@launch
             }
-            val rendered = if (isSourceCode && codeLanguage != null) {
-                renderSourceCode(isDark, markdown, codeLanguage)
-            } else {
-                renderMarkdown(isDark, markdown)
-            }
+            val rendered = render(documentType, isDark, markdown)
             if (rendered != null) {
                 baseRendered = rendered
-                renderCache[RenderCacheKey(isDark, isSourceCode, codeLanguage)] = rendered
+                renderCache[RenderCacheKey(documentType, isDark)] = rendered
                 _uiState.value = _uiState.value.copy(rendered = rendered)
                 applySearchQuery(_uiState.value.searchQuery)
             }
@@ -502,9 +510,7 @@ class ViewerViewModel(
         rebuildJob?.cancel()
         val prefs = _uiState.value.userPreferences
         val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-        val codeLanguage = detectedCodeLanguage
-        val isSourceCode = _uiState.value.isSourceCode
-        if (tryApplyCachedRender(isDark, isSourceCode, codeLanguage)) {
+        if (tryApplyCachedRender(_uiState.value.documentType, isDark)) {
             return
         }
         rebuildJob = viewModelScope.launch {
@@ -513,12 +519,8 @@ class ViewerViewModel(
         }
     }
 
-    private fun tryApplyCachedRender(
-        isDark: Boolean,
-        isSourceCode: Boolean,
-        codeLanguage: String?
-    ): Boolean {
-        val cached = renderCache[RenderCacheKey(isDark, isSourceCode, codeLanguage)] ?: return false
+    private fun tryApplyCachedRender(documentType: DocumentType, isDark: Boolean): Boolean {
+        val cached = renderCache[RenderCacheKey(documentType, isDark)] ?: return false
         baseRendered = cached
         _uiState.value = _uiState.value.copy(rendered = cached)
         applySearchQuery(_uiState.value.searchQuery)
@@ -538,14 +540,6 @@ class ViewerViewModel(
         return UiMessage(R.string.viewer_error_open_failed_detail, listOf(className, message))
     }
 
-    private fun isProbablyBinary(text: String): Boolean {
-        if (text.contains('\u0000')) return true
-        val sample = text.take(2000)
-        if (sample.isEmpty()) return false
-        val nonPrintable = sample.count { it < ' ' && it != '\n' && it != '\r' && it != '\t' }
-        return nonPrintable > sample.length / 20
-    }
-
     private suspend fun resolveFileName(uri: Uri): String? = withContext(Dispatchers.IO) {
         val context = getApplication<Application>()
         val resolver = context.contentResolver
@@ -562,6 +556,17 @@ class ViewerViewModel(
             // Fall back to the last path segment if the provider can't be queried.
         }
         return@withContext uri.lastPathSegment
+    }
+
+    /** Only a hint: providers mislabel freely, so the resolver trusts the name over this. */
+    private suspend fun resolveMimeType(uri: Uri): String? = withContext(Dispatchers.IO) {
+        try {
+            getApplication<Application>().contentResolver.getType(uri)
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: Exception) {
+            null
+        }
     }
 
     private suspend fun readTextFromUri(uri: Uri): String? = withContext(Dispatchers.IO) {
@@ -751,47 +756,6 @@ class ViewerViewModel(
     }
 
     companion object {
-        private fun detectCodeLanguage(fileName: String): String? {
-            val ext = fileName.substringAfterLast('.', "").lowercase()
-            if (ext == fileName.lowercase()) {
-                // No extension — check full name
-                return when (fileName.lowercase()) {
-                    "makefile" -> "makefile"
-                    else -> null
-                }
-            }
-            return when (ext) {
-                "java" -> "java"
-                "kt", "kts" -> "kotlin"
-                "py" -> "python"
-                "js" -> "javascript"
-                "ts" -> "javascript"
-                "c" -> "c"
-                "cpp", "cc", "cxx", "hpp" -> "cpp"
-                "h" -> "c"
-                "cs" -> "csharp"
-                "swift" -> "swift"
-                "go" -> "go"
-                "rs" -> "c"
-                "rb" -> "python"
-                "scala" -> "scala"
-                "groovy" -> "groovy"
-                "dart" -> "dart"
-                "json" -> "json"
-                "yaml", "yml" -> "yaml"
-                "html", "xml", "svg" -> "markup"
-                "css" -> "css"
-                "sql" -> "sql"
-                "sh", "bash", "zsh" -> "bash"
-                "mk" -> "makefile"
-                "tex", "latex" -> "latex"
-                "gradle" -> "groovy"
-                "toml" -> "yaml"
-                "md", "txt" -> null
-                else -> null
-            }
-        }
-
         /** Matches Markwon's default: text color at ~10% alpha. */
         private fun codeBackground(isDark: Boolean): Int {
             val textColor = if (isDark) Color.WHITE else Color.BLACK

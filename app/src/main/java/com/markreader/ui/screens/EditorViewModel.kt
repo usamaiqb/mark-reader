@@ -20,6 +20,8 @@ import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
 import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
+import com.markreader.file.DocumentType
+import com.markreader.file.DocumentTypeResolver
 import com.markreader.ui.UiMessage
 import com.markreader.ui.markdown.MarkwonRenderer
 import kotlinx.coroutines.CancellationException
@@ -53,8 +55,7 @@ data class EditorUiState(
 
 class EditorViewModel(
     application: Application,
-    private val initialUri: String?,
-    isMarkdown: Boolean
+    private val initialUri: String?
 ) : AndroidViewModel(application) {
 
     private val repository = PreferencesRepository.getInstance(application)
@@ -63,7 +64,7 @@ class EditorViewModel(
     private var systemDarkTheme = false
     private var renderer: MarkwonRenderer? = null
 
-    private val _uiState = MutableStateFlow(EditorUiState(isMarkdown = isMarkdown))
+    private val _uiState = MutableStateFlow(EditorUiState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
 
     init {
@@ -71,8 +72,12 @@ class EditorViewModel(
         if (initialUri != null) {
             loadContent()
         } else {
-            val defaultName = if (isMarkdown) "untitled.md" else "untitled.txt"
-            _uiState.value = _uiState.value.copy(isLoading = false, fileName = defaultName)
+            // No document to resolve a type from, and this app's default is Markdown.
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                fileName = UNTITLED_MARKDOWN,
+                isMarkdown = true
+            )
         }
     }
 
@@ -112,6 +117,7 @@ class EditorViewModel(
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 fileName = fileName,
+                isMarkdown = DocumentTypeResolver.resolveFromHints(fileName) == DocumentType.Markdown,
                 textFieldValue = TextFieldValue(content ?: ""),
                 errorMessage = when {
                     tooLarge -> UiMessage(R.string.editor_error_file_too_large)
@@ -244,7 +250,9 @@ class EditorViewModel(
                 currentUri = newUri.toString()
                 _uiState.value = _uiState.value.copy(
                     isSaving = false, isModified = false,
-                    fileName = newFileName, saveResult = SaveResult.Success
+                    fileName = newFileName, saveResult = SaveResult.Success,
+                    isMarkdown = DocumentTypeResolver.resolveFromHints(newFileName) ==
+                        DocumentType.Markdown
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -303,12 +311,14 @@ class EditorViewModel(
     }
 
     companion object {
-        fun factory(application: Application, uri: String?, isMarkdown: Boolean): ViewModelProvider.Factory {
+        private const val UNTITLED_MARKDOWN = "untitled.md"
+
+        fun factory(application: Application, uri: String?): ViewModelProvider.Factory {
             return object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(EditorViewModel::class.java)) {
                         @Suppress("UNCHECKED_CAST")
-                        return EditorViewModel(application, uri, isMarkdown) as T
+                        return EditorViewModel(application, uri) as T
                     }
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
