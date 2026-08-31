@@ -1,3 +1,173 @@
 <resources>
     <string name="app_name">MarkReader</string>
+
+    <!-- Shared actions and labels -->
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_settings">Settings</string>
+    <string name="untitled">Untitled</string>
+    <string name="error_open_file">Unable to open file.</string>
+
+    <!-- Home screen -->
+    <string name="home_settings_description">Settings</string>
+    <string name="home_section_recent">Recent</string>
+    <string name="home_open_file">Open file</string>
+    <string name="home_new_file">New file</string>
+    <string name="home_remove_from_recents">Remove from recents</string>
+    <string name="home_app_icon_description">MarkReader app icon</string>
+    <string name="home_empty_title">Open a file</string>
+    <string name="home_empty_body">Choose a Markdown or source code file to start reading. Recent files will show up here.</string>
+    <string name="home_empty_open_file">Open File</string>
+    <string name="home_empty_new_file">New File</string>
+    <!-- File type, then how long ago the file was opened. -->
+    <string name="home_recent_subtitle">%1$s · %2$s</string>
+    <string name="file_type_markdown">Markdown</string>
+    <string name="file_type_text">Text</string>
+
+    <!-- Viewer chrome -->
+    <string name="viewer_subtitle_source_code">Source code</string>
+    <string name="viewer_subtitle_raw_mode">Raw mode</string>
+    <string name="viewer_subtitle_rendered_mode">Rendered mode</string>
+    <string name="viewer_edit_file">Edit file</string>
+    <string name="viewer_search">Search</string>
+    <string name="viewer_more_options">More options</string>
+    <string name="viewer_view_rendered">View rendered</string>
+    <string name="viewer_view_raw">View raw</string>
+    <string name="viewer_switch_to_light_surface">Switch to light surface</string>
+    <string name="viewer_switch_to_dark_surface">Switch to dark surface</string>
+    <string name="viewer_wrap_code_blocks">Wrap code blocks</string>
+    <string name="viewer_export_and_share">Export &amp; share</string>
+    <string name="viewer_reading_progress">Reading</string>
+    <string name="viewer_reading_progress_percent">%1$d%%</string>
+
+    <!-- Viewer states -->
+    <string name="viewer_empty_file">This file is empty.</string>
+    <string name="viewer_open_different_file">Open Different File</string>
+
+    <!-- Search bar -->
+    <string name="search_placeholder">Search in document</string>
+    <string name="search_clear">Clear search</string>
+    <string name="search_hint">Type to search</string>
+    <string name="search_no_matches">No matches</string>
+    <!-- Position of the current search match, e.g. "3 of 12". -->
+    <string name="search_match_position">%1$d of %2$d</string>
+    <string name="search_previous_match">Previous match</string>
+    <string name="search_next_match">Next match</string>
+
+    <!-- Table of contents -->
+    <string name="toc_title">Table of contents</string>
+    <string name="toc_empty">No headings found.</string>
+    <!-- Short label for a heading level, e.g. "H2". -->
+    <string name="toc_heading_level">H%1$d</string>
+    <plurals name="toc_heading_count">
+        <item quantity="one">%1$d heading</item>
+        <item quantity="other">%1$d headings</item>
+    </plurals>
+
+    <!-- Export sheet -->
+    <string name="export_pdf_title">Export as PDF</string>
+    <string name="export_pdf_subtitle">Print-ready document</string>
+    <string name="export_html_title">Export as HTML</string>
+    <string name="export_html_subtitle">Styled web page</string>
+    <string name="export_share_raw_title">Share raw text</string>
+    <string name="export_share_raw_subtitle">Send the markdown source</string>
+    <string name="export_share_html_chooser">Share HTML</string>
+    <string name="export_share_markdown_chooser">Share Markdown</string>
+
+    <!-- Viewer messages -->
+    <string name="viewer_error_no_file_selected">No file selected.</string>
+    <string name="viewer_error_file_too_large">This file is too large to open (over %1$d MB).</string>
+    <string name="viewer_error_open_failed">Unable to open this file.</string>
+    <!-- Exception class name only, when the failure carried no message. -->
+    <string name="viewer_error_open_failed_class">Unable to open this file. (%1$s)</string>
+    <!-- Exception class name, then the failure message. -->
+    <string name="viewer_error_open_failed_detail">Unable to open this file. (%1$s: %2$s)</string>
+    <string name="viewer_warning_binary">This file looks binary or malformed. Showing raw text.</string>
+    <string name="viewer_warning_source_code">Unable to highlight this source code file. Showing raw text.</string>
+    <string name="viewer_warning_markdown">Unable to render this Markdown file. Showing raw text.</string>
+
+    <!-- Editor -->
+    <string name="editor_save">Save</string>
+    <string name="editor_saved">Saved</string>
+    <string name="editor_save_as">Save As</string>
+    <string name="editor_cannot_save_directly">Can\'t save directly — save a copy instead?</string>
+    <string name="editor_tab_edit">Edit</string>
+    <string name="editor_tab_preview">Preview</string>
+    <string name="editor_placeholder_markdown">Start writing markdown…</string>
+    <string name="editor_placeholder_text">Start typing…</string>
+    <string name="editor_rendering_preview">Rendering preview…</string>
+    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_discard_body">Your unsaved changes will be lost.</string>
+    <string name="editor_discard_confirm">Discard</string>
+    <string name="editor_error_file_too_large">This file is too large to edit.</string>
+    <string name="editor_error_read_failed">Unable to read file.</string>
+
+    <!-- Editor formatting toolbar -->
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_strikethrough">Strikethrough</string>
+    <string name="format_bullet_list">Bullet list</string>
+    <string name="format_numbered_list">Numbered list</string>
+    <string name="format_horizontal_rule">Horizontal rule</string>
+    <string name="format_inline_code">Inline code</string>
+    <string name="format_blockquote">Blockquote</string>
+    <string name="format_link">Link</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_selected">Selected</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_reader">Reader</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_app_theme">App theme</string>
+    <string name="settings_app_theme_subtitle">Overall look of the app</string>
+    <string name="settings_dynamic_colors">Use dynamic colors</string>
+    <string name="settings_dynamic_colors_subtitle">Tint the app from your wallpaper</string>
+    <string name="settings_reader_light_theme">Reader light theme</string>
+    <string name="settings_reader_light_theme_subtitle">Used when reading in light mode</string>
+    <string name="settings_reader_dark_theme">Reader dark theme</string>
+    <string name="settings_reader_dark_theme_subtitle">Used when reading in dark mode</string>
+    <string name="settings_reading_font">Reading font</string>
+    <string name="settings_reading_font_subtitle">Typeface for prose and headings</string>
+    <string name="settings_code_font">Code font</string>
+    <string name="settings_code_font_subtitle">Typeface for code blocks and source view</string>
+    <string name="settings_font_size">Font size</string>
+    <!-- Font size in scale-independent pixels, e.g. "16sp". -->
+    <string name="settings_font_size_value">%1$dsp</string>
+    <string name="settings_line_height">Line height</string>
+    <!-- Line height as a multiple of the font size, e.g. "1.5x". -->
+    <string name="settings_line_height_value">%1$sx</string>
+    <string name="settings_text_alignment">Text alignment</string>
+    <string name="settings_text_alignment_subtitle">How paragraphs are laid out</string>
+    <string name="settings_github">GitHub</string>
+    <string name="settings_app_description">A focused Markdown reader for local files.</string>
+    <!-- Version name, then version code. -->
+    <string name="settings_version">Version %1$s (%2$d)</string>
+    <string name="settings_version_unknown">Version unknown</string>
+
+    <!-- Settings preview card -->
+    <string name="settings_preview">Preview</string>
+    <string name="settings_preview_toggle">Toggle preview between light and dark reader theme</string>
+    <string name="settings_preview_heading">The Art of Reading</string>
+    <string name="settings_preview_body">Comfortable typography makes long documents a pleasure to read. Changes apply instantly.</string>
+    <!-- Sample line of code in the reader preview, shown in the code font. -->
+    <string name="settings_preview_code" translatable="false">fun read(file: Uri) = markdown.render(file)</string>
+
+    <!-- Settings option labels -->
+    <string name="theme_mode_system">System</string>
+    <string name="theme_mode_light">Light</string>
+    <string name="theme_mode_dark">Dark</string>
+    <string name="alignment_left">Left</string>
+    <string name="alignment_justified">Justified</string>
+    <string name="reader_theme_light">Light</string>
+    <string name="reader_theme_dark">Dark</string>
+    <string name="reader_theme_amoled">AMOLED</string>
+    <string name="reader_theme_sepia">Sepia</string>
+    <string name="reading_font_merriweather" translatable="false">Merriweather</string>
+    <string name="reading_font_system_serif">System serif</string>
+    <string name="reading_font_merriweather_sans" translatable="false">Merriweather Sans</string>
+    <string name="code_font_jetbrains_mono" translatable="false">JetBrains Mono</string>
+    <string name="code_font_system_mono">System monospace</string>
 </resources>

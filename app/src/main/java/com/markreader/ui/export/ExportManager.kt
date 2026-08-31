@@ -7,6 +7,7 @@ import android.print.PrintManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.content.FileProvider
+import com.markreader.R
 import com.markreader.data.ReaderThemePreference
 import org.commonmark.parser.Parser
 import org.commonmark.renderer.html.HtmlRenderer
@@ -35,8 +36,9 @@ class ExportManager(private val context: Context) {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String?) {
                 val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                val printAdapter = view.createPrintDocumentAdapter(fileName ?: "MarkReader")
-                printManager.print("MarkReader", printAdapter, PrintAttributes.Builder().build())
+                val appName = context.getString(R.string.app_name)
+                val printAdapter = view.createPrintDocumentAdapter(fileName ?: appName)
+                printManager.print(appName, printAdapter, PrintAttributes.Builder().build())
             }
         }
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
@@ -56,7 +58,9 @@ class ExportManager(private val context: Context) {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Share HTML"))
+        context.startActivity(
+            Intent.createChooser(intent, context.getString(R.string.export_share_html_chooser))
+        )
     }
 
     fun shareRawMarkdown(markdown: String) {
@@ -64,7 +68,9 @@ class ExportManager(private val context: Context) {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, markdown)
         }
-        context.startActivity(Intent.createChooser(intent, "Share Markdown"))
+        context.startActivity(
+            Intent.createChooser(intent, context.getString(R.string.export_share_markdown_chooser))
+        )
     }
 
     private fun createHtmlFile(html: String): File {
