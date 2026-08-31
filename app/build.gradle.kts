@@ -26,12 +26,12 @@ val releaseKeyPassword: String? = keystoreProperties["keyPassword"] as? String ?
 
 android {
     namespace = "com.markreader"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.markreader"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 4
         versionName = "1.0.3"
 
