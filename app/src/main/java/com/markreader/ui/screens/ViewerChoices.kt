@@ -5,7 +5,7 @@ import com.markreader.R
 import com.markreader.format.ReaderContent
 
 /**
- * The three decisions the viewer makes about *what* to show, kept out of the composable so they
+ * The four decisions the viewer makes about *what* to show, kept out of the composable so they
  * can be tested.
  *
  * They are here rather than inline because one of their inputs — a WebView that cannot run the
@@ -19,7 +19,9 @@ import com.markreader.format.ReaderContent
  *
  * @param rendererUnavailable the WebView never started the renderer, so a `Markdown` document has
  *   nothing to draw it *with*. Raw mode needs no WebView, which is why the source is the fallback
- *   rather than a second native renderer kept alive for the purpose.
+ *   rather than a second native renderer kept alive for the purpose. It shares raw mode's branch
+ *   rather than having one of its own: the source is on screen either way, so a search over the
+ *   source has to be able to highlight it either way.
  */
 fun readerContentFor(
     isRawMode: Boolean,
@@ -28,10 +30,26 @@ fun readerContentFor(
     rendered: ReaderContent?,
     rendererUnavailable: Boolean,
 ): ReaderContent = when {
-    isRawMode -> rawHighlighted ?: ReaderContent.Spans(rawText)
-    rendererUnavailable -> ReaderContent.Spans(rawText)
+    isRawMode || rendererUnavailable -> rawHighlighted ?: ReaderContent.Spans(rawText)
     else -> rendered ?: ReaderContent.Spans(rawText)
 }
+
+/**
+ * Whether what is on screen is the page's own rendering.
+ *
+ * The one question search and the table of contents both ask, for the same reason: both index a
+ * rendering, and only one of the two reader surfaces keeps its rendering out here. Where the page
+ * is drawing, a query goes to the page's find and an outline is available; where a `TextView` is,
+ * the query is a span pass over text this side holds and there is no outline to offer.
+ *
+ * True exactly when [readerContentFor] answers [ReaderContent.Markdown], which the tests assert
+ * rather than assume — the two are read for different reasons and must not drift.
+ */
+fun isDrawnByPage(
+    isRawMode: Boolean,
+    rendered: ReaderContent?,
+    rendererUnavailable: Boolean,
+): Boolean = !isRawMode && !rendererUnavailable && rendered is ReaderContent.Markdown
 
 /**
  * What the chrome calls the current view.

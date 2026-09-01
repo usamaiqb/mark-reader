@@ -22,11 +22,12 @@ import com.markreader.file.DocumentTypeResolver
 import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
 import com.markreader.format.FormatRegistry
-import com.markreader.format.HeadingItem
 import com.markreader.format.ReaderContent
 import com.markreader.format.RenderTheme
 import com.markreader.ui.UiMessage
 import com.markreader.ui.reader.SearchHighlightSpan
+import com.markreader.webview.HeadingItem
+import com.markreader.webview.PageCommand
 import com.markreader.R
 import com.markreader.file.DocumentSource
 import com.markreader.file.FileTooLargeException
@@ -36,9 +37,13 @@ import com.markreader.file.tryTakePersistablePermission
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -59,8 +64,10 @@ data class ViewerUiState(
     val isEmptyFile: Boolean = false,
     val needsPermission: Boolean = false,
     val viewMode: ViewMode = ViewMode.Rendered,
+    /** The outline, as the page rendered it. Empty on every surface but the page. */
     val headings: List<HeadingItem> = emptyList(),
-    val activeHeadingIndex: Int = -1,
+    /** The heading being read, by slug. Null before the page reports one, and in a flat document. */
+    val activeHeadingSlug: String? = null,
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
     val searchMatchCount: Int = 0,
@@ -70,7 +77,17 @@ data class ViewerUiState(
     /** What the chrome may offer, decided by the document's format rather than by its type. */
     val capabilities: FormatCapabilities = FormatCapabilities(),
     /** Shown in place of a view mode where [capabilities] says there is no raw view. */
-    @StringRes val formatNameRes: Int = R.string.viewer_subtitle_plain_text
+    @StringRes val formatNameRes: Int = R.string.viewer_subtitle_plain_text,
+    /**
+     * This WebView cannot run the shared renderer, so the source is drawn instead.
+     *
+     * Held for the session rather than per document: a WebView too old for the renderer will not
+     * become new enough for the next one, and retrying would cost every document a ten-second
+     * wait before falling back.
+     */
+    val rendererUnavailable: Boolean = false,
+    /** The WebView's version, when it was known, for a warning worth reading. */
+    val rendererWebViewVersion: String? = null
 )
 
 class ViewerViewModel(
@@ -105,6 +122,23 @@ class ViewerViewModel(
 
     private val _scrollToOffset = MutableStateFlow<Int?>(null)
     val scrollToOffset: StateFlow<Int?> = _scrollToOffset.asStateFlow()
+
+    /**
+     * Search and outline requests bound for the page.
+     *
+     * A channel and not a [StateFlow], because these are requests and not state: "next match" has
+     * no value to hold, and three of them are three requests. It is also why they survive the
+     * WebView being rebuilt — which every toggle into raw mode and back does — instead of being
+     * lost, or replayed at whatever page comes next forever.
+     *
+     * Drops the oldest when it fills. A backlog that deep means the page is not collecting, and
+     * in that state the newest request is the only one still worth delivering.
+     */
+    private val pageCommandQueue = Channel<PageCommand>(
+        capacity = PAGE_COMMAND_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val pageCommands: Flow<PageCommand> = pageCommandQueue.receiveAsFlow()
 
     private val _scrollY = MutableStateFlow(0)
     val scrollY: StateFlow<Int> = _scrollY.asStateFlow()
@@ -148,15 +182,19 @@ class ViewerViewModel(
                 rawHighlighted = null,
                 rendered = null,
                 headings = emptyList(),
-                activeHeadingIndex = -1,
+                activeHeadingSlug = null,
                 isSearchActive = false,
                 searchQuery = "",
                 searchMatchCount = 0,
                 searchMatchIndex = 0
             )
 
+            // The page's find state outlives the document it was run against, so a new document
+            // would otherwise open with the previous one's query still painted in it.
+            send(PageCommand.CloseFind)
+
             loadingJob = viewModelScope.launch {
-                kotlinx.coroutines.delay(300)
+                kotlinx.coroutines.delay(LOADING_INDICATOR_DELAY_MS)
                 if (_uiState.value.isLoading) {
                     _uiState.value = _uiState.value.copy(isLoadingVisible = true)
                 }
@@ -261,7 +299,6 @@ class ViewerViewModel(
                 return@launch
             }
 
-            val headings = format.headings(markdown, loaded)
             loadingJob?.cancel()
             baseRendered = loaded
             renderCache[RenderCacheKey(documentType, theme)] = loaded
@@ -274,8 +311,6 @@ class ViewerViewModel(
                 rendered = loaded,
                 errorMessage = null,
                 warningMessage = null,
-                headings = headings,
-                activeHeadingIndex = clampActiveHeadingIndex(_uiState.value.activeHeadingIndex, headings),
                 documentType = documentType,
                 capabilities = format.capabilities,
                 formatNameRes = format.nameRes
@@ -296,19 +331,34 @@ class ViewerViewModel(
             ViewMode.Rendered
         }
         _uiState.value = _uiState.value.copy(viewMode = next)
-        applySearchQuery(_uiState.value.searchQuery)
+        resyncSearch()
     }
+
+    // ------------------------------------------------------------------------- search
+    //
+    // A search runs on whichever surface is drawing, and the two are not alike. Where the page is
+    // drawing, it owns the match set — matches are DOM ranges over a rendering only it has — so
+    // the query goes in and a count comes back as an event. Where a TextView is, the matches are
+    // offsets into a string held here, painted with spans. Everything below is that fork, and
+    // [usesPageFind] is the only place it is decided.
 
     fun onSearchToggled() {
         val active = !_uiState.value.isSearchActive
+        val query = if (active) _uiState.value.searchQuery else ""
         _uiState.value = _uiState.value.copy(
             isSearchActive = active,
-            searchQuery = if (active) _uiState.value.searchQuery else "",
+            searchQuery = query,
             searchMatchCount = 0,
             searchMatchIndex = 0
         )
-        if (!active) {
-            searchJob?.cancel()
+        searchJob?.cancel()
+        if (active) {
+            // The bar keeps its text when it closes, so re-opening it re-runs that query rather
+            // than showing a stale count against a document nothing has searched.
+            runSearch(query)
+        } else if (usesPageFind) {
+            send(PageCommand.CloseFind)
+        } else {
             applySearchQuery("")
         }
     }
@@ -320,40 +370,138 @@ class ViewerViewModel(
         )
         searchJob?.cancel()
         if (query.isBlank()) {
-            applySearchQuery(query)
+            runSearch(query)
             return
         }
-        // Debounced: the highlight pass rebuilds a span per match over the whole
-        // document, which is too heavy to run per keystroke on large files.
+        // Debounced on both surfaces, for the same reason on each: the span pass rebuilds a span
+        // per match over the whole document, and the page's walks its whole DOM for them.
         searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(200)
-            applySearchQuery(query)
-            // Bring the first match into view; without this, a query whose
-            // matches are all off-screen gives no visible feedback.
-            _matchOffsets.firstOrNull()?.let { _scrollToOffset.value = it }
+            kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
+            runSearch(query)
         }
     }
 
-    fun onNextMatch() {
+    fun onNextMatch() = stepMatch(1)
+
+    fun onPreviousMatch() = stepMatch(-1)
+
+    /** The reader picked a heading out of the table of contents. */
+    fun onHeadingSelected(heading: HeadingItem) {
+        send(PageCommand.Reveal(heading.slug))
+    }
+
+    /**
+     * The page's find result: which match is current, and how many there are. An index of -1
+     * means there are none, which the search bar shows as its own no-matches state.
+     *
+     * Deliberately not filtered against the query in the bar. The page only ever answers
+     * something this side asked it, and in order, so the last answer is the current one — the
+     * same guarantee the debounced span pass relies on.
+     */
+    fun onFindStateChanged(index: Int, total: Int) {
+        _uiState.value = _uiState.value.copy(
+            searchMatchCount = total,
+            searchMatchIndex = index.coerceAtLeast(0)
+        )
+    }
+
+    /** Runs [query] on whichever surface is drawing. */
+    private fun runSearch(query: String) {
+        if (usesPageFind) {
+            // The page reveals the first match itself, and reports the count back.
+            send(PageCommand.Find(query))
+            return
+        }
+        applySearchQuery(query)
+        // Bring the first match into view; without this, a query whose matches are all
+        // off-screen gives no visible feedback.
+        _matchOffsets.firstOrNull()?.let { _scrollToOffset.value = it }
+    }
+
+    /**
+     * Moves to another match, wrapping at either end.
+     *
+     * On the page the index is not ours to compute: it holds the match set, so it steps and says
+     * where it landed. Out here the offsets are already known and the index is arithmetic.
+     */
+    private fun stepMatch(delta: Int) {
+        if (usesPageFind) {
+            send(PageCommand.StepFind(delta))
+            return
+        }
         val count = _uiState.value.searchMatchCount
         if (count == 0) return
-        val next = (_uiState.value.searchMatchIndex + 1) % count
+        val next = ((_uiState.value.searchMatchIndex + delta) % count + count) % count
         _uiState.value = _uiState.value.copy(searchMatchIndex = next)
         _scrollToOffset.value = _matchOffsets.getOrNull(next)
         applySearchQuery(_uiState.value.searchQuery)
     }
 
-    fun onPreviousMatch() {
-        val count = _uiState.value.searchMatchCount
-        if (count == 0) return
-        val prev = if (_uiState.value.searchMatchIndex - 1 < 0) count - 1 else _uiState.value.searchMatchIndex - 1
-        _uiState.value = _uiState.value.copy(searchMatchIndex = prev)
-        _scrollToOffset.value = _matchOffsets.getOrNull(prev)
-        applySearchQuery(_uiState.value.searchQuery)
+    /**
+     * Re-runs a live search after the surface underneath it changed — a view-mode toggle, or a
+     * renderer that turned out not to start.
+     *
+     * Neither surface can read the other's result, so the one arriving is given the query again
+     * from scratch. Nothing to do while the bar is closed, because then there is no query.
+     */
+    private fun resyncSearch() {
+        if (!_uiState.value.isSearchActive) return
+        val query = _uiState.value.searchQuery
+        _uiState.value = _uiState.value.copy(searchMatchCount = 0, searchMatchIndex = 0)
+        if (usesPageFind) {
+            // Drop the spans the TextView was painting; they index text that is no longer drawn.
+            applySearchQuery("")
+        }
+        // Nothing is sent to close the find on the way out: leaving the page destroys it, and
+        // whatever WebView replaces it starts with no find at all.
+        runSearch(query)
     }
 
-    fun onHeadingSelected(offset: Int) {
-        _scrollToOffset.value = offset
+    /**
+     * Whether a search goes to the page's own find.
+     *
+     * Asked of [readerContentFor]'s own decision, through [isDrawnByPage], so the two cannot
+     * disagree: a document searched by the page is exactly a document the page is drawing.
+     */
+    private val usesPageFind: Boolean
+        get() = isDrawnByPage(
+            isRawMode = _uiState.value.viewMode == ViewMode.Raw,
+            rendered = baseRendered,
+            rendererUnavailable = _uiState.value.rendererUnavailable
+        )
+
+    private fun send(command: PageCommand) {
+        pageCommandQueue.trySend(command)
+    }
+
+    // ------------------------------------------------------------- the page's own reports
+
+    /** The document's outline, as the page rendered it. Re-reported on every render. */
+    fun onOutlineChanged(outline: List<HeadingItem>) {
+        if (_uiState.value.headings == outline) return
+        _uiState.value = _uiState.value.copy(headings = outline)
+    }
+
+    fun onActiveHeadingChanged(slug: String?) {
+        if (_uiState.value.activeHeadingSlug == slug) return
+        _uiState.value = _uiState.value.copy(activeHeadingSlug = slug)
+    }
+
+    /**
+     * This WebView never started the renderer, so `Markdown` has nothing to draw it with and the
+     * source is drawn instead. See [ViewerUiState.rendererUnavailable] for why it is not cleared
+     * per document.
+     */
+    fun onRendererUnavailable(webViewVersion: String?) {
+        if (_uiState.value.rendererUnavailable) return
+        _uiState.value = _uiState.value.copy(
+            rendererUnavailable = true,
+            rendererWebViewVersion = webViewVersion,
+            headings = emptyList(),
+            activeHeadingSlug = null
+        )
+        // A live search was just left holding a surface that no longer exists.
+        resyncSearch()
     }
 
     fun onScrollPositionChanged(y: Int, maxY: Int) {
@@ -378,13 +526,6 @@ class ViewerViewModel(
 
     fun onScrollConsumed() {
         _scrollToOffset.value = null
-    }
-
-    fun onActiveHeadingChanged(index: Int) {
-        val clamped = clampActiveHeadingIndex(index, _uiState.value.headings)
-        if (_uiState.value.activeHeadingIndex != clamped) {
-            _uiState.value = _uiState.value.copy(activeHeadingIndex = clamped)
-        }
     }
 
     fun onReadingSurfaceModeChanged(isDarkSurface: Boolean) {
@@ -543,19 +684,26 @@ class ViewerViewModel(
 
     private fun applySearchQuery(query: String) {
         val currentState = _uiState.value
-        val activeViewMode = currentState.viewMode
-        // Search is span-based: it counts matches in a string and paints them with spans. That
-        // is a requirement of this implementation, not of the reader, so the narrowing lives
-        // here rather than at the format boundary — a rendered document that is not text has
-        // no offsets to walk and gets no matches. The rendered view's search is planned to move
-        // to the WebView's own find-in-page, leaving this path to raw mode.
-        val renderedSpans = (baseRendered as? ReaderContent.Spans)?.text
-        val baseText = when (activeViewMode) {
-            ViewMode.Raw -> currentState.rawText
-            ViewMode.Rendered -> renderedSpans?.toString().orEmpty()
-        }
+        val drawsSource = currentState.viewMode == ViewMode.Raw || currentState.rendererUnavailable
+        // Search out here is span-based: it counts matches in a string and paints them with
+        // spans. That is a requirement of this implementation and not of the reader, so the
+        // narrowing lives here rather than at the format boundary — and a document the page is
+        // drawing never reaches this function at all, because the page searches it instead.
+        //
+        // The text searched is whatever [readerContentFor] says is on screen, asked with no
+        // highlighting so it answers the unmarked original. Reading `uiState.rendered` instead
+        // would search the *previous* query's spans.
+        val drawn = readerContentFor(
+            isRawMode = currentState.viewMode == ViewMode.Raw,
+            rawText = currentState.rawText,
+            rawHighlighted = null,
+            rendered = baseRendered,
+            rendererUnavailable = currentState.rendererUnavailable
+        )
+        val baseSpans = (drawn as? ReaderContent.Spans)?.text
 
-        if (activeViewMode == ViewMode.Rendered && renderedSpans == null) {
+        if (baseSpans == null) {
+            // A rendering that is not text — a table — has no offsets to walk.
             _matchOffsets = emptyList()
             _uiState.value = currentState.copy(
                 rawHighlighted = null,
@@ -564,6 +712,7 @@ class ViewerViewModel(
             )
             return
         }
+        val baseText = baseSpans.toString()
 
         if (query.isBlank()) {
             _matchOffsets = emptyList()
@@ -582,10 +731,7 @@ class ViewerViewModel(
 
         _matchOffsets = offsets
 
-        val highlighted = when (activeViewMode) {
-            ViewMode.Rendered -> SpannableString(renderedSpans)
-            ViewMode.Raw -> SpannableString(baseText)
-        }
+        val highlighted = SpannableString(baseSpans)
         val prefs = _uiState.value.userPreferences
         val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
         val activeTheme = if (isDark) prefs.readerDarkTheme else prefs.readerLightTheme
@@ -643,31 +789,43 @@ class ViewerViewModel(
             )
         }
 
-        _uiState.value = when (activeViewMode) {
-            ViewMode.Rendered -> _uiState.value.copy(
-                rendered = ReaderContent.Spans(highlighted),
-                rawHighlighted = null,
+        // Where the source is on screen the highlighting has to arrive as `rawHighlighted`,
+        // because that is the field [readerContentFor] draws from in both of the cases that put
+        // it there: raw mode, and a renderer that could not start.
+        _uiState.value = if (drawsSource) {
+            _uiState.value.copy(
+                rendered = baseRendered,
+                rawHighlighted = ReaderContent.Spans(highlighted),
                 searchMatchCount = offsets.size,
                 searchMatchIndex = if (offsets.isEmpty()) 0 else activeIndex
             )
-            ViewMode.Raw -> _uiState.value.copy(
-                rendered = baseRendered,
-                rawHighlighted = ReaderContent.Spans(highlighted),
+        } else {
+            _uiState.value.copy(
+                rendered = ReaderContent.Spans(highlighted),
+                rawHighlighted = null,
                 searchMatchCount = offsets.size,
                 searchMatchIndex = if (offsets.isEmpty()) 0 else activeIndex
             )
         }
     }
 
-    private fun clampActiveHeadingIndex(current: Int, headings: List<HeadingItem>): Int {
-        if (headings.isEmpty()) return -1
-        if (current < 0) return -1
-        return current.coerceAtMost(headings.lastIndex)
-    }
-
     companion object {
         /** Coalesces the burst of preference emissions a single theme switch produces. */
         private const val REBUILD_DEBOUNCE_MS = 50L
+
+        /** How long a query is left alone before it is run. Neither surface searches cheaply. */
+        private const val SEARCH_DEBOUNCE_MS = 200L
+
+        /** A read faster than this shows no spinner at all, rather than one that flashes. */
+        private const val LOADING_INDICATOR_DELAY_MS = 300L
+
+        /**
+         * How many page requests are held while no page is collecting them.
+         *
+         * Deep enough for the burst a view-mode toggle produces while the WebView is being
+         * rebuilt, and shallow enough that a backlog beyond it is a page that is not coming back.
+         */
+        private const val PAGE_COMMAND_BUFFER = 16
 
         private fun isDarkTheme(prefs: UserPreferences, isSystemDarkTheme: Boolean): Boolean {
             return when (prefs.appThemeMode) {

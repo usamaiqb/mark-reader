@@ -10,8 +10,8 @@ diverges the two apps in the meantime.
 | | |
 | --- | --- |
 | Repo | `markreader-desktop` (`../../rust/markreader-desktop` alongside this one) |
-| Commit | `0a9b2b36a0c327ed96c0966afc7517774ceb5647` |
-| Subject | `fix(renderer): restore the front matter rules markdown.css lost` |
+| Commit | `dacbaf9c1cd9a5b2a6b272f12fae4215c1363adc` |
+| Subject | `fix(renderer): paint find matches from the document stylesheet` |
 | Branch | `refactor/shared-document-renderer` |
 | Command | `npm run build:esm`, output `out/renderer-esm/` |
 

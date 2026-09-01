@@ -1,6 +1,5 @@
 package com.markreader.ui.reader
 
-import com.markreader.format.HeadingItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -219,87 +218,5 @@ class ScrollAnchorTest {
     fun `a single TextView anchors below its top padding`() {
         // 400 - 16 = 384, which falls in line 19, starting at offset 190.
         assertEquals(190, anchorOffsetInText(FakeLines(300), scrollY = 400, paddingTop = 16))
-    }
-
-    // ---------- active heading ----------
-
-    private val headings = listOf(
-        HeadingItem("Intro", 1, 0),
-        HeadingItem("Middle", 2, 35),
-        HeadingItem("End", 2, 72)
-    )
-
-    @Test
-    fun `no heading is active above the first one`() {
-        assertEquals(-1, findActiveHeadingIndex(FakeLines(100), headings, y = -1))
-    }
-
-    @Test
-    fun `the heading exactly at the viewport top is active`() {
-        // Offsets 0, 35, 72 sit on lines 0, 3 and 7 — tops 0, 60 and 140.
-        assertEquals(0, findActiveHeadingIndex(FakeLines(100), headings, y = 0))
-        assertEquals(0, findActiveHeadingIndex(FakeLines(100), headings, y = 59))
-        assertEquals(1, findActiveHeadingIndex(FakeLines(100), headings, y = 60))
-        assertEquals(1, findActiveHeadingIndex(FakeLines(100), headings, y = 139))
-        assertEquals(2, findActiveHeadingIndex(FakeLines(100), headings, y = 140))
-        assertEquals(2, findActiveHeadingIndex(FakeLines(100), headings, y = 10_000))
-    }
-
-    @Test
-    fun `a document with no headings has no active one`() {
-        assertEquals(-1, findActiveHeadingIndex(FakeLines(100), emptyList(), y = 500))
-    }
-
-    @Test
-    fun `a heading offset past the end of the text is clamped`() {
-        val stale = listOf(HeadingItem("Stale", 1, 5_000))
-
-        // Clamped to offset 99 — line 9, top 180.
-        assertEquals(-1, findActiveHeadingIndex(FakeLines(100), stale, y = 179))
-        assertEquals(0, findActiveHeadingIndex(FakeLines(100), stale, y = 180))
-    }
-
-    @Test
-    fun `the split lookup picks the last heading above the viewport`() {
-        val splitHeadings = listOf(
-            HeadingItem("First", 1, 5),
-            HeadingItem("Second", 2, 160),
-            HeadingItem("Third", 2, 250)
-        )
-
-        val active = findActiveHeadingInSplit(
-            boundaries = boundaries,
-            childCount = 3,
-            headings = splitHeadings,
-            adjustedY = 320,
-            placementAt = placements(
-                measured(0, 200, 100),
-                table(200, 100),
-                measured(300, 300, 150)
-            )
-        )
-
-        // "Second" is 10 into the third segment: line 1, top 300 + 20 = 320.
-        // "Third" is at line 10, top 500, still below the viewport.
-        assertEquals(1, active)
-    }
-
-    @Test
-    fun `segments without a layout are skipped rather than guessed at`() {
-        val splitHeadings = listOf(HeadingItem("Only", 1, 160))
-
-        val active = findActiveHeadingInSplit(
-            boundaries = boundaries,
-            childCount = 3,
-            headings = splitHeadings,
-            adjustedY = 10_000,
-            placementAt = placements(
-                measured(0, 200, 100),
-                table(200, 100),
-                unmeasured(300, 300)
-            )
-        )
-
-        assertEquals(-1, active)
     }
 }

@@ -5,7 +5,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -47,10 +46,5 @@ class PlainTextFormatTest {
         assertFalse(capabilities.hasEditorPreview)
         assertFalse(capabilities.hasFormattingToolbar)
         assertFalse(capabilities.isMonospaced)
-    }
-
-    @Test
-    fun `headings are not offered, whatever the document says`() {
-        assertTrue(PlainTextFormat.headings("# Not a heading here", load("# Not a heading here")).isEmpty())
     }
 }

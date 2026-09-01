@@ -99,6 +99,26 @@ th {
 	border-radius: 3px;
 }
 
+/* ------------------------------------------------------------------------- find */
+
+/*
+ * The paint for `runFind`. Registering a range with `CSS.highlights.set()` does nothing on its
+ * own — a custom highlight with no `::highlight()` rule for its name is invisible — so these
+ * are not decoration, they are the other half of the feature.
+ *
+ * They were in `app.css`, which is why find highlighted on desktop and not on Android: the
+ * ranges are painted by `document.ts`, but the only host loading the chrome stylesheet was the
+ * desktop one. Same bug as the mermaid and KaTeX rules below, one instance later.
+ */
+::highlight(mr-find-match) {
+	background-color: rgba(234, 92, 0, 0.33);
+}
+
+::highlight(mr-find-current) {
+	background-color: rgba(234, 92, 0, 0.8);
+	color: #ffffff;
+}
+
 /* ---------------------------------------------------------------------- mermaid */
 
 .mermaid-block {
