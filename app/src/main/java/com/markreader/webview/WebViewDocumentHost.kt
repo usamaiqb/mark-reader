@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
@@ -88,25 +89,58 @@ import org.json.JSONObject
 class WebViewDocumentHost(
     private val context: Context,
     private val scope: CoroutineScope,
-    /** A document is on screen. Fires for links followed inside a document as well as for opens. */
-    private val onDocumentRendered: (virtualPath: String) -> Unit = {},
-    /** A document could not be read. [cause] is null when the path resolved to nothing. */
-    private val onDocumentFailed: (virtualPath: String, cause: Throwable?) -> Unit = { _, _ -> },
-    /**
-     * The page never reported ready, so this WebView cannot run the renderer at all. Carries the
-     * WebView's version name when it is known, for a message worth reading.
-     */
-    private val onRendererUnavailable: (webViewVersion: String?) -> Unit = {},
-    /** The document's outline, as the page rendered it. Re-reported on every render. */
-    private val onOutlineChanged: (outline: List<HeadingItem>) -> Unit = {},
-    /** The heading being read, by slug, or null in a document with no headings. */
-    private val onActiveHeadingChanged: (slug: String?) -> Unit = {},
-    /**
-     * The result of the last find: which match is current, and how many there are. [index] is -1
-     * when there are none.
-     */
-    private val onFindStateChanged: (index: Int, total: Int) -> Unit = { _, _ -> },
 ) {
+
+    /**
+     * Who is listening, which is whichever reader is on screen — not whoever built this host.
+     *
+     * The two came apart when the WebView started being held across documents: the host now
+     * outlives any one reader, so its callbacks cannot be constructor arguments closing over one
+     * composition's lambdas. A reader points these at itself when it attaches and puts them back
+     * when it leaves, so a late report from the page after the reader has gone lands in the
+     * defaults rather than in a disposed composition.
+     *
+     * Setting this **replays the renderer verdict**, and that is the whole reason it is a property
+     * with a body. The ten-second watch runs once per host; a host warmed at start-up can have
+     * already decided the renderer is unusable before any reader exists, and the reader that
+     * arrives afterwards has to be told or it waits forever for a page that is never coming.
+     */
+    var events: ReaderEvents = ReaderEvents()
+        set(value) {
+            field = value
+            if (isRendererUnavailable) {
+                value.onRendererUnavailable(rendererWebViewVersion)
+            }
+        }
+
+    /**
+     * The render process died and took this host with it. The owner replaces it; nothing else can.
+     *
+     * Only load-bearing because the WebView is held. When each document built its own, a dead
+     * renderer was cleaned up by the next navigation and the reader recovered on its own — held,
+     * the corpse would be handed to every document that followed.
+     */
+    var onDied: () -> Unit = {}
+
+    private var isRendererUnavailable = false
+    private var rendererWebViewVersion: String? = null
+
+    /** The path last pushed into the page, so a *second* document can be recognised as one. */
+    private var shownPath: String? = null
+
+    /**
+     * When this host started, and when a document was last pushed — the two clocks startup work
+     * is measured against.
+     *
+     * They are logged rather than reported, because the two numbers behave nothing alike and one
+     * of them is what the reader can be made to stop paying. **Page ready is fixed per process**:
+     * the vendored module graph resolving and executing, paid once per WebView and not once per
+     * document. **Render is per document**, and roughly linear in its size. A held WebView takes
+     * the first out of the second document's cost entirely, so the pair is what says whether
+     * holding one worked.
+     */
+    private val startedAt = SystemClock.uptimeMillis()
+    private var documentPushedAt = 0L
 
     private val space = SafPathSpace(context.contentResolver)
 
@@ -134,7 +168,13 @@ class WebViewDocumentHost(
 
     private var destroyed = false
 
-    val webView: WebView = createWebView()
+    val webView: WebView = createWebView().also {
+        // Split out from page-ready deliberately. Constructing the first WebView in a process
+        // loads the Chromium provider, which is most of a cold start and is paid whether or not
+        // the page then loads quickly — so the two halves have to be read apart before anything
+        // is optimised against the total.
+        Log.i(TAG, "WebView constructed in ${SystemClock.uptimeMillis() - startedAt} ms")
+    }
 
     init {
         webView.loadUrl(PAGE_URL)
@@ -157,7 +197,9 @@ class WebViewDocumentHost(
                     WebViewCompat.getCurrentWebViewPackage(context)?.versionName
                 }.getOrNull()
                 Log.e(TAG, "the renderer never reported ready; WebView is $version")
-                onRendererUnavailable(version)
+                isRendererUnavailable = true
+                rendererWebViewVersion = version
+                events.onRendererUnavailable(version)
             }
         }
     }
@@ -202,19 +244,13 @@ class WebViewDocumentHost(
             }
             val text = read.getOrNull()
             if (text == null) {
-                onDocumentFailed(virtualPath, read.exceptionOrNull())
+                events.onDocumentFailed(virtualPath, read.exceptionOrNull())
                 return@launch
             }
-
-            pageReady.await()
-            call(
-                "showDocument",
-                JSONObject()
-                    .put("path", virtualPath)
-                    .put("text", text)
-                    .put("rootPath", rootPath ?: JSONObject.NULL)
-                    .put("preserveScroll", preserveScroll),
-            )
+            // The read is the only thing this door adds. Everything after it — the page-ready
+            // await, the find the outgoing document leaves behind, the payload — is [showDocument]
+            // to the letter, and was a copy of it until the two disagreed about the find.
+            showDocument(virtualPath, text, rootPath, preserveScroll)
         }
     }
 
@@ -238,6 +274,21 @@ class WebViewDocumentHost(
     ) {
         scope.launch(Dispatchers.Main) {
             pageReady.await()
+
+            // Drop a live find when the document underneath it is being replaced. Matters only
+            // because the WebView is held: the page re-runs its query on every render, so a search
+            // left open on one document would be re-applied to the next one — a count and a set of
+            // highlights for a query the reader is no longer looking at. Re-pushing the *same*
+            // path is a reload and keeps its query, which is what a live reload wants.
+            if (shownPath != null && shownPath != virtualPath) {
+                call("closeFind")
+            }
+            shownPath = virtualPath
+
+            // Stamped after the await, not before it: what this measures is the render, and a
+            // document pushed into a page that is not up yet would otherwise be timed from
+            // before the page existed and report the fixed cost twice.
+            documentPushedAt = SystemClock.uptimeMillis()
             call(
                 "showDocument",
                 JSONObject()
@@ -406,6 +457,7 @@ class WebViewDocumentHost(
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
             Log.e(TAG, "the render process died (crashed=${detail.didCrash()})")
             destroy()
+            onDied()
             return true
         }
     }
@@ -443,12 +495,15 @@ class WebViewDocumentHost(
             // The one lifecycle milestone this host has, and the only positive signal that the
             // whole vendored module graph resolved and executed. Its absence, with no console
             // error alongside it, is what a module that failed to load looks like.
-            Log.i(TAG, "host page ready")
+            Log.i(TAG, "host page ready in ${SystemClock.uptimeMillis() - startedAt} ms")
             pageReady.complete(Unit)
         }
 
         @JavascriptInterface
-        fun rendered(virtualPath: String) = fromHostPage { onDocumentRendered(virtualPath) }
+        fun rendered(virtualPath: String) = fromHostPage {
+            Log.i(TAG, "rendered in ${SystemClock.uptimeMillis() - documentPushedAt} ms")
+            events.onDocumentRendered(virtualPath)
+        }
 
         @JavascriptInterface
         fun openPath(virtualPath: String) = fromHostPage { openDocument(virtualPath) }
@@ -464,17 +519,17 @@ class WebViewDocumentHost(
          * missing one row is still navigation, and there is no user-facing way to say more.
          */
         @JavascriptInterface
-        fun outline(json: String) = fromHostPage { onOutlineChanged(parseOutline(json)) }
+        fun outline(json: String) = fromHostPage { events.onOutlineChanged(parseOutline(json)) }
 
         /** Empty means the document has no headings at all; see `android-host.js`. */
         @JavascriptInterface
         fun activeHeading(slug: String) = fromHostPage {
-            onActiveHeadingChanged(slug.takeIf { it.isNotEmpty() })
+            events.onActiveHeadingChanged(slug.takeIf { it.isNotEmpty() })
         }
 
         @JavascriptInterface
         fun findState(index: Int, total: Int) = fromHostPage {
-            onFindStateChanged(index, total)
+            events.onFindStateChanged(index, total)
         }
 
         /**
@@ -543,3 +598,32 @@ class WebViewDocumentHost(
         const val READY_TIMEOUT_MS = 10_000L
     }
 }
+
+/**
+ * The reports a reader wants from the page it is driving.
+ *
+ * One object rather than six properties on the host, so a reader attaches and detaches in a single
+ * assignment — there is no window in which half of the old reader's callbacks are still installed.
+ * Every one defaults to doing nothing, which is what a host with no reader on screen should do
+ * with a report that arrives late.
+ */
+class ReaderEvents(
+    /** A document is on screen. Fires for links followed inside a document as well as for opens. */
+    val onDocumentRendered: (virtualPath: String) -> Unit = {},
+    /** A document could not be read. `cause` is null when the path resolved to nothing. */
+    val onDocumentFailed: (virtualPath: String, cause: Throwable?) -> Unit = { _, _ -> },
+    /**
+     * The page never reported ready, so this WebView cannot run the renderer at all. Carries the
+     * WebView's version name when it is known, for a message worth reading.
+     */
+    val onRendererUnavailable: (webViewVersion: String?) -> Unit = {},
+    /** The document's outline, as the page rendered it. Re-reported on every render. */
+    val onOutlineChanged: (outline: List<HeadingItem>) -> Unit = {},
+    /** The heading being read, by slug, or null in a document with no headings. */
+    val onActiveHeadingChanged: (slug: String?) -> Unit = {},
+    /**
+     * The result of the last find: which match is current, and how many there are. `index` is -1
+     * when there are none.
+     */
+    val onFindStateChanged: (index: Int, total: Int) -> Unit = { _, _ -> },
+)

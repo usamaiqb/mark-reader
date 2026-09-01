@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,8 @@ import com.markreader.file.tryTakePersistablePermission
 import com.markreader.ui.MarkReaderApp
 import com.markreader.ui.theme.AppTheme
 import com.markreader.ui.theme.MarkReaderTheme
+import com.markreader.webview.LocalReaderHostHolder
+import com.markreader.webview.ReaderHostHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,6 +35,15 @@ class MainActivity : ComponentActivity() {
     private var externalUri by mutableStateOf<String?>(null)
     private var externalUriNonce by mutableLongStateOf(0L)
     private var launchedExternally by mutableStateOf(false)
+
+    /**
+     * The reader's WebView, held here rather than rebuilt per document.
+     *
+     * Owned by the Activity because that is the widest scope a WebView can safely have — see
+     * [ReaderHostHolder]. It is warmed after the first frame and released in [onDestroy]; a
+     * configuration change builds a new one, with the new resources.
+     */
+    private val readerHost by lazy { ReaderHostHolder(this, lifecycleScope) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -43,6 +55,10 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             handleIntent(intent)
         }
+        // After the first frame, not before it. Loading the Chromium provider is main-thread work
+        // and there is no reason for someone opening the app to their file list to wait for it.
+        readerHost.warmUp()
+
         setContent {
             val preferences by PreferencesRepository
                 .getInstance(applicationContext)
@@ -52,11 +68,13 @@ class MainActivity : ComponentActivity() {
                 theme = preferences.appThemeMode.toAppTheme(),
                 dynamicColor = preferences.useDynamicColors
             ) {
-                MarkReaderApp(
-                    externalUri = externalUri,
-                    launchedExternally = launchedExternally,
-                    externalUriNonce = externalUriNonce
-                )
+                CompositionLocalProvider(LocalReaderHostHolder provides readerHost) {
+                    MarkReaderApp(
+                        externalUri = externalUri,
+                        launchedExternally = launchedExternally,
+                        externalUriNonce = externalUriNonce
+                    )
+                }
             }
         }
     }
@@ -69,6 +87,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         ExternalFileCache.clear()
+        // The WebView outlives its Activity if nobody says otherwise.
+        readerHost.destroy()
     }
 
     private fun handleIntent(intent: Intent?) {
