@@ -117,6 +117,11 @@ class WebViewDocumentHost(
         .addPathHandler(RESOURCE_PREFIX, DocumentResourceHandler(space) { miss ->
             Log.i(TAG, "no document resource at $miss")
         })
+        // The bundled reading fonts. `res/font/` is unreachable from the page otherwise, which
+        // is why the reading-font setting used to stop at the WebView's edge.
+        .addPathHandler(FONT_PREFIX, FontResourceHandler(context.resources) { miss ->
+            Log.w(TAG, "no bundled font at $miss")
+        })
         .build()
 
     /**

@@ -65,6 +65,71 @@
 
 	<style>
 		/*
+		 * The bundled reading fonts.
+		 *
+		 * Host-only, and that is why they are declared here rather than in a stylesheet: the
+		 * fonts ship in this APK's `res/font/`, and the desktop app bundles none of them. A
+		 * vendored stylesheet naming these files would be a document stylesheet asserting
+		 * something only one host can serve.
+		 *
+		 * The URLs are absolute because the prefix is a `WebViewAssetLoader` path handler
+		 * (`FontResourceHandler.kt`), not a file beside this page — a relative href would
+		 * resolve into `assets/renderer/`. Same origin, so `font-src 'self'` covers them.
+		 *
+		 * These names are what `ReaderRendererSettings.kt` puts at the head of each stack. If
+		 * either side is edited alone the document renders in the fallback font and nothing
+		 * reports an error, which is exactly the failure this whole block exists to fix — so
+		 * `BundledFontsTest` asserts the two agree.
+		 *
+		 * `swap` rather than the default `block`: these are local reads that should complete
+		 * within a frame, and if one somehow 404s a reader would rather have Georgia
+		 * immediately than three seconds of invisible text and then Georgia.
+		 *
+		 * No italic face is bundled for any of them, so emphasis is synthesised by the WebView.
+		 * That is what the TextView reader has always drawn; adding four more files to remove a
+		 * skew is a decision about APK size, not about this plumbing.
+		 */
+		@font-face {
+			font-family: "Merriweather";
+			font-style: normal;
+			font-weight: 400;
+			font-display: swap;
+			src: url("/__mdr_fonts/merriweather_regular.ttf") format("truetype");
+		}
+
+		@font-face {
+			font-family: "Merriweather";
+			font-style: normal;
+			font-weight: 700;
+			font-display: swap;
+			src: url("/__mdr_fonts/merriweather_bold.ttf") format("truetype");
+		}
+
+		@font-face {
+			font-family: "Merriweather Sans";
+			font-style: normal;
+			font-weight: 400;
+			font-display: swap;
+			src: url("/__mdr_fonts/merriweather_sans_regular.ttf") format("truetype");
+		}
+
+		@font-face {
+			font-family: "Merriweather Sans";
+			font-style: normal;
+			font-weight: 700;
+			font-display: swap;
+			src: url("/__mdr_fonts/merriweather_sans_bold.ttf") format("truetype");
+		}
+
+		@font-face {
+			font-family: "JetBrains Mono";
+			font-style: normal;
+			font-weight: 400;
+			font-display: swap;
+			src: url("/__mdr_fonts/jetbrains_mono_regular.ttf") format("truetype");
+		}
+
+		/*
 		 * What `app.css` would otherwise give the document container, less everything that is
 		 * about desktop chrome. `markdown.css` already owns the inline padding and
 		 * `body { padding-top: 1em }`; this only removes the default margin under it.
