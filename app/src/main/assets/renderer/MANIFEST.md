@@ -30,7 +30,7 @@ automated freshness check** — the tradeoff is recorded in `docs/plan/sharing.m
 | --- | --- |
 | `MANIFEST.md` | this file |
 | `android-host.html` | the host page. The Android counterpart of the desktop `index.html` |
-| `android-host.js` | installs `window.markreader` and drives `DocumentView` |
+| `android-host.js` | installs `window.markreader`, drives `DocumentView`, and renders export files |
 
 Their names are prefixed so the boundary survives a re-vendor: the generated set contains a
 `host.js` of its own (the compiled `host.ts` type contract), which is why ours is not called

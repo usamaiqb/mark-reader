@@ -159,8 +159,6 @@ dependencies {
 
     implementation(libs.androidx.webkit)
 
-    implementation(libs.commonmark)
-
     implementation(libs.androidx.core.splashscreen)
 
     detektPlugins(libs.detekt.compose.rules)

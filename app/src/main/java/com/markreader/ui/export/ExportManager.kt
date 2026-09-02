@@ -8,28 +8,38 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.content.FileProvider
 import com.markreader.R
-import com.markreader.data.ReaderThemePreference
-import org.commonmark.parser.Parser
-import org.commonmark.renderer.html.HtmlRenderer
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private data class ThemeColors(
-    val background: String,
-    val text: String,
-    val codeBg: String,
-    val codeText: String,
-    val link: String
-)
-
+/**
+ * Getting a rendered document out of the app: to the printer, to a file, or to another app.
+ *
+ * **It renders nothing.** It used to: it parsed the source with commonmark and rendered it
+ * against a stylesheet written by hand here, which made export the app's *third* Markdown
+ * implementation and meant the file that left never quite matched the document on screen — a gap
+ * that widened the moment the reader moved into the shared renderer. The HTML now arrives already
+ * built, from the same page the reader draws with, through
+ * [com.markreader.webview.WebViewDocumentHost.renderExportHtml].
+ *
+ * What is left here is platform integration, which is the half a renderer cannot have: the print
+ * framework, the cache file behind a `FileProvider`, and the share sheet.
+ *
+ * The WebView below keeps `javaScriptEnabled` false, and that is not vestigial now that the HTML
+ * comes from a page where it is on. The two do different jobs: the host page runs a renderer over
+ * untrusted document text, behind a CSP and a sanitiser; this one lays a finished, sanitised
+ * document out for the printer and has nothing left to execute.
+ */
 class ExportManager(private val context: Context) {
-    private val parser = Parser.builder().build()
-    private val renderer = HtmlRenderer.builder().escapeHtml(true).build()
 
-    fun exportPdf(markdown: String, theme: ReaderThemePreference, fileName: String?) {
-        val html = buildHtml(markdown, theme)
+    /**
+     * Prints [html] through the platform print dialog, which is also where "save as PDF" lives.
+     *
+     * The adapter cannot be built until the page has laid out, so the print is started from
+     * `onPageFinished` rather than from here.
+     */
+    fun exportPdf(html: String, fileName: String?) {
         val webView = WebView(context)
         webView.settings.javaScriptEnabled = false
         webView.settings.loadsImagesAutomatically = true
@@ -41,11 +51,14 @@ class ExportManager(private val context: Context) {
                 printManager.print(appName, printAdapter, PrintAttributes.Builder().build())
             }
         }
+        // A null base URL, deliberately. Every reference the document needs is inside the file —
+        // stylesheets inlined, images as `data:` URIs — so there is nothing for a base to
+        // resolve, and giving it one would only make an unreachable app origin reachable again.
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
     }
 
-    fun exportHtml(markdown: String, theme: ReaderThemePreference) {
-        val html = buildHtml(markdown, theme)
+    /** Writes [html] to a cache file and offers it to the share sheet. */
+    fun exportHtml(html: String) {
         val file = createHtmlFile(html)
         val uri = FileProvider.getUriForFile(
             context,
@@ -63,6 +76,7 @@ class ExportManager(private val context: Context) {
         )
     }
 
+    /** The document's own text, unrendered, straight to another app. */
     fun shareRawMarkdown(markdown: String) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -78,86 +92,5 @@ class ExportManager(private val context: Context) {
         val file = File(context.cacheDir, "markreader_export_$stamp.html")
         file.writeText(html)
         return file
-    }
-
-    private fun buildHtml(markdown: String, theme: ReaderThemePreference): String {
-        val document = parser.parse(markdown)
-        val content = renderer.render(document)
-
-        val colors = when (theme) {
-            ReaderThemePreference.Light ->
-                ThemeColors("#F9F9FF", "#1A1B1F", "#EEF0FF", "#1A1B1F", "#2A5BD7")
-            ReaderThemePreference.Dark ->
-                ThemeColors("#121318", "#E3E2E8", "#1E1F26", "#E3E2E8", "#B5C4FF")
-            ReaderThemePreference.Amoled ->
-                ThemeColors("#000000", "#E6E6EB", "#101014", "#E6E6EB", "#B5C4FF")
-            ReaderThemePreference.Sepia ->
-                ThemeColors("#F6EDE3", "#201A17", "#E8D7CA", "#201A17", "#7A4E2B")
-        }
-
-        val css = """
-            :root {
-              color-scheme: ${if (theme == ReaderThemePreference.Light || theme == ReaderThemePreference.Sepia) "light" else "dark"};
-            }
-            body {
-              margin: 0;
-              padding: 32px 20px 48px;
-              background: ${colors.background};
-              color: ${colors.text};
-              font-family: 'Merriweather', 'Georgia', 'Times New Roman', serif;
-              font-size: 18px;
-              line-height: 1.6;
-            }
-            main {
-              max-width: 900px;
-              margin: 0 auto;
-            }
-            h1, h2, h3, h4, h5, h6 {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              margin-top: 1.6em;
-              margin-bottom: 0.6em;
-            }
-            p { margin: 0 0 1em; }
-            a { color: ${colors.link}; }
-            code, pre {
-              font-family: 'JetBrains Mono', 'Courier New', monospace;
-              background: ${colors.codeBg};
-              color: ${colors.codeText};
-            }
-            code { padding: 0.1em 0.3em; border-radius: 4px; }
-            pre {
-              padding: 16px;
-              border-radius: 8px;
-              overflow-x: auto;
-            }
-            blockquote {
-              border-left: 3px solid ${colors.link};
-              margin: 1em 0;
-              padding: 0.2em 1em;
-              background: ${colors.codeBg};
-            }
-            img { max-width: 100%; height: auto; }
-            table { width: 100%; border-collapse: collapse; margin: 1em 0; }
-            th, td { border: 1px solid ${colors.link}55; padding: 8px; text-align: left; }
-        """.trimIndent()
-
-        return """
-            <!doctype html>
-            <html lang="en">
-            <head>
-              <meta charset="utf-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>MarkReader Export</title>
-              <style>
-              $css
-              </style>
-            </head>
-            <body>
-              <main>
-                $content
-              </main>
-            </body>
-            </html>
-        """.trimIndent()
     }
 }

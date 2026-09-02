@@ -3,7 +3,7 @@ package com.markreader.webview
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.UserPreferences
-import java.io.File
+import com.markreader.renderer.RendererAssets
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -147,22 +147,6 @@ class BundledFontsTest {
             pattern.find(body)?.groupValues?.get(1)
                 ?: throw AssertionError("an @font-face rule has no $what:\n$body")
 
-        /**
-         * Walks up from the working directory, which Gradle sets to the module and other runners
-         * do not, so the test is not the thing that breaks when it is run from the IDE.
-         */
-        fun hostPage(): String {
-            val relative = "src/main/assets/renderer/android-host.html"
-            var directory: File? = File("").absoluteFile
-            while (directory != null) {
-                for (candidate in listOf(File(directory, relative), File(directory, "app/$relative"))) {
-                    if (candidate.isFile) {
-                        return candidate.readText()
-                    }
-                }
-                directory = directory.parentFile
-            }
-            throw AssertionError("no $relative above ${File("").absolutePath}")
-        }
+        fun hostPage(): String = RendererAssets.read("android-host.html")
     }
 }

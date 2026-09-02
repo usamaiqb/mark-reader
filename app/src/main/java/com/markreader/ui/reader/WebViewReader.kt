@@ -116,10 +116,10 @@ fun WebViewReader(
     // Adopting is what makes a virtual path resolvable, so it happens before the document is
     // pushed — and is undone when the reader leaves, or a closed document stays reachable.
     val virtualPath = remember(host, documentUri, fileName) {
-        host.adoptDocument(Uri.parse(documentUri), fileName)
+        host.paths.adoptDocument(Uri.parse(documentUri), fileName)
     }
     DisposableEffect(host, virtualPath) {
-        onDispose { host.forget(virtualPath) }
+        onDispose { host.paths.forget(virtualPath) }
     }
 
     LaunchedEffect(host, virtualPath, source) {

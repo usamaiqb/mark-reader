@@ -150,6 +150,27 @@ fun rememberDocumentHost(events: () -> ReaderEvents): WebViewDocumentHost {
 }
 
 /**
+ * The Activity's page, for a caller that renders through it but draws nothing — export.
+ *
+ * Deliberately **not** [rememberDocumentHost], and the difference is the whole reason this
+ * exists: that door attaches a [ReaderEvents], and there is only one set. An exporter attaching
+ * an empty one would silently take the reader's callbacks away for as long as the viewer was
+ * composed — the same failure the identity-guarded detach was written for, arriving through the
+ * front door instead. Nothing here reports anything, so nothing here claims the events.
+ *
+ * Null where no Activity is holding a page, which is a preview or a test. Export is unavailable
+ * rather than building a WebView of its own: there is no reuse to be had outside the Activity,
+ * and a surface that draws nothing has no business owning one.
+ */
+@Composable
+fun rememberPageRenderer(): WebViewDocumentHost? {
+    val holder = LocalReaderHostHolder.current
+    // Keyed on the generation for the same reason [rememberDocumentHost] is: a render process
+    // that died leaves a host nothing can be asked of.
+    return remember(holder, holder?.generation) { holder?.acquire() }
+}
+
+/**
  * The held host, for the surfaces that draw documents to find.
  *
  * Null where nothing provided one — a preview, a test, a screen composed outside the Activity's

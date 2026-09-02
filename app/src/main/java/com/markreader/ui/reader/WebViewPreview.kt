@@ -61,10 +61,10 @@ fun WebViewPreview(
     }
 
     val virtualPath = remember(host, documentUri, fileName) {
-        host.adoptDocument(documentUri?.let(Uri::parse), fileName)
+        host.paths.adoptDocument(documentUri?.let(Uri::parse), fileName)
     }
     DisposableEffect(host, virtualPath) {
-        onDispose { host.forget(virtualPath) }
+        onDispose { host.paths.forget(virtualPath) }
     }
 
     // `preserveScroll` is deliberately left false: the preview has never restored a position, and
