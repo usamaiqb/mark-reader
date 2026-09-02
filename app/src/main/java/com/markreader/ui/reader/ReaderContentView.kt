@@ -225,21 +225,18 @@ fun RenderedTextView(
                     )
                 }
 
-                if (spanned != null) {
-                    // Spans can change while the string does not — a search highlight
-                    // re-render is exactly that — so identity is the only safe test.
-                    if (text !== controller.lastTextRef) {
-                        textView.text = text
-                        controller.lastTextHash = text.toString().hashCode()
-                        controller.lastTextRef = text
-                    }
-                } else if (text !== controller.lastTextRef) {
-                    // Nothing but characters, so equal content is the same render — and
-                    // no Spannable is allocated to draw it.
-                    val textHash = text.hashCode()
-                    if (textHash != controller.lastTextHash) {
-                        textView.text = text.toString()
-                        controller.lastTextHash = textHash
+                // The cheap test first: the very instance already applied is already on screen.
+                // Anything else is [ReaderContentController.needsText]'s to decide, because the
+                // characters are only half of what can change — the spans over them are the other
+                // half, and a search highlight changes nothing else.
+                if (text !== controller.lastTextRef) {
+                    val characters = text.toString()
+                    val hash = characters.hashCode()
+                    if (controller.needsText(isStyled = spanned != null, contentHash = hash)) {
+                        // Unstyled text goes in as a String: no Spannable is allocated to draw
+                        // text that has no styling.
+                        textView.text = spanned ?: characters
+                        controller.tookText(isStyled = spanned != null, contentHash = hash)
                     }
                     controller.lastTextRef = text
                 }
