@@ -14,7 +14,7 @@ import org.junit.Test
 class PlainTextFormatTest {
 
     private fun load(text: String): ReaderContent =
-        runBlocking { PlainTextFormat.load(text, com.markreader.format.RenderTheme(isDark = false)) }
+        runBlocking { PlainTextFormat.load(text) }
 
     @Test
     fun `the document is handed over without being copied`() {

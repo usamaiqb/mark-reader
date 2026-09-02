@@ -24,7 +24,6 @@ import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
 import com.markreader.format.FormatRegistry
 import com.markreader.format.ReaderContent
-import com.markreader.format.RenderTheme
 import com.markreader.ui.UiMessage
 import com.markreader.ui.reader.SearchHighlightSpan
 import com.markreader.webview.HeadingItem
@@ -96,28 +95,19 @@ class ViewerViewModel(
     application: Application,
     private val initialUri: String?
 ) : AndroidViewModel(application) {
-    private data class RenderCacheKey(
-        val documentType: DocumentType,
-        val theme: RenderTheme
-    )
-
     private val repository = PreferencesRepository.getInstance(application)
     private val recentFilesRepository = RecentFilesRepository.getInstance(application)
     private var systemDarkTheme = false
     private val formats = FormatRegistry()
-    /** The format for the document on screen, held so its renderers survive a theme toggle. */
+    /** The format for the document on screen, held so raw mode can ask it what it is. */
     private var currentFormat: DocumentFormat? = null
     private var currentUri: String? = null
     private var loadJob: Job? = null
     private var loadingJob: Job? = null
-    private var rebuildJob: Job? = null
     private var searchJob: Job? = null
     private var baseRendered: ReaderContent? = null
     private var renderDarkModeOverride: Boolean? = null
     private var preferencesLoaded = false
-    private var pendingExternalRerender = initialUri != null
-    private var renderCacheTextHash = 0
-    private val renderCache = mutableMapOf<RenderCacheKey, ReaderContent>()
 
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
@@ -187,7 +177,6 @@ class ViewerViewModel(
             }
 
             recentFilesRepository.recordOpen(uriString, fileName)
-            resetRenderCacheIfChanged(text)
             if (text.isBlank()) {
                 showEmptyDocument(fileName, text)
                 return@launch
@@ -196,17 +185,13 @@ class ViewerViewModel(
             val documentType = DocumentTypeResolver.resolve(fileName, mimeType, text)
             val format = formats.formatFor(documentType)
             currentFormat = format
-            val theme = RenderTheme(
-                renderDarkModeOverride
-                    ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
-            )
-            val loaded = format?.load(text, theme)
+            val loaded = format?.load(text)
             if (format == null || loaded == null) {
                 showUnrenderedDocument(fileName, text, documentType, format)
                 return@launch
             }
 
-            showDocument(fileName, text, documentType, format, theme, loaded)
+            showDocument(fileName, text, documentType, format, loaded)
         }
     }
 
@@ -288,15 +273,6 @@ class ViewerViewModel(
         )
     }
 
-    /** The render cache holds one document's renderings, so a different document empties it. */
-    private fun resetRenderCacheIfChanged(text: String) {
-        val textHash = text.hashCode()
-        if (renderCacheTextHash != textHash) {
-            renderCacheTextHash = textHash
-            renderCache.clear()
-        }
-    }
-
     private fun showEmptyDocument(fileName: String, text: String) {
         loadingJob?.cancel()
         _uiState.value = _uiState.value.copy(
@@ -347,12 +323,10 @@ class ViewerViewModel(
         text: String,
         documentType: DocumentType,
         format: DocumentFormat,
-        theme: RenderTheme,
         loaded: ReaderContent
     ) {
         loadingJob?.cancel()
         baseRendered = loaded
-        renderCache[RenderCacheKey(documentType, theme)] = loaded
         _uiState.value = _uiState.value.copy(
             isLoading = false,
             isLoadingVisible = false,
@@ -369,10 +343,6 @@ class ViewerViewModel(
 
         // A query survives the document it was typed against, so the new one is searched for it.
         applySearchQuery(_uiState.value.searchQuery)
-        if (pendingExternalRerender && preferencesLoaded) {
-            pendingExternalRerender = false
-            scheduleRebuild()
-        }
     }
 
     fun toggleViewMode() {
@@ -582,15 +552,28 @@ class ViewerViewModel(
     fun onReadingSurfaceModeChanged(isDarkSurface: Boolean) {
         if (renderDarkModeOverride == isDarkSurface) return
         renderDarkModeOverride = isDarkSurface
-        scheduleRebuild()
+        repaintSearchHighlights()
     }
 
     fun onSystemDarkThemeChanged(isDark: Boolean) {
         if (systemDarkTheme == isDark) return
         systemDarkTheme = isDark
         if (renderDarkModeOverride == null) {
-            scheduleRebuild()
+            repaintSearchHighlights()
         }
+    }
+
+    /**
+     * The one thing a surface theme change still has to do on this side.
+     *
+     * Both surfaces restyle themselves — the page from its renderer settings, the raw TextView
+     * from the colours the screen hands it — but a search highlight is a span this class painted,
+     * in colours it chose for whichever palette was on screen at the time. Nothing else would
+     * repaint one, so a light/dark flip would otherwise leave the old palette's boxes behind.
+     */
+    private fun repaintSearchHighlights() {
+        if (_uiState.value.searchQuery.isBlank()) return
+        applySearchQuery(_uiState.value.searchQuery)
     }
 
     fun onPermissionRequestConsumed() {
@@ -604,70 +587,20 @@ class ViewerViewModel(
                     preferencesLoaded = true
                 }
                 val previous = _uiState.value.userPreferences
-                val themeChanged = prefs.appThemeMode != previous.appThemeMode ||
+                val paletteChanged = prefs.appThemeMode != previous.appThemeMode ||
                     prefs.readerLightTheme != previous.readerLightTheme ||
                     prefs.readerDarkTheme != previous.readerDarkTheme
-                val requiresRebuild = themeChanged ||
-                    prefs.readingFont != previous.readingFont ||
-                    prefs.codeFont != previous.codeFont ||
-                    prefs.fontSizeSp != previous.fontSizeSp ||
-                    prefs.lineHeight != previous.lineHeight
 
+                // Typography and palette both reach the surfaces through composition — the page
+                // through its renderer settings, the raw TextView through its style key — so a
+                // preference change has nothing to re-render here. The one exception is below.
                 _uiState.value = _uiState.value.copy(userPreferences = prefs)
-
-                if (pendingExternalRerender && _uiState.value.rawText.isNotBlank()) {
-                    pendingExternalRerender = false
-                    scheduleRebuild()
-                }
-
-                if (requiresRebuild) {
-                    scheduleRebuild()
+                if (paletteChanged) {
+                    repaintSearchHighlights()
                 }
             }
         }
     }
-
-    private fun rebuildRenderedForTheme() {
-        val markdown = _uiState.value.rawText
-        if (markdown.isBlank()) return
-        val format = currentFormat ?: return
-        val theme = currentTheme()
-        val documentType = _uiState.value.documentType
-        viewModelScope.launch {
-            if (tryApplyCachedRender(documentType, theme)) {
-                return@launch
-            }
-            val loaded = format.load(markdown, theme) ?: return@launch
-            baseRendered = loaded
-            renderCache[RenderCacheKey(documentType, theme)] = loaded
-            _uiState.value = _uiState.value.copy(rendered = loaded)
-            applySearchQuery(_uiState.value.searchQuery)
-        }
-    }
-
-    private fun scheduleRebuild() {
-        rebuildJob?.cancel()
-        if (tryApplyCachedRender(_uiState.value.documentType, currentTheme())) {
-            return
-        }
-        rebuildJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(REBUILD_DEBOUNCE_MS)
-            rebuildRenderedForTheme()
-        }
-    }
-
-    private fun tryApplyCachedRender(documentType: DocumentType, theme: RenderTheme): Boolean {
-        val cached = renderCache[RenderCacheKey(documentType, theme)] ?: return false
-        baseRendered = cached
-        _uiState.value = _uiState.value.copy(rendered = cached)
-        applySearchQuery(_uiState.value.searchQuery)
-        return true
-    }
-
-    /** The surface the document is being drawn on: the reader's own override, else the app theme. */
-    private fun currentTheme(): RenderTheme = RenderTheme(
-        renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
-    )
 
     /**
      * The read failure, with whatever the exception gave us appended. The class name
@@ -891,9 +824,6 @@ class ViewerViewModel(
     }
 
     companion object {
-        /** Coalesces the burst of preference emissions a single theme switch produces. */
-        private const val REBUILD_DEBOUNCE_MS = 50L
-
         /** How long a query is left alone before it is run. Neither surface searches cheaply. */
         private const val SEARCH_DEBOUNCE_MS = 200L
 

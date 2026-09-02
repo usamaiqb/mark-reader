@@ -1,7 +1,6 @@
 package com.markreader.format.code
 
 import com.markreader.format.ReaderContent
-import com.markreader.format.RenderTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -16,7 +15,7 @@ class SourceCodeFormatTest {
 
     private fun load(language: String, text: String): String {
         val content = runBlocking {
-            SourceCodeFormat(language).load(text, RenderTheme(isDark = false))
+            SourceCodeFormat(language).load(text)
         }
         return (content as ReaderContent.Markdown).source
     }

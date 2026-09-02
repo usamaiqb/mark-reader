@@ -4,7 +4,6 @@ import com.markreader.R
 import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
 import com.markreader.format.ReaderContent
-import com.markreader.format.RenderTheme
 
 /**
  * Markdown, handed to the shared renderer as source.
@@ -42,6 +41,6 @@ object MarkdownFormat : DocumentFormat {
     override val renderFailureWarningRes: Int? = null
 
     /** The source, unchanged. The page renders it; nothing on this side does. */
-    override suspend fun load(text: String, theme: RenderTheme): ReaderContent =
+    override suspend fun load(text: String): ReaderContent =
         ReaderContent.Markdown(text)
 }

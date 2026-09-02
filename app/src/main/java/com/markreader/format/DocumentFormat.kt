@@ -51,5 +51,5 @@ interface DocumentFormat {
      * outlived the native reader by a phase, so a format whose rendering had moved into the page
      * still had to answer with something drawable for it. The preview draws in the page too now.
      */
-    suspend fun load(text: String, theme: RenderTheme): ReaderContent?
+    suspend fun load(text: String): ReaderContent?
 }
