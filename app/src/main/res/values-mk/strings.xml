@@ -65,7 +65,6 @@
     <string name="viewer_error_open_failed_detail">Оваа датотека не може да се отвори. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Датотеката изгледа бинарна или оштетена. Се прикажува изворниот текст.</string>
     <string name="viewer_warning_source_code">Синтаксата не може да се истакне. Се прикажува изворниот текст.</string>
-    <string name="viewer_warning_markdown">Датотеката Markdown не може да се форматира. Се прикажува изворниот текст.</string>
     <string name="editor_save">Зачувај</string>
     <string name="editor_saved">Зачувано</string>
     <string name="editor_save_as">Зачувај како</string>

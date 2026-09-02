@@ -102,7 +102,7 @@ class ViewerViewModel(
     private val repository = PreferencesRepository.getInstance(application)
     private val recentFilesRepository = RecentFilesRepository.getInstance(application)
     private var systemDarkTheme = false
-    private val formats = FormatRegistry(application)
+    private val formats = FormatRegistry()
     /** The format for the document on screen, held so its renderers survive a theme toggle. */
     private var currentFormat: DocumentFormat? = null
     private var currentUri: String? = null
@@ -561,10 +561,6 @@ class ViewerViewModel(
                     prefs.codeFont != previous.codeFont ||
                     prefs.fontSizeSp != previous.fontSizeSp ||
                     prefs.lineHeight != previous.lineHeight
-
-                if (themeChanged) {
-                    formats.invalidateRenderers()
-                }
 
                 _uiState.value = _uiState.value.copy(userPreferences = prefs)
 

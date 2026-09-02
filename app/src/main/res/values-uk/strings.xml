@@ -67,7 +67,6 @@
     <string name="viewer_error_open_failed_detail">Не вдалося відкрити цей файл. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Можливо, файл містить двійкові дані або пошкоджений. Показано вихідний текст.</string>
     <string name="viewer_warning_source_code">Не вдалося підсвітити синтаксис. Показано вихідний текст.</string>
-    <string name="viewer_warning_markdown">Не вдалося відобразити форматування Markdown. Показано вихідний текст.</string>
     <string name="editor_save">Зберегти</string>
     <string name="editor_saved">Збережено</string>
     <string name="editor_save_as">Зберегти як</string>

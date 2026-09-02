@@ -17,20 +17,8 @@ internal data class ContentKey(
 )
 
 /**
- * Identity of a scroll restore. [ContentKey] alone is not enough: toggling a
- * wrap setting rebuilds the view tree without changing the content, so a
- * restore for the new structure must not be confused with one already applied
- * to the old structure.
- */
-internal data class RestoreKey(
-    val content: ContentKey,
-    val isCodeBlockWrapEnabled: Boolean
-)
-
-/**
  * What the last update pass over [RenderedTextView]'s view tree left behind:
- * the structure it built, the styling it applied, and the scroll restore it
- * claimed.
+ * the text and styling it applied, and the scroll restore it claimed.
  *
  * Deliberately plain fields rather than Compose snapshot state. The update pass
  * both reads and writes this within a single invocation, which snapshot state
@@ -44,27 +32,19 @@ internal data class RestoreKey(
  *    `removeAllViews()` teardown on the pass that followed — on alternating
  *    frames of the text-color animation, cancelling any gesture in flight.
  *  - A `rememberUpdatedState` wrapper cannot observe a write made earlier in
- *    the same pass, so [splitBoundaries] read back stale immediately after
- *    being rebuilt.
+ *    the same pass, so state written by one half of a pass read back stale in
+ *    the other.
  *
  * Held in a `remember`, so it lives as long as the view tree it describes.
  * Read and written only from the update pass and the scroll listener, both on
  * the main thread.
  */
 internal class ReaderContentController(
-    isCodeBlockWrapEnabled: Boolean,
     textColor: Int,
-    selectionHighlightColor: Int,
-    codeBlockBackgroundColor: Int
+    selectionHighlightColor: Int
 ) {
     /** The restore already claimed, so the same one is never applied twice. */
-    var lastRestoredKey: RestoreKey? = null
-
-    /** Wrap setting the current view *structure* was built for. */
-    var lastCodeBlockWrapEnabled: Boolean = isCodeBlockWrapEnabled
-
-    /** Anchor saved before a restructure, consumed once the new views exist. */
-    var pendingAnchorOffset: Int? = null
+    var lastRestoredKey: ContentKey? = null
 
     /** Content identity of the text currently applied to the views. */
     var lastTextHash: Int = 0
@@ -74,10 +54,6 @@ internal class ReaderContentController(
     var lastStyleKey: ContentKey = UNSTYLED
     var lastTextColor: Int = textColor
     var lastSelectionHighlightColor: Int = selectionHighlightColor
-    var lastCodeBlockBackgroundColor: Int = codeBlockBackgroundColor
-
-    /** Segment ranges the split container's children were built from. */
-    var splitBoundaries: List<Segment> = emptyList()
 
     /**
      * The global-layout listener reporting scroll extent, held so it can be

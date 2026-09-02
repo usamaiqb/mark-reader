@@ -68,6 +68,14 @@ data class EditorUiState(
     val isSaving: Boolean = false,
     val saveResult: SaveResult? = null,
     val previewText: ReaderContent? = null,
+    /**
+     * Which palette the preview renders in — the app's theme mode, resolved against the system.
+     *
+     * Published rather than read off `isSystemInDarkTheme()` at the pane, which is what the
+     * Markwon preview did: that ignores an explicit Light or Dark setting, so a document could
+     * render in the opposite palette to the app around it.
+     */
+    val isPreviewDark: Boolean = false,
     /** Null once a document has loaded means it cannot be written back — see [SaveResult.UnknownEncoding]. */
     val encoding: TextEncoding? = null,
     val activeTab: EditorTab = EditorTab.Edit,
@@ -84,7 +92,7 @@ class EditorViewModel(
     private val recentFilesRepository = RecentFilesRepository.getInstance(application)
     private var currentUri: String? = initialUri
     private var systemDarkTheme = false
-    private val formats = FormatRegistry(application)
+    private val formats = FormatRegistry()
     private var format: DocumentFormat? = null
 
     private val _uiState = MutableStateFlow(EditorUiState())
@@ -109,16 +117,16 @@ class EditorViewModel(
     fun onSystemDarkThemeChanged(isDark: Boolean) {
         if (systemDarkTheme == isDark) return
         systemDarkTheme = isDark
-        formats.invalidateRenderers()
-        if (isPreviewShowing()) {
-            viewModelScope.launch { renderPreview(_uiState.value.textFieldValue.text) }
-        }
+        _uiState.value = _uiState.value.copy(isPreviewDark = isPreviewDark())
     }
 
     private fun observePreferences() {
         viewModelScope.launch {
             repository.preferences.collect { prefs ->
-                _uiState.value = _uiState.value.copy(userPreferences = prefs)
+                _uiState.value = _uiState.value.copy(
+                    userPreferences = prefs,
+                    isPreviewDark = isPreviewDark(prefs)
+                )
             }
         }
     }
@@ -299,19 +307,26 @@ class EditorViewModel(
         _uiState.value.capabilities.hasEditorPreview &&
             _uiState.value.activeTab == EditorTab.Preview
 
+    /**
+     * What the preview pane draws.
+     *
+     * Through [DocumentFormat.load], the same door the viewer uses — there is no second one any
+     * more. It also no longer depends on the theme, since the surface holding the rendering owns
+     * its own palette, so a theme change re-renders nothing here.
+     */
     private suspend fun renderPreview(text: String) {
-        val isDark = when (_uiState.value.userPreferences.appThemeMode) {
-            AppThemeModePreference.Dark -> true
-            AppThemeModePreference.Light -> false
-            AppThemeModePreference.System -> systemDarkTheme
-        }
-        // The format owns the renderer and its per-theme cache, so the preview and the viewer
-        // now render through one Markwon configuration rather than two built separately.
         _uiState.value = _uiState.value.copy(
-            // Not `load`: the viewer's Markdown path answers with source for the WebView, and
-            // this pane is still a Markwon TextView.
-            previewText = format?.loadEditorPreview(text, RenderTheme(isDark))
+            previewText = format?.load(text, RenderTheme(_uiState.value.isPreviewDark))
         )
+    }
+
+    /** The palette the preview renders in: the app's theme mode, resolved against the system. */
+    private fun isPreviewDark(
+        prefs: UserPreferences = _uiState.value.userPreferences,
+    ): Boolean = when (prefs.appThemeMode) {
+        AppThemeModePreference.Dark -> true
+        AppThemeModePreference.Light -> false
+        AppThemeModePreference.System -> systemDarkTheme
     }
 
     /** As [withFormat], for the format a document named [fileName] resolves to. */

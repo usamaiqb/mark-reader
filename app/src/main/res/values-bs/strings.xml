@@ -66,7 +66,6 @@
     <string name="viewer_error_open_failed_detail">Nije moguće otvoriti ovu datoteku. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Datoteka izgleda binarno ili oštećeno. Prikazuje se izvorni tekst.</string>
     <string name="viewer_warning_source_code">Nije moguće istaknuti sintaksu. Prikazuje se izvorni tekst.</string>
-    <string name="viewer_warning_markdown">Nije moguće formatirati datoteku Markdown. Prikazuje se izvorni tekst.</string>
     <string name="editor_save">Sačuvaj</string>
     <string name="editor_saved">Sačuvano</string>
     <string name="editor_save_as">Sačuvaj kao</string>

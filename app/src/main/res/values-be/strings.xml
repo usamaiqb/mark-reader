@@ -67,7 +67,6 @@
     <string name="viewer_error_open_failed_detail">Не ўдалося адкрыць гэты файл. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Магчыма, файл змяшчае двайковыя даныя або пашкоджаны. Паказаны зыходны тэкст.</string>
     <string name="viewer_warning_source_code">Не ўдалося падсвяціць сінтаксіс. Паказаны зыходны тэкст.</string>
-    <string name="viewer_warning_markdown">Не ўдалося адлюстраваць фарматаванне Markdown. Паказаны зыходны тэкст.</string>
     <string name="editor_save">Захаваць</string>
     <string name="editor_saved">Захавана</string>
     <string name="editor_save_as">Захаваць як</string>

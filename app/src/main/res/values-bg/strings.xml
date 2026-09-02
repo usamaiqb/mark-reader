@@ -65,7 +65,6 @@
     <string name="viewer_error_open_failed_detail">Този файл не може да бъде отворен. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Файлът изглежда двоичен или повреден. Показва се изходният текст.</string>
     <string name="viewer_warning_source_code">Синтаксисът не може да бъде оцветен. Показва се изходният текст.</string>
-    <string name="viewer_warning_markdown">Файлът Markdown не може да бъде форматиран. Показва се изходният текст.</string>
     <string name="editor_save">Запазване</string>
     <string name="editor_saved">Запазено</string>
     <string name="editor_save_as">Запазване като</string>

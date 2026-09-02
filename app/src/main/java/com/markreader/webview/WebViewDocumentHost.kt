@@ -211,6 +211,10 @@ class WebViewDocumentHost(
      * returns its complete virtual path. Its relative references will 404, because a single-document
      * grant is all the app has permission to read.
      *
+     * **[documentUri] is null for a draft**: text the app is holding with no file behind it, which
+     * is what the editor's preview pane shows. The page still needs a path to render *at*, so it
+     * gets one; nothing under it resolves.
+     *
      * Single documents are all this host adopts, because they are all the reader opens. Folders
      * are already `SafPathSpace`'s to adopt, and a delegation for them belongs here on the day
      * something calls it — a document naming a sibling is `"$root/$relativePath"`, the same
@@ -218,7 +222,7 @@ class WebViewDocumentHost(
      *
      * The URI permission is the picker's to take; this does not.
      */
-    fun adoptDocument(documentUri: Uri, displayName: String): String =
+    fun adoptDocument(documentUri: Uri?, displayName: String): String =
         space.adoptDocument(documentUri, displayName)
 
     /** Drops a source, so a closed document stops being reachable from the page. */
@@ -600,12 +604,13 @@ class WebViewDocumentHost(
 }
 
 /**
- * The reports a reader wants from the page it is driving.
+ * The reports a surface wants from the page it is driving — the reader, or the editor's preview
+ * pane, which wants exactly one of them.
  *
- * One object rather than six properties on the host, so a reader attaches and detaches in a single
- * assignment — there is no window in which half of the old reader's callbacks are still installed.
- * Every one defaults to doing nothing, which is what a host with no reader on screen should do
- * with a report that arrives late.
+ * One object rather than six properties on the host, so a surface attaches and detaches in a single
+ * assignment — there is no window in which half of the outgoing surface's callbacks are still
+ * installed. Every one defaults to doing nothing, which is what a host with nothing on screen
+ * should do with a report that arrives late.
  */
 class ReaderEvents(
     /** A document is on screen. Fires for links followed inside a document as well as for opens. */

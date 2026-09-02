@@ -15,12 +15,12 @@ import org.junit.Test
  * table that hangs off it — which is what replaced ten `is this Markdown` tests in the UI, so it
  * is worth pinning rather than trusting to a reading of the `when`.
  *
- * The markdown format is constructed with a factory that throws, which is the point of taking
- * one: everything asserted here is decided without a `Context` or a renderer.
+ * Nothing here needs a `Context`: no format on this side holds a renderer any more. The registry
+ * still takes its markdown format as an argument, which is the seam [RecordingFormat] uses.
  */
 class FormatRegistryTest {
 
-    private val markdown = MarkdownFormat { error("no renderer is needed for these assertions") }
+    private val markdown = MarkdownFormat
     private val registry = FormatRegistry(markdown)
 
     @Test
@@ -41,7 +41,8 @@ class FormatRegistryTest {
             markdown.capabilities
         )
         assertEquals("text/markdown", markdown.creationMimeType)
-        assertEquals(R.string.viewer_warning_markdown, markdown.renderFailureWarningRes)
+        // Handing source to the page cannot fail, so there is no failure to describe.
+        assertNull(markdown.renderFailureWarningRes)
     }
 
     @Test
@@ -55,7 +56,7 @@ class FormatRegistryTest {
     }
 
     @Test
-    fun `a language keeps its format, so the highlighter cache survives a theme toggle`() {
+    fun `a language keeps its format`() {
         val first = registry.formatFor(DocumentType.SourceCode("kotlin"))
         assertSame(first, registry.formatFor(DocumentType.SourceCode("kotlin")))
         assertNotSame(first, registry.formatFor(DocumentType.SourceCode("python")))
@@ -81,30 +82,21 @@ class FormatRegistryTest {
         assertNull(registry.formatFor(DocumentType.Binary))
     }
 
+    /** The registry maps; it does not substitute. Whatever it was given is what it hands out. */
     @Test
-    fun `invalidation reaches every format the registry has handed out`() {
+    fun `the markdown format is the one it was given`() {
         val recording = RecordingFormat()
         val withRecording = FormatRegistry(recording)
-        val code = withRecording.formatFor(DocumentType.SourceCode("kotlin"))
 
-        withRecording.invalidateRenderers()
-
-        assertEquals(1, recording.invalidations)
-        // The source-code format caches renderers too, so a stale one there would paint the
-        // previous palette just as visibly.
-        assertSame(code, withRecording.formatFor(DocumentType.SourceCode("kotlin")))
+        assertSame(recording, withRecording.formatFor(DocumentType.Markdown))
     }
 
     private class RecordingFormat : DocumentFormat {
-        var invalidations = 0
         override val capabilities = FormatCapabilities()
         override val nameRes = R.string.viewer_subtitle_markdown
         override val editorPlaceholderRes = R.string.editor_placeholder_markdown
         override val creationMimeType = "text/markdown"
-        override val renderFailureWarningRes = R.string.viewer_warning_markdown
+        override val renderFailureWarningRes: Int? = null
         override suspend fun load(text: String, theme: RenderTheme): ReaderContent? = null
-        override fun invalidateRenderers() {
-            invalidations++
-        }
     }
 }

@@ -65,7 +65,6 @@
     <string name="viewer_error_open_failed_detail">Diese Datei konnte nicht geöffnet werden. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Diese Datei scheint Binärdaten zu enthalten oder beschädigt zu sein. Der Quelltext wird angezeigt.</string>
     <string name="viewer_warning_source_code">Syntaxhervorhebung fehlgeschlagen. Der Quelltext wird angezeigt.</string>
-    <string name="viewer_warning_markdown">Markdown konnte nicht formatiert werden. Der Quelltext wird angezeigt.</string>
     <string name="editor_save">Speichern</string>
     <string name="editor_saved">Gespeichert</string>
     <string name="editor_save_as">Speichern unter</string>
