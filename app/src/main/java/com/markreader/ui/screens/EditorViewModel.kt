@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /** Default for a format that has nothing more specific to ask the picker for. */
 private const val PLAIN_TEXT_MIME = "text/plain"
@@ -141,10 +142,16 @@ class EditorViewModel(
                 readDocument(uri)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: FileTooLargeException) {
+            } catch (_: FileTooLargeException) {
                 tooLarge = true
                 null
-            } catch (e: Exception) {
+            // The three ways a document refuses to be read, told apart nowhere else because
+            // the editor offers the same thing for all of them: a message and an empty buffer.
+            } catch (_: SecurityException) {
+                null
+            } catch (_: IOException) {
+                null
+            } catch (_: IllegalArgumentException) {
                 null
             }
             _uiState.value = _uiState.value.withFormatFor(fileName).copy(
@@ -177,17 +184,28 @@ class EditorViewModel(
 
     // Formatting helpers
 
-    fun formatBold() = wrapSelection("**", "**")
-    fun formatItalic() = wrapSelection("*", "*")
-    fun formatStrikethrough() = wrapSelection("~~", "~~")
-    fun formatHeading(level: Int) = insertLinePrefix("#".repeat(level) + " ")
-    fun formatBullet() = insertLinePrefix("- ")
-    fun formatNumbered() = insertLinePrefix("1. ")
-    fun formatHorizontalRule() = insertAtCursor("\n\n---\n\n")
-    fun formatInlineCode() = wrapSelection("`", "`")
-    fun formatCodeBlock() = wrapSelection("\n```\n", "\n```\n")
-    fun formatBlockquote() = insertLinePrefix("> ")
-    fun formatLink() = wrapSelection("[", "](url)")
+    /**
+     * Applies one of the toolbar's actions.
+     *
+     * One door rather than eleven one-line ones, so the toolbar can be handed a lambda instead
+     * of this view model. The markup stays here: which characters make a heading is the
+     * document's business, and the toolbar only knows which button was pressed.
+     */
+    fun applyFormat(action: FormatAction) = when (action) {
+        FormatAction.Bold -> wrapSelection("**", "**")
+        FormatAction.Italic -> wrapSelection("*", "*")
+        FormatAction.Strikethrough -> wrapSelection("~~", "~~")
+        FormatAction.Heading1 -> insertLinePrefix("# ")
+        FormatAction.Heading2 -> insertLinePrefix("## ")
+        FormatAction.Heading3 -> insertLinePrefix("### ")
+        FormatAction.Bullet -> insertLinePrefix("- ")
+        FormatAction.Numbered -> insertLinePrefix("1. ")
+        FormatAction.HorizontalRule -> insertAtCursor("\n\n---\n\n")
+        FormatAction.InlineCode -> wrapSelection("`", "`")
+        FormatAction.CodeBlock -> wrapSelection("\n```\n", "\n```\n")
+        FormatAction.Blockquote -> insertLinePrefix("> ")
+        FormatAction.Link -> wrapSelection("[", "](url)")
+    }
 
     private fun wrapSelection(prefix: String, suffix: String) {
         val current = _uiState.value.textFieldValue
@@ -291,10 +309,14 @@ class EditorViewModel(
                     // The copy is written in a known encoding, so this one can be saved to.
                     encoding = encoding
                 )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isSaving = false, saveResult = SaveResult.NoPermission
-                )
+            // A revoked grant, a provider that will not take the write, a document that has
+            // gone away: the offer is the same for all three, so they are not told apart.
+            } catch (_: SecurityException) {
+                failSaveAs()
+            } catch (_: IOException) {
+                failSaveAs()
+            } catch (_: IllegalArgumentException) {
+                failSaveAs()
             }
         }
     }
@@ -352,14 +374,29 @@ class EditorViewModel(
         )
     }
 
+    /** Every way a Save As can fail leaves the same state, so all of them come through here. */
+    private fun failSaveAs() {
+        _uiState.value = _uiState.value.copy(
+            isSaving = false, saveResult = SaveResult.NoPermission
+        )
+    }
+
     private suspend fun resolveFileName(uri: Uri): String? = withContext(Dispatchers.IO) {
         val resolver = getApplication<Application>().contentResolver
         try {
             val cursor = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             cursor?.use { if (it.moveToFirst()) return@withContext it.getString(0) }
         } catch (ex: CancellationException) {
+            // Rethrown before the clauses below, and load-bearing: CancellationException is an
+            // IllegalStateException, so catching that would swallow the coroutine's cancellation.
             throw ex
-        } catch (ex: Exception) { }
+        } catch (_: SecurityException) {
+            // Grant revoked since the document was opened.
+        } catch (_: IllegalArgumentException) {
+            // No provider behind the authority, or it does not offer the column.
+        } catch (_: IllegalStateException) {
+            // The provider answered but is in no state to be queried.
+        }
         return@withContext uri.lastPathSegment
     }
 

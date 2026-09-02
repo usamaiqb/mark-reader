@@ -15,6 +15,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
+import com.markreader.data.ReaderThemePreference
 import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.file.DocumentType
@@ -31,10 +32,11 @@ import com.markreader.webview.PageCommand
 import com.markreader.R
 import com.markreader.file.DocumentSource
 import com.markreader.file.FileTooLargeException
-import com.markreader.file.MAX_FILE_BYTES
+import com.markreader.file.MAX_FILE_MIB
 import com.markreader.file.TextCodec
 import com.markreader.file.tryTakePersistablePermission
 import kotlinx.coroutines.CancellationException
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
@@ -167,160 +169,209 @@ class ViewerViewModel(
         // finish after this one and overwrite the newer content.
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            loadingJob?.cancel()
-            searchJob?.cancel()
-            _matchOffsets = emptyList()
-            _scrollProgress.value = null
-            _uiState.value = _uiState.value.copy(
-                isLoading = true,
-                isLoadingVisible = false,
-                errorMessage = null,
-                warningMessage = null,
-                isEmptyFile = false,
-                needsPermission = false,
-                rawText = "",
-                rawHighlighted = null,
-                rendered = null,
-                headings = emptyList(),
-                activeHeadingSlug = null,
-                isSearchActive = false,
-                searchQuery = "",
-                searchMatchCount = 0,
-                searchMatchIndex = 0
-            )
-
-            // The page's find state outlives the document it was run against, so a new document
-            // would otherwise open with the previous one's query still painted in it.
-            send(PageCommand.CloseFind)
-
-            loadingJob = viewModelScope.launch {
-                kotlinx.coroutines.delay(LOADING_INDICATOR_DELAY_MS)
-                if (_uiState.value.isLoading) {
-                    _uiState.value = _uiState.value.copy(isLoadingVisible = true)
-                }
-            }
+            beginLoad()
 
             val uri = Uri.parse(uriString)
-
             ensureReadPermission(uri)
-
-            val fileName = resolveFileName(uri) ?: getApplication<Application>().getString(R.string.untitled)
+            val fileName = resolveFileName(uri)
+                ?: getApplication<Application>().getString(R.string.untitled)
             val mimeType = resolveMimeType(uri)
 
-            var readError: Exception? = null
-            val markdown = try {
-                readTextFromUri(uri)
-            } catch (ex: CancellationException) {
-                throw ex
-            } catch (ex: Exception) {
-                readError = ex
-                null
-            }
-
-            if (markdown == null) {
-                loadingJob?.cancel()
-                val needsPermission = readError is SecurityException
-                val errorMessage = if (readError is FileTooLargeException) {
-                    UiMessage(
-                        R.string.viewer_error_file_too_large,
-                        listOf(MAX_FILE_BYTES / (1024 * 1024))
-                    )
-                } else {
-                    describeReadFailure(readError)
-                }
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    isLoadingVisible = false,
-                    fileName = fileName,
-                    errorMessage = errorMessage,
-                    needsPermission = needsPermission,
-                    rawHighlighted = null,
-                    searchQuery = "",
-                    searchMatchCount = 0,
-                    searchMatchIndex = 0
-                )
+            // Four outcomes, each its own function below, and each of them terminal: a failure,
+            // an empty file, a document no format will render, and a document that renders.
+            val read = readDocument(uri)
+            val text = read.text
+            if (text == null) {
+                showReadFailure(fileName, read.error)
                 return@launch
             }
 
             recentFilesRepository.recordOpen(uriString, fileName)
-
-            val textHash = markdown.hashCode()
-            if (renderCacheTextHash != textHash) {
-                renderCacheTextHash = textHash
-                renderCache.clear()
-            }
-
-            if (markdown.isBlank()) {
-                loadingJob?.cancel()
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    isLoadingVisible = false,
-                    fileName = fileName,
-                    rawText = markdown,
-                    rawHighlighted = null,
-                    isEmptyFile = true,
-                    searchQuery = "",
-                    searchMatchCount = 0,
-                    searchMatchIndex = 0
-                )
+            resetRenderCacheIfChanged(text)
+            if (text.isBlank()) {
+                showEmptyDocument(fileName, text)
                 return@launch
             }
 
-            val documentType = DocumentTypeResolver.resolve(fileName, mimeType, markdown)
+            val documentType = DocumentTypeResolver.resolve(fileName, mimeType, text)
             val format = formats.formatFor(documentType)
             currentFormat = format
             val theme = RenderTheme(
-                renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
+                renderDarkModeOverride
+                    ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
             )
-            val loaded = format?.load(markdown, theme)
-
+            val loaded = format?.load(text, theme)
             if (format == null || loaded == null) {
-                loadingJob?.cancel()
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    isLoadingVisible = false,
-                    fileName = fileName,
-                    rawText = markdown,
-                    rawHighlighted = null,
-                    viewMode = ViewMode.Raw,
-                    searchQuery = "",
-                    searchMatchCount = 0,
-                    searchMatchIndex = 0,
-                    documentType = documentType,
-                    // A null format is DocumentType.Binary: bytes that are not text, so there
-                    // is no format to ask and nothing but the raw view to offer.
-                    capabilities = format?.capabilities ?: FormatCapabilities(),
-                    formatNameRes = format?.nameRes ?: R.string.viewer_subtitle_raw_mode,
-                    warningMessage = UiMessage(
-                        format?.renderFailureWarningRes ?: R.string.viewer_warning_binary
-                    )
-                )
-                baseRendered = null
+                showUnrenderedDocument(fileName, text, documentType, format)
                 return@launch
             }
 
-            loadingJob?.cancel()
-            baseRendered = loaded
-            renderCache[RenderCacheKey(documentType, theme)] = loaded
-            _uiState.value = _uiState.value.copy(
-                isLoading = false,
-                isLoadingVisible = false,
-                fileName = fileName,
-                rawText = markdown,
-                rawHighlighted = null,
-                rendered = loaded,
-                errorMessage = null,
-                warningMessage = null,
-                documentType = documentType,
-                capabilities = format.capabilities,
-                formatNameRes = format.nameRes
-            )
+            showDocument(fileName, text, documentType, format, theme, loaded)
+        }
+    }
 
-            applySearchQuery(_uiState.value.searchQuery)
-            if (pendingExternalRerender && preferencesLoaded) {
-                pendingExternalRerender = false
-                scheduleRebuild()
+    /** One document's read: its text, or the failure that explains why there is none. */
+    private class DocumentRead(val text: String?, val error: Exception?)
+
+    /**
+     * Clears every trace of the document being replaced, and arms the loading indicator.
+     *
+     * The find closes here rather than with the old document, because the page's find state
+     * outlives what it was run against: without this a new document opens with the previous
+     * one's query still painted into it.
+     */
+    private fun beginLoad() {
+        loadingJob?.cancel()
+        searchJob?.cancel()
+        _matchOffsets = emptyList()
+        _scrollProgress.value = null
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            isLoadingVisible = false,
+            errorMessage = null,
+            warningMessage = null,
+            isEmptyFile = false,
+            needsPermission = false,
+            rawText = "",
+            rawHighlighted = null,
+            rendered = null,
+            headings = emptyList(),
+            activeHeadingSlug = null,
+            isSearchActive = false,
+            searchQuery = "",
+            searchMatchCount = 0,
+            searchMatchIndex = 0
+        )
+        send(PageCommand.CloseFind)
+        loadingJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(LOADING_INDICATOR_DELAY_MS)
+            if (_uiState.value.isLoading) {
+                _uiState.value = _uiState.value.copy(isLoadingVisible = true)
             }
+        }
+    }
+
+    /**
+     * Reads the document, keeping the failure rather than naming it away: which one it was
+     * decides the message, and whether the screen offers to re-grant permission.
+     */
+    private suspend fun readDocument(uri: Uri): DocumentRead = try {
+        DocumentRead(readTextFromUri(uri), null)
+    } catch (ex: CancellationException) {
+        throw ex
+    } catch (ex: FileTooLargeException) {
+        DocumentRead(null, ex)
+    } catch (ex: SecurityException) {
+        DocumentRead(null, ex)
+    } catch (ex: IOException) {
+        DocumentRead(null, ex)
+    } catch (ex: IllegalArgumentException) {
+        DocumentRead(null, ex)
+    }
+
+    private fun showReadFailure(fileName: String, readError: Exception?) {
+        loadingJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            isLoadingVisible = false,
+            fileName = fileName,
+            errorMessage = if (readError is FileTooLargeException) {
+                UiMessage(R.string.viewer_error_file_too_large, listOf(MAX_FILE_MIB))
+            } else {
+                describeReadFailure(readError)
+            },
+            needsPermission = readError is SecurityException,
+            rawHighlighted = null,
+            searchQuery = "",
+            searchMatchCount = 0,
+            searchMatchIndex = 0
+        )
+    }
+
+    /** The render cache holds one document's renderings, so a different document empties it. */
+    private fun resetRenderCacheIfChanged(text: String) {
+        val textHash = text.hashCode()
+        if (renderCacheTextHash != textHash) {
+            renderCacheTextHash = textHash
+            renderCache.clear()
+        }
+    }
+
+    private fun showEmptyDocument(fileName: String, text: String) {
+        loadingJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            isLoadingVisible = false,
+            fileName = fileName,
+            rawText = text,
+            rawHighlighted = null,
+            isEmptyFile = true,
+            searchQuery = "",
+            searchMatchCount = 0,
+            searchMatchIndex = 0
+        )
+    }
+
+    /** A document with no rendering: raw mode, and a warning saying why that is all there is. */
+    private fun showUnrenderedDocument(
+        fileName: String,
+        text: String,
+        documentType: DocumentType,
+        format: DocumentFormat?
+    ) {
+        loadingJob?.cancel()
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            isLoadingVisible = false,
+            fileName = fileName,
+            rawText = text,
+            rawHighlighted = null,
+            viewMode = ViewMode.Raw,
+            searchQuery = "",
+            searchMatchCount = 0,
+            searchMatchIndex = 0,
+            documentType = documentType,
+            // A null format is DocumentType.Binary: bytes that are not text, so there
+            // is no format to ask and nothing but the raw view to offer.
+            capabilities = format?.capabilities ?: FormatCapabilities(),
+            formatNameRes = format?.nameRes ?: R.string.viewer_subtitle_raw_mode,
+            warningMessage = UiMessage(
+                format?.renderFailureWarningRes ?: R.string.viewer_warning_binary
+            )
+        )
+        baseRendered = null
+    }
+
+    private fun showDocument(
+        fileName: String,
+        text: String,
+        documentType: DocumentType,
+        format: DocumentFormat,
+        theme: RenderTheme,
+        loaded: ReaderContent
+    ) {
+        loadingJob?.cancel()
+        baseRendered = loaded
+        renderCache[RenderCacheKey(documentType, theme)] = loaded
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            isLoadingVisible = false,
+            fileName = fileName,
+            rawText = text,
+            rawHighlighted = null,
+            rendered = loaded,
+            errorMessage = null,
+            warningMessage = null,
+            documentType = documentType,
+            capabilities = format.capabilities,
+            formatNameRes = format.nameRes
+        )
+
+        // A query survives the document it was typed against, so the new one is searched for it.
+        applySearchQuery(_uiState.value.searchQuery)
+        if (pendingExternalRerender && preferencesLoaded) {
+            pendingExternalRerender = false
+            scheduleRebuild()
         }
     }
 
@@ -642,9 +693,13 @@ class ViewerViewModel(
                 }
             }
         } catch (ex: CancellationException) {
+            // Rethrown before the clauses below, and load-bearing: CancellationException is an
+            // IllegalStateException, so catching that would swallow the coroutine's cancellation.
             throw ex
-        } catch (ex: Exception) {
-            // Fall back to the last path segment if the provider can't be queried.
+        // Fall back to the last path segment if the provider can't be queried.
+        } catch (_: SecurityException) {
+        } catch (_: IllegalArgumentException) {
+        } catch (_: IllegalStateException) {
         }
         return@withContext uri.lastPathSegment
     }
@@ -654,8 +709,13 @@ class ViewerViewModel(
         try {
             getApplication<Application>().contentResolver.getType(uri)
         } catch (ex: CancellationException) {
+            // See resolveFileName: rethrown before the IllegalStateException clause.
             throw ex
-        } catch (ex: Exception) {
+        } catch (_: SecurityException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: IllegalStateException) {
             null
         }
     }
@@ -708,7 +768,6 @@ class ViewerViewModel(
             )
             return
         }
-        val baseText = baseSpans.toString()
 
         if (query.isBlank()) {
             _matchOffsets = emptyList()
@@ -722,68 +781,14 @@ class ViewerViewModel(
         }
 
         val pattern = Regex(Regex.escape(query), setOf(RegexOption.IGNORE_CASE))
-        val ranges = pattern.findAll(baseText).map { it.range }.toList()
+        val ranges = pattern.findAll(baseSpans.toString()).map { it.range }.toList()
         val offsets = ranges.map { it.first }
-
         _matchOffsets = offsets
 
-        val highlighted = SpannableString(baseSpans)
-        val prefs = _uiState.value.userPreferences
-        val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
-        val activeTheme = if (isDark) prefs.readerDarkTheme else prefs.readerLightTheme
-        val isSepia = activeTheme == com.markreader.data.ReaderThemePreference.Sepia
-        val matchBackgroundColor = when {
-            isDark -> 0x66FFD54F.toInt()
-            isSepia -> 0x55A85A00.toInt()
-            else -> 0x553197F5.toInt()
-        }
-        val activeMatchBackgroundColor = when {
-            isDark -> 0xCCFFD54F.toInt()
-            isSepia -> 0xDD8B4513.toInt()
-            else -> 0xFF1565C0.toInt()
-        }
-        val activeMatchTextColor = when {
-            isDark -> 0xFF1A1A1A.toInt()
-            isSepia -> 0xFFFFFFFF.toInt()
-            else -> 0xFFFFFFFF.toInt()
-        }
-        // Passive highlights are capped: thousands of spans stall the TextView.
-        // Every match stays countable and navigable via _matchOffsets, and the
-        // active match is always styled below regardless of this cap.
-        for (range in ranges.take(400)) {
-            val start = range.first
-            val end = (range.last + 1).coerceAtMost(highlighted.length)
-            highlighted.setSpan(
-                SearchHighlightSpan(matchBackgroundColor, isActive = false),
-                start,
-                end,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
-        val activeIndex = _uiState.value.searchMatchIndex.coerceIn(0, (offsets.size - 1).coerceAtLeast(0))
-        if (ranges.isNotEmpty()) {
-            val activeRange = ranges[activeIndex]
-            val activeOffset = activeRange.first
-            val activeEnd = (activeRange.last + 1).coerceAtMost(highlighted.length)
-            highlighted.setSpan(
-                SearchHighlightSpan(activeMatchBackgroundColor, isActive = true),
-                activeOffset,
-                activeEnd,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            highlighted.setSpan(
-                ForegroundColorSpan(activeMatchTextColor),
-                activeOffset,
-                activeEnd,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            highlighted.setSpan(
-                StyleSpan(Typeface.BOLD),
-                activeOffset,
-                activeEnd,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
+        val activeIndex = _uiState.value.searchMatchIndex
+            .coerceIn(0, (offsets.size - 1).coerceAtLeast(0))
+        val highlighted = paintMatches(baseSpans, ranges, activeIndex)
+        val matchIndex = if (offsets.isEmpty()) 0 else activeIndex
 
         // Where the source is on screen the highlighting has to arrive as `rawHighlighted`,
         // because that is the field [readerContentFor] draws from in both of the cases that put
@@ -793,16 +798,96 @@ class ViewerViewModel(
                 rendered = baseRendered,
                 rawHighlighted = ReaderContent.Spans(highlighted),
                 searchMatchCount = offsets.size,
-                searchMatchIndex = if (offsets.isEmpty()) 0 else activeIndex
+                searchMatchIndex = matchIndex
             )
         } else {
             _uiState.value.copy(
                 rendered = ReaderContent.Spans(highlighted),
                 rawHighlighted = null,
                 searchMatchCount = offsets.size,
-                searchMatchIndex = if (offsets.isEmpty()) 0 else activeIndex
+                searchMatchIndex = matchIndex
             )
         }
+    }
+
+    /**
+     * Paints [ranges] onto a copy of [baseSpans]: a box behind every match, and behind the one
+     * at [activeIndex] a stronger box, its own text colour and bold.
+     */
+    private fun paintMatches(
+        baseSpans: CharSequence,
+        ranges: List<IntRange>,
+        activeIndex: Int
+    ): SpannableString {
+        val highlighted = SpannableString(baseSpans)
+        val palette = searchHighlightPalette()
+
+        // Passive highlights are capped: thousands of spans stall the TextView.
+        // Every match stays countable and navigable via _matchOffsets, and the
+        // active match is always styled below regardless of this cap.
+        for (range in ranges.take(MAX_PASSIVE_HIGHLIGHTS)) {
+            highlighted.setSpan(
+                SearchHighlightSpan(palette.passiveBackground, isActive = false),
+                range.first,
+                (range.last + 1).coerceAtMost(highlighted.length),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        if (ranges.isEmpty()) return highlighted
+
+        val activeRange = ranges[activeIndex]
+        val activeOffset = activeRange.first
+        val activeEnd = (activeRange.last + 1).coerceAtMost(highlighted.length)
+        highlighted.setSpan(
+            SearchHighlightSpan(palette.activeBackground, isActive = true),
+            activeOffset,
+            activeEnd,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        highlighted.setSpan(
+            ForegroundColorSpan(palette.activeText),
+            activeOffset,
+            activeEnd,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        highlighted.setSpan(
+            StyleSpan(Typeface.BOLD),
+            activeOffset,
+            activeEnd,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        return highlighted
+    }
+
+    /** What a match is painted in, on whichever of the four reader palettes is on screen. */
+    private class SearchHighlightPalette(
+        val passiveBackground: Int,
+        val activeBackground: Int,
+        val activeText: Int
+    )
+
+    private fun searchHighlightPalette(): SearchHighlightPalette {
+        val prefs = _uiState.value.userPreferences
+        val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
+        val activeTheme = if (isDark) prefs.readerDarkTheme else prefs.readerLightTheme
+        val isSepia = activeTheme == ReaderThemePreference.Sepia
+        val passiveBackground = when {
+            isDark -> 0x66FFD54F.toInt()
+            isSepia -> 0x55A85A00.toInt()
+            else -> 0x553197F5.toInt()
+        }
+        val activeBackground = when {
+            isDark -> 0xCCFFD54F.toInt()
+            isSepia -> 0xDD8B4513.toInt()
+            else -> 0xFF1565C0.toInt()
+        }
+        val activeText = when {
+            isDark -> 0xFF1A1A1A.toInt()
+            isSepia -> 0xFFFFFFFF.toInt()
+            else -> 0xFFFFFFFF.toInt()
+        }
+        return SearchHighlightPalette(passiveBackground, activeBackground, activeText)
     }
 
     companion object {
@@ -822,6 +907,13 @@ class ViewerViewModel(
          * rebuilt, and shallow enough that a backlog beyond it is a page that is not coming back.
          */
         private const val PAGE_COMMAND_BUFFER = 16
+
+        /**
+         * How many matches get a highlight box drawn behind them. Thousands of spans stall the
+         * TextView; every match past this stays countable and navigable through the offsets,
+         * and the active one is styled whatever its position.
+         */
+        private const val MAX_PASSIVE_HIGHLIGHTS = 400
 
         private fun isDarkTheme(prefs: UserPreferences, isSystemDarkTheme: Boolean): Boolean {
             return when (prefs.appThemeMode) {

@@ -21,7 +21,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val repository = PreferencesRepository.getInstance(application)
 
     val preferences: StateFlow<UserPreferences> = repository.preferences
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserPreferences())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SHARING_STOP_TIMEOUT_MS), UserPreferences())
 
     fun setAppThemeMode(theme: AppThemeModePreference) {
         viewModelScope.launch { repository.setAppThemeMode(theme) }

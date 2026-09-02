@@ -48,7 +48,7 @@ fun NavGraphBuilder.markReaderNavGraph(
             },
             uriString = uri,
             fileSaved = fileSaved,
-            onFileSavedConsumed = { backStackEntry.savedStateHandle["file_saved"] = false }
+            onClearFileSavedFlag = { backStackEntry.savedStateHandle["file_saved"] = false }
         )
     }
 
@@ -66,7 +66,7 @@ fun NavGraphBuilder.markReaderNavGraph(
         EditorScreen(
             uriString = uri,
             onNavigateBack = { navController.popBackStack() },
-            onFileSaved = {
+            onSaveComplete = {
                 navController.previousBackStackEntry?.savedStateHandle?.set("file_saved", true)
             }
         )

@@ -15,8 +15,11 @@ private const val READ_BUFFER_BYTES = 64 * 1024
 /** Refuse to load files larger than this; decoding one into a single String would OOM. */
 const val MAX_FILE_BYTES = 10 * BYTES_PER_MIB
 
+/** The same limit in MB, for the two places that have to say it out loud. */
+const val MAX_FILE_MIB = MAX_FILE_BYTES / BYTES_PER_MIB
+
 class FileTooLargeException :
-    Exception("File exceeds the ${MAX_FILE_BYTES / BYTES_PER_MIB} MB limit")
+    Exception("File exceeds the $MAX_FILE_MIB MB limit")
 
 /**
  * Getting document bytes in and out of a URI: the provider dance, the size bound, and the

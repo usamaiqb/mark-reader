@@ -141,15 +141,19 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ViewerScreen(
     onOpenSettings: () -> Unit,
-    onOpenEditor: (String) -> Unit = {},
     uriString: String?,
+    modifier: Modifier = Modifier,
+    onOpenEditor: (String) -> Unit = {},
     fileSaved: Boolean = false,
-    onFileSavedConsumed: () -> Unit = {}
+    onClearFileSavedFlag: () -> Unit = {},
+    viewModel: ViewerViewModel = viewModel(
+        factory = ViewerViewModel.factory(
+            LocalContext.current.applicationContext as Application,
+            uriString
+        )
+    )
 ) {
     val context = LocalContext.current
-    val viewModel: ViewerViewModel = viewModel(
-        factory = ViewerViewModel.factory(context.applicationContext as Application, uriString)
-    )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollToOffset by viewModel.scrollToOffset.collectAsStateWithLifecycle()
     // Deliberately not read with `by` here. Both change on every scroll frame, so
@@ -223,11 +227,11 @@ fun ViewerScreen(
     }
 
     // Keyed on fileSaved, so read the caller's current callback rather than the first one.
-    val currentOnFileSavedConsumed by rememberUpdatedState(onFileSavedConsumed)
+    val currentOnClearFileSavedFlag by rememberUpdatedState(onClearFileSavedFlag)
     LaunchedEffect(fileSaved) {
         if (fileSaved) {
             uriString?.let { viewModel.loadUri(it, forceReload = true) }
-            currentOnFileSavedConsumed()
+            currentOnClearFileSavedFlag()
         }
     }
 
@@ -357,6 +361,7 @@ fun ViewerScreen(
     )
 
     Scaffold(
+        modifier = modifier,
         // Matches the reading surface. The content now runs full height under the
         // chrome so there is no strip to disguise, but this still keeps the Scaffold
         // ground from flashing a different colour behind the reader during layout.
@@ -834,9 +839,9 @@ fun ViewerScreen(
                                 contentTopInset = if (hasWarning) 0.dp else chromeTopInset,
                                 savedScrollY = savedScrollY,
                                 scrollToOffset = scrollToOffset,
-                                onScrollChanged = viewModel::onScrollPositionChanged,
-                                onScrollExtentChanged = viewModel::onScrollExtentChanged,
-                                onScrollConsumed = viewModel::onScrollConsumed,
+                                onScrollChange = viewModel::onScrollPositionChanged,
+                                onScrollExtentChange = viewModel::onScrollExtentChanged,
+                                onClearPendingScroll = viewModel::onScrollConsumed,
                                 selectionHighlightColor = selectionHighlightColor,
                                 fontSizeSp = prefs.fontSizeSp,
                                 lineHeight = prefs.lineHeight,

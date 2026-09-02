@@ -48,11 +48,12 @@ import com.markreader.R
 @Composable
 fun ContentContainer(
     warningMessage: String?,
+    modifier: Modifier = Modifier,
     topInset: Dp = 0.dp,
     content: @Composable () -> Unit
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(top = topInset)
     ) {

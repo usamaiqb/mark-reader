@@ -89,9 +89,9 @@ class RecentFilesRepository private constructor(private val context: Context) {
         if (grant.isWritePermission) flags = flags or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         try {
             context.contentResolver.releasePersistableUriPermission(Uri.parse(uriString), flags)
-        } catch (ex: SecurityException) {
+        } catch (_: SecurityException) {
             // Grant already revoked by the provider.
-        } catch (ex: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             // Grant no longer held.
         }
     }
