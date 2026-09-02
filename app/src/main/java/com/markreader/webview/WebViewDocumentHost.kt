@@ -183,7 +183,11 @@ class WebViewDocumentHost(
 
     private var destroyed = false
 
-    val webView: WebView = createWebView().also {
+    /**
+     * The page itself. A [DocumentWebView] rather than a bare [WebView] because the reader scrolls
+     * it from Compose rather than letting it scroll itself — see that class.
+     */
+    internal val webView: DocumentWebView = createWebView().also {
         // Split out from page-ready deliberately. Constructing the first WebView in a process
         // loads the Chromium provider, which is most of a cold start and is paid whether or not
         // the page then loads quickly — so the two halves have to be read apart before anything
@@ -449,13 +453,13 @@ class WebViewDocumentHost(
     // -------------------------------------------------------------------- the WebView
 
     @SuppressLint("SetJavaScriptEnabled") // The point of option 3; see the class comment.
-    private fun createWebView(): WebView {
+    private fun createWebView(): DocumentWebView {
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             // What the three device checks owed before the first option-3 release are run with.
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        return WebView(context).apply {
+        return DocumentWebView(context).apply {
             // On, and only here. `ExportManager` keeps it false over the file this host renders
             // for it: that WebView lays a finished document out for the printer and has nothing
             // to run, so the two want opposite settings for the same reason.

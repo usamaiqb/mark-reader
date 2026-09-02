@@ -2,7 +2,6 @@ package com.markreader.ui.reader
 
 import android.graphics.Color
 import android.view.ViewGroup
-import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -37,6 +36,23 @@ import com.markreader.webview.WebViewDocumentHost
  * a tab row's worth of dead space at the bottom of the document. Giving each surface a container
  * of its own means each holder lays out something it exclusively owns, and the empty one it is
  * left holding costs nothing.
+ *
+ * ### The page scrolls itself, and nothing here interferes with that
+ *
+ * It is worth saying explicitly, because the obvious-looking alternative was built and reverted.
+ * A WebView dispatches no nested scroll — measured, not assumed — so the app cannot learn about a
+ * gesture by listening. The fix that suggests itself is to take the gesture instead:
+ * `Modifier.scrollable` here, driving the page with `scrollBy`, which is what
+ * `readium/kotlin-toolkit` does and what makes a reader a first-class nested-scroll participant.
+ *
+ * **It does not work for a Markdown document.** Readium can own the gesture because it owns both
+ * axes; this reader cannot, because the horizontal scrollers are wide tables and code blocks
+ * *inside* the document and Compose cannot see them. `Modifier.scrollable` measures touch slop on
+ * its own axis alone, so a swipe measured at 91% horizontal was claimed as a vertical scroll as
+ * soon as its wobble crossed twenty pixels, and the table under the finger did not move.
+ *
+ * So the gesture stays the page's, and what the chrome needs is read from the touches on their way
+ * past — see `Modifier.chromeDragObserver`, which observes and consumes nothing.
  */
 @Composable
 internal fun DocumentPageView(
@@ -52,18 +68,19 @@ internal fun DocumentPageView(
     onScroll: (scrollY: Int, maxScrollY: Int) -> Unit = { _, _ -> },
 ) {
     val scrolled by rememberUpdatedState(onScroll)
+    val page = host.webView
+
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
             FrameLayout(context).apply {
-                val page = host.webView
                 // A View that still has a parent cannot be added to another.
                 (page.parent as? ViewGroup)?.removeView(page)
                 // Otherwise the surface's own background shows through until first paint, which
                 // flashes white in a dark theme.
                 page.setBackgroundColor(Color.TRANSPARENT)
                 page.setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                    scrolled(scrollY, page.maxScrollY())
+                    scrolled(scrollY, page.maxScrollY)
                 }
                 addView(
                     page,
@@ -77,14 +94,3 @@ internal fun DocumentPageView(
     )
 }
 
-/**
- * How far this document can scroll.
- *
- * `computeVerticalScrollRange` is protected, so the content height comes from the public
- * `contentHeight`, which is CSS pixels at scale 1 — the only scale there is, since the host
- * disables zoom.
- */
-private fun WebView.maxScrollY(): Int {
-    val contentPx = (contentHeight * resources.displayMetrics.density).toInt()
-    return (contentPx - height).coerceAtLeast(0)
-}

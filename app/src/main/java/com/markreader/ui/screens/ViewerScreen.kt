@@ -2,7 +2,6 @@ package com.markreader.ui.screens
 
 import android.app.Application
 import android.os.Build
-import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -91,10 +90,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -127,6 +126,7 @@ import com.markreader.ui.export.exportSourceFor
 import com.markreader.ui.export.renderExportDocument
 import com.markreader.ui.resolve
 import com.markreader.ui.reader.RenderedTextView
+import com.markreader.ui.reader.chromeDragObserver
 import com.markreader.ui.reader.WebViewReader
 import com.markreader.webview.HeadingItem
 import com.markreader.webview.rememberPageRenderer
@@ -136,11 +136,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * How long the chrome's visibility decision is held after it changes, covering the
- * show/hide animation and the relayout it causes.
- */
-private const val CHROME_SETTLE_MS = 350L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,8 +155,8 @@ fun ViewerScreen(
     // Deliberately not read with `by` here. Both change on every scroll frame, so
     // reading them in this scope would recompose the whole screen — including the
     // viewer's AndroidView update block — 60+ times a second while scrolling.
-    // They are read inside the leaf composables that actually display them, and
-    // inside snapshotFlow below, so the reads stay out of this scope.
+    // They are read inside the leaf composables that actually display them, so the
+    // reads stay out of this scope.
     val savedScrollY = viewModel.scrollY.collectAsStateWithLifecycle()
     val scrollProgress = viewModel.scrollProgress.collectAsStateWithLifecycle()
     val prefs = uiState.userPreferences
@@ -210,42 +205,23 @@ fun ViewerScreen(
     LaunchedEffect(isSystemDark) {
         viewModel.onSystemDarkThemeChanged(isSystemDark)
     }
-    // Immersive reading: hide the chrome on downward scrolls, bring it back on
-    // upward scrolls or at the top. Large deltas are programmatic jumps (TOC,
-    // search match) where the user just used the chrome — keep it visible.
-    // Showing or hiding the bar changes the content's top inset, which resizes the
-    // ScrollView and can clamp its position — emitting a scroll delta that points
-    // the opposite way and immediately flips the decision back. Hold the decision
-    // briefly after each change so the bar can finish animating instead of
-    // stuttering against its own layout effect.
-    LaunchedEffect(Unit) {
-        var lastY = 0
-        var settleUntil = 0L
-        snapshotFlow { savedScrollY.value }.collect { y ->
-            val delta = y - lastY
-            lastY = y
-            if (y <= 0) {
-                isChromeVisible = true
-                settleUntil = 0L
-                return@collect
-            }
-            if (SystemClock.uptimeMillis() < settleUntil) return@collect
-            val target = when {
-                delta < -8 -> true
-                delta in 9..1200 -> false
-                else -> return@collect
-            }
-            if (target != isChromeVisible) {
-                isChromeVisible = target
-                settleUntil = SystemClock.uptimeMillis() + CHROME_SETTLE_MS
-            }
-        }
-    }
     LaunchedEffect(uiState.isSearchActive) {
         if (uiState.isSearchActive) {
             isChromeVisible = true
         }
     }
+    // The top of a document always shows the chrome, however it got there — scrolled, jumped to
+    // from the table of contents, or restored on open. That is a statement about *position*, and
+    // it is the only one left: everything else the bar does is decided by the gesture, in
+    // [rememberChromeScrollConnection].
+    LaunchedEffect(Unit) {
+        snapshotFlow { savedScrollY.value <= 0 }.collect { atTop ->
+            if (atTop) {
+                isChromeVisible = true
+            }
+        }
+    }
+
     // Keyed on fileSaved, so read the caller's current callback rather than the first one.
     val currentOnFileSavedConsumed by rememberUpdatedState(onFileSavedConsumed)
     LaunchedEffect(fileSaved) {
@@ -732,7 +708,11 @@ fun ViewerScreen(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(sideInsets),
+                .padding(sideInsets)
+                // Every reader surface is composed below this, so one observer sees the drags over
+                // whichever one is drawing — and consumes none of them, so both go on scrolling
+                // themselves exactly as they did.
+                .chromeDragObserver { visible -> isChromeVisible = visible },
             color = surfaceColor,
             contentColor = contentColor
         ) {
