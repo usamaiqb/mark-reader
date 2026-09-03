@@ -21,6 +21,9 @@ val LightOnSurface = Color(0xFF1A1B1F)
 val LightSurfaceVariant = Color(0xFFE2E2EC)
 val LightOnSurfaceVariant = Color(0xFF45464F)
 val LightOutline = Color(0xFF757680)
+// Neutral-variant tone 80 and 30. The same two values already appear above as
+// DarkOnSurfaceVariant and LightOnSurfaceVariant: M3 draws outlineVariant from the same ramp.
+val LightOutlineVariant = Color(0xFFC6C6D0)
 
 val DarkPrimary = Color(0xFFB5C4FF)
 val DarkOnPrimary = Color(0xFF002A78)
@@ -41,6 +44,7 @@ val DarkOnSurface = Color(0xFFE3E2E8)
 val DarkSurfaceVariant = Color(0xFF45464F)
 val DarkOnSurfaceVariant = Color(0xFFC6C6D0)
 val DarkOutline = Color(0xFF8F909A)
+val DarkOutlineVariant = Color(0xFF45464F)
 
 // Light surface container tones
 val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
@@ -56,26 +60,12 @@ val DarkSurfaceContainer = Color(0xFF1E1F25)
 val DarkSurfaceContainerHigh = Color(0xFF292A2F)
 val DarkSurfaceContainerHighest = Color(0xFF33343A)
 
-val AmoledBackground = Color(0xFF000000)
+// The reading surface's own palettes, read by ViewerColors and nothing else. Only the roles a
+// reading surface actually needs — a fixed palette is not a Material scheme and never was one.
 val AmoledSurface = Color(0xFF000000)
 val AmoledOnSurface = Color(0xFFE6E6EB)
 
-val SepiaPrimary = Color(0xFF7A4E2B)
-val SepiaOnPrimary = Color(0xFFFFFFFF)
-val SepiaPrimaryContainer = Color(0xFFFFDCBF)
-val SepiaOnPrimaryContainer = Color(0xFF2E1500)
-val SepiaSecondary = Color(0xFF6F5B4C)
-val SepiaOnSecondary = Color(0xFFFFFFFF)
 val SepiaSecondaryContainer = Color(0xFFF7DED0)
-val SepiaOnSecondaryContainer = Color(0xFF271B12)
-val SepiaTertiary = Color(0xFF4F6B4A)
-val SepiaOnTertiary = Color(0xFFFFFFFF)
-val SepiaTertiaryContainer = Color(0xFFD1F0C9)
-val SepiaOnTertiaryContainer = Color(0xFF0C200B)
-val SepiaBackground = Color(0xFFF6EDE3)
-val SepiaOnBackground = Color(0xFF201A17)
 val SepiaSurface = Color(0xFFF6EDE3)
 val SepiaOnSurface = Color(0xFF201A17)
-val SepiaSurfaceVariant = Color(0xFFE8D7CA)
 val SepiaOnSurfaceVariant = Color(0xFF51443B)
-val SepiaOutline = Color(0xFF83746B)

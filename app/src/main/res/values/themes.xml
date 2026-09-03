@@ -1,5 +1,8 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.MarkReader" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Without this the window inherits Material3's baseline surface, which is a different
+             colour from the one Compose then paints. -->
+        <item name="android:windowBackground">@color/window_background</item>
     </style>
 
     <style name="Theme.MarkReader.Splash" parent="Theme.SplashScreen">

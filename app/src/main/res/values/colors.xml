@@ -1,3 +1,22 @@
 <resources>
+    <!--
+      The legacy launcher background, for the pre-API-26 layer-list icons in mipmap/. API 26+
+      uses the adaptive icon in mipmap-anydpi-v26/, whose background is the gradient vector
+      @drawable/ic_launcher_background instead — so the two disagree, and this flat indigo is
+      what API 24 and 25 actually show.
+    -->
     <color name="ic_launcher_background">#4338CA</color>
+
+    <!--
+      The window background, which exists before Compose draws anything. It has to match the
+      colour the first screen actually paints — the Scaffold's containerColor, which is
+      surfaceContainerLowest — or the app opens on a flash of the wrong ground. Kept in step with
+      LightSurfaceContainerLowest / DarkSurfaceContainerLowest in ui/theme/Color.kt by hand,
+      because an XML theme cannot read a Compose colour.
+
+      With dynamic colour on (the default above API 31) the drawn value comes from the wallpaper
+      and may differ slightly. That cannot be helped from here, and it is a near-white or
+      near-black either way; the point is to stop inheriting Material's baseline, which is neither.
+    -->
+    <color name="window_background">#FFFFFFFF</color>
 </resources>
