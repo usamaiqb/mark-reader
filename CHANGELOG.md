@@ -3,6 +3,20 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.4] - 2026-09-12
+
+### Improved
+- Right-to-left documents (Arabic, Hebrew) now derive their text direction from the content instead of the app locale.
+- Collapsing the viewer chrome now gives the reader the space back, so immersive reading uses the full screen.
+
+### Fixed
+- Stopped the collapsing chrome from resizing the reader's scroll container and causing scroll jumps.
+- Empty files can now be opened in the editor, with an Edit action offered from the empty-file state itself.
+- Corrected stale navigation and save callbacks in the UI.
+
+### Changed
+- Adopted a Gradle version catalog and added detekt and lint configuration, with JVM unit tests for the reader's scroll-anchor and segment-splitting logic.
+
 ## [1.0.3] - 2026-08-21
 
 ### Added
