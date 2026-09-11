@@ -41,12 +41,12 @@ fun segmentPositionFor(index: Int, count: Int): SegmentPosition = when {
 }
 
 @Composable
-fun SectionHeader(title: String) {
+fun SectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(
         text = title,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+        modifier = modifier.padding(start = 12.dp, bottom = 8.dp)
     )
 }

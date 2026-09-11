@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,7 +27,7 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
     private var externalUri by mutableStateOf<String?>(null)
-    private var externalUriNonce by mutableStateOf(0L)
+    private var externalUriNonce by mutableLongStateOf(0L)
     private var launchedExternally by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,8 +51,8 @@ class MainActivity : ComponentActivity() {
             ) {
                 MarkReaderApp(
                     externalUri = externalUri,
-                    externalUriNonce = externalUriNonce,
-                    launchedExternally = launchedExternally
+                    launchedExternally = launchedExternally,
+                    externalUriNonce = externalUriNonce
                 )
             }
         }

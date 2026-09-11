@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -75,10 +76,16 @@ import kotlinx.coroutines.flow.collectLatest
 fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenViewer: (String) -> Unit,
+    modifier: Modifier = Modifier,
     onOpenEditor: (String, Boolean) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = viewModel()
 ) {
     val context = LocalContext.current
+
+    // The navigation effects below are keyed on Unit, so they capture whichever callback
+    // they saw first. Reading through these keeps a recomposed caller's lambda live.
+    val currentOnOpenViewer by rememberUpdatedState(onOpenViewer)
+    val currentOnOpenEditor by rememberUpdatedState(onOpenEditor)
 
     val openFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -121,13 +128,13 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.navigateToViewer.collectLatest { uriString ->
-            onOpenViewer(uriString)
+            currentOnOpenViewer(uriString)
         }
     }
 
     LaunchedEffect(Unit) {
         viewModel.navigateToEditor.collectLatest { (uriString, isMarkdown) ->
-            onOpenEditor(uriString, isMarkdown)
+            currentOnOpenEditor(uriString, isMarkdown)
         }
     }
 
@@ -135,7 +142,7 @@ fun HomeScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
             LargeTopAppBar(

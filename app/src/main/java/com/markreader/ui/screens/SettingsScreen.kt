@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,6 +79,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -119,26 +121,26 @@ private fun SettingsSurface(
     content: @Composable () -> Unit
 ) {
     val shape = segmentShape(position)
-    if (onClick != null) {
-        Surface(
-            onClick = onClick,
-            modifier = Modifier.fillMaxWidth(),
-            shape = shape,
-            color = MaterialTheme.colorScheme.surfaceContainer
+    // One Surface with one content slot: branching used to call content() from two call
+    // sites, which throws away any state it holds if a row gains or loses its onClick.
+    // The click lives on the inner Box so its ripple stays inside the Surface's shape.
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Box(
+            modifier = Modifier
+                .then(
+                    if (onClick != null) {
+                        Modifier.clickable(role = Role.Button, onClick = onClick)
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(16.dp)
         ) {
-            Box(modifier = Modifier.padding(16.dp)) {
-                content()
-            }
-        }
-    } else {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = shape,
-            color = MaterialTheme.colorScheme.surfaceContainer
-        ) {
-            Box(modifier = Modifier.padding(16.dp)) {
-                content()
-            }
+            content()
         }
     }
 }
@@ -568,14 +570,15 @@ private fun ReaderPreviewCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit
-) {
-    val context = LocalContext.current
-    val viewModel: SettingsViewModel = viewModel(
+    onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModel.factory(
-            application = context.applicationContext as Application
+            application = LocalContext.current.applicationContext as Application
         )
     )
+) {
+    val context = LocalContext.current
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val versionLabel = remember(context) {
         runCatching {
@@ -600,7 +603,7 @@ fun SettingsScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
             LargeTopAppBar(
