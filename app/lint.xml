@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Android Lint policy.
+
+  CI runs `./gradlew lint` on every pull request and the job fails on lint *errors*.
+  Warnings are deliberately left as warnings for now: the pinch-zoom and word-wrap
+  deletions (prework items 3 and 4) and the P3/P4 refactor are about to move several
+  hundred lines, and fighting the linter through that at the same time is not worth it.
+  Revisit `warningsAsErrors` once P3 has landed.
+
+  Anything suppressed here needs a reason next to it.
+-->
+<lint>
+    <!-- Fires on Compose-held state that never touches LiveData nullability. -->
+    <issue id="NullSafeMutableLiveData" severity="ignore" />
+</lint>

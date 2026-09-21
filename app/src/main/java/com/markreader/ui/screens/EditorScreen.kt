@@ -61,11 +61,14 @@ import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -94,12 +97,18 @@ fun EditorScreen(
     uriString: String?,
     isMarkdown: Boolean,
     onNavigateBack: () -> Unit,
-    onFileSaved: () -> Unit
-) {
-    val context = LocalContext.current
-    val viewModel: EditorViewModel = viewModel(
-        factory = EditorViewModel.factory(context.applicationContext as Application, uriString, isMarkdown)
+    onFileSaved: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: EditorViewModel = viewModel(
+        factory = EditorViewModel.factory(
+            LocalContext.current.applicationContext as Application,
+            uriString,
+            isMarkdown
+        )
     )
+) {
+    // Keyed on the save result rather than the callback, so read the caller's current one.
+    val currentOnFileSaved by rememberUpdatedState(onFileSaved)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isSystemDark = isSystemInDarkTheme()
 
@@ -118,7 +127,7 @@ fun EditorScreen(
     LaunchedEffect(uiState.saveResult) {
         when (uiState.saveResult) {
             is SaveResult.Success -> {
-                onFileSaved()
+                currentOnFileSaved()
                 snackbarHostState.showSnackbar("Saved")
                 viewModel.onSaveResultConsumed()
             }
@@ -142,6 +151,7 @@ fun EditorScreen(
     val keyboardVisible = WindowInsets.isImeVisible
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {
@@ -297,7 +307,7 @@ fun EditorScreen(
                             val previewTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
                             val previewIsDark = isSystemInDarkTheme()
                             // The preview never restores a scroll position.
-                            val previewScrollY = remember { mutableStateOf(0) }
+                            val previewScrollY = remember { mutableIntStateOf(0) }
                             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                 RenderedTextView(
                                     text = previewText,
@@ -413,8 +423,11 @@ private fun FormatTextButton(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun FormatDivider() {
-    Spacer(modifier = Modifier.width(2.dp))
-    androidx.compose.material3.VerticalDivider(modifier = Modifier.height(24.dp))
-    Spacer(modifier = Modifier.width(2.dp))
+private fun FormatDivider(modifier: Modifier = Modifier) {
+    // Horizontal padding rather than two Spacers, so this emits a single element.
+    VerticalDivider(
+        modifier = modifier
+            .padding(horizontal = 2.dp)
+            .height(24.dp)
+    )
 }

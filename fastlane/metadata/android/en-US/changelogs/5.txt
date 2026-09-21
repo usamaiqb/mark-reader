@@ -1,0 +1,4 @@
+• Right-to-left documents now render in their own text direction.
+• Collapsing the reader chrome now reclaims the space for reading.
+• Fixed scroll jumps when the chrome hides or shows.
+• Empty files can now be opened and edited.
