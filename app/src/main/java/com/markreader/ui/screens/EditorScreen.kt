@@ -320,7 +320,6 @@ fun EditorScreen(
                                     onScrollConsumed = {},
                                     headings = emptyList(),
                                     onActiveHeadingChanged = {},
-                                    isWordWrapEnabled = true,
                                     isCodeBlockWrapEnabled = true,
                                     selectionHighlightColor = if (previewIsDark) 0x99FFD54F.toInt() else 0x994285F4.toInt(),
                                     fontSizeSp = prefs.fontSizeSp,

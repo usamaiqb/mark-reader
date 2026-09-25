@@ -31,7 +31,6 @@ import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.ui.screens.HeadingItem
-import com.markreader.ui.zoom.ZoomableContentLayout
 
 /**
  * A [ScrollView] that never scrolls itself to keep a focused descendant on screen.
@@ -105,7 +104,6 @@ fun RenderedTextView(
     onScrollConsumed: () -> Unit,
     headings: List<HeadingItem>,
     onActiveHeadingChanged: (Int) -> Unit,
-    isWordWrapEnabled: Boolean,
     isCodeBlockWrapEnabled: Boolean,
     selectionHighlightColor: Int,
     fontSizeSp: Float,
@@ -132,23 +130,17 @@ fun RenderedTextView(
     val docHasTables = remember(text) { text is Spanned && hasTables(text) }
     // Split mode gives code blocks and tables their own horizontally scrollable
     // views. Only worth the cost when the document actually contains one.
-    val isSplitMode = remember(
-        text, isWordWrapEnabled, isCodeBlockWrapEnabled, docHasCodeBlocks, docHasTables
-    ) {
-        text is Spanned && (
-            (isWordWrapEnabled && ((!isCodeBlockWrapEnabled && docHasCodeBlocks) || docHasTables)) ||
-                (!isWordWrapEnabled && docHasCodeBlocks)
-            )
+    val isSplitMode = remember(text, isCodeBlockWrapEnabled, docHasCodeBlocks, docHasTables) {
+        text is Spanned && ((!isCodeBlockWrapEnabled && docHasCodeBlocks) || docHasTables)
     }
-    val restoreKey = remember(contentKey, isWordWrapEnabled, isCodeBlockWrapEnabled) {
-        RestoreKey(contentKey, isWordWrapEnabled, isCodeBlockWrapEnabled)
+    val restoreKey = remember(contentKey, isCodeBlockWrapEnabled) {
+        RestoreKey(contentKey, isCodeBlockWrapEnabled)
     }
     // Reconciler state for the update block below. Plain fields, so a write does
     // not invalidate the composition and is visible to the rest of the same pass;
     // see [ReaderContentController].
     val controller = remember {
         ReaderContentController(
-            isWordWrapEnabled = isWordWrapEnabled,
             isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
             textColor = textColor,
             selectionHighlightColor = selectionHighlightColor,
@@ -171,7 +163,6 @@ fun RenderedTextView(
             factory = { context ->
                 val density = context.resources.displayMetrics.density
                 val paddingPx = (16 * density).toInt()
-                val useGlobalHorizontalScroll = !isWordWrapEnabled
 
                 val scrollView = FocusStableScrollView(context).apply {
                     if (isSplitMode) {
@@ -191,8 +182,6 @@ fun RenderedTextView(
                             textSize = fontSizeSp
                             setLineSpacing(0f, lineHeight)
                             setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-                            setHorizontallyScrolling(!isWordWrapEnabled)
-                            isHorizontalScrollBarEnabled = !isWordWrapEnabled
                             setTextIsSelectable(true)
                             setTextColor(textColor)
                             highlightColor = selectionHighlightColor
@@ -217,11 +206,8 @@ fun RenderedTextView(
                                 )
                             )
                         } else {
-                            val tv = if (firstChild is HorizontalScrollView) {
-                                firstChild.getChildAt(0) as? TextView
-                            } else {
-                                firstChild as? TextView
-                            } ?: return@setOnScrollChangeListener
+                            val tv = firstChild as? TextView
+                                ?: return@setOnScrollChangeListener
                             val layout = tv.layout ?: return@setOnScrollChangeListener
                             if (layout.text.isEmpty()) return@setOnScrollChangeListener
                             val y = scrollY + tv.paddingTop
@@ -252,40 +238,11 @@ fun RenderedTextView(
                     controller.extentListener = extentListener
                     viewTreeObserver.addOnGlobalLayoutListener(extentListener)
                 }
-                val rootView = if (useGlobalHorizontalScroll) {
-                    HorizontalScrollView(context).apply {
-                        isHorizontalScrollBarEnabled = true
-                        addView(
-                            scrollView,
-                            ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                        )
-                    }
-                } else {
-                    scrollView
-                }
-                val zoomLayout = ZoomableContentLayout(context).apply {
-                    addView(
-                        rootView,
-                        ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                    )
-                }
-                zoomLayout
+                scrollView
             },
-            update = { zoomLayout ->
-                val rootView = zoomLayout.getChildAt(0)
-                val scrollView = when (rootView) {
-                    is HorizontalScrollView -> rootView.getChildAt(0) as ScrollView
-                    else -> rootView as ScrollView
-                }
+            update = { scrollView ->
                 val child = scrollView.getChildAt(0) ?: return@AndroidView
-                val useGlobalHorizontalScroll = !isWordWrapEnabled
-                val wrapChanged = controller.lastWrapEnabled != isWordWrapEnabled ||
+                val wrapChanged =
                     controller.lastCodeBlockWrapEnabled != isCodeBlockWrapEnabled
                 val currentIsSplit = child is LinearLayout
                 val needsRestructure = wrapChanged || (isSplitMode != currentIsSplit)
@@ -293,39 +250,6 @@ fun RenderedTextView(
                 val paddingPx = (16 * density).toInt()
 
                 if (needsRestructure) {
-                    val hasGlobalHorizontalScroll = rootView is HorizontalScrollView
-                    if (wrapChanged && useGlobalHorizontalScroll != hasGlobalHorizontalScroll) {
-                        val parent = scrollView.parent as? ViewGroup
-                        parent?.removeView(scrollView)
-                        zoomLayout.removeAllViews()
-                        if (useGlobalHorizontalScroll) {
-                            val hsv = HorizontalScrollView(scrollView.context).apply {
-                                isHorizontalScrollBarEnabled = true
-                                addView(
-                                    scrollView,
-                                    ViewGroup.LayoutParams(
-                                        ViewGroup.LayoutParams.MATCH_PARENT,
-                                        ViewGroup.LayoutParams.MATCH_PARENT
-                                    )
-                                )
-                            }
-                            zoomLayout.addView(
-                                hsv,
-                                ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                            )
-                        } else {
-                            zoomLayout.addView(
-                                scrollView,
-                                ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                            )
-                        }
-                    }
                     // Save anchor from current view structure
                     controller.pendingAnchorOffset = getAnchorFromView(
                         scrollView, child, controller.splitBoundaries
@@ -344,7 +268,7 @@ fun RenderedTextView(
                                 ViewGroup.LayoutParams.WRAP_CONTENT
                             )
                         )
-                    } else if (isWordWrapEnabled) {
+                    } else {
                         val tv = createStyledTextView(
                             scrollView.context, paddingPx, fontSizeSp, lineHeight,
                             readingFont, codeFont, isSourceCode, textAlignment, textColor, selectionHighlightColor,
@@ -357,29 +281,14 @@ fun RenderedTextView(
                                 ViewGroup.LayoutParams.WRAP_CONTENT
                             )
                         )
-                    } else {
-                        val tv = createStyledTextView(
-                            scrollView.context, paddingPx, fontSizeSp, lineHeight,
-                            readingFont, codeFont, isSourceCode, textAlignment, textColor, selectionHighlightColor,
-                            horizontalScroll = true
-                        )
-                        scrollView.addView(
-                            tv,
-                            ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT
-                            )
-                        )
                     }
 
-                    controller.lastWrapEnabled = isWordWrapEnabled
                     controller.lastCodeBlockWrapEnabled = isCodeBlockWrapEnabled
                     // Force text to be re-applied; new views are already styled
                     controller.lastTextHash = 0
                     controller.lastTextRef = null
                     controller.lastStyleKey = contentKey
                     controller.lastTextColor = textColor
-                    controller.lastWrapEnabledApplied = isWordWrapEnabled
                     controller.lastSelectionHighlightColor = selectionHighlightColor
                     controller.lastCodeBlockBackgroundColor = codeBlockBackgroundColor
                 }
@@ -392,9 +301,7 @@ fun RenderedTextView(
                 // further down already reads `tv.paddingTop`, so it stays consistent for
                 // free rather than needing a second term threaded through it.
                 val contentTopPx = paddingPx + (contentTopInset.value * density).toInt()
-                val paddedChild = scrollView.getChildAt(0)?.let {
-                    if (it is HorizontalScrollView) it.getChildAt(0) else it
-                }
+                val paddedChild = scrollView.getChildAt(0)
                 if (paddedChild != null && paddedChild.paddingTop != contentTopPx) {
                     paddedChild.setPadding(
                         paddedChild.paddingLeft,
@@ -420,9 +327,9 @@ fun RenderedTextView(
                     val structuralChange = textHash != controller.lastTextHash
                     if (structuralChange) {
                         // Underlying text changed — full rebuild of segments
-                        val splitCode = !isCodeBlockWrapEnabled || !isWordWrapEnabled
-                        val splitTables = isWordWrapEnabled
-                        val segments = splitByMarkers(spanned, splitCode, splitTables)
+                        val segments = splitByMarkers(
+                            spanned, splitCode = !isCodeBlockWrapEnabled, splitTables = true
+                        )
                         controller.splitBoundaries = segments
                         container.removeAllViews()
                         for ((start, end, type) in segments) {
@@ -434,7 +341,7 @@ fun RenderedTextView(
                             } else {
                                 segText
                             }
-                            if (isTable && !useGlobalHorizontalScroll) {
+                            if (isTable) {
                                 val tableView = buildTableLayout(
                                     segmentContent, container.context, textColor,
                                     fontSizeSp, lineHeight, readingFont,
@@ -470,8 +377,7 @@ fun RenderedTextView(
                                     )
                                 )
                             } else {
-                                val needsCodeHScroll =
-                                    !useGlobalHorizontalScroll && isCode
+                                val needsCodeHScroll = isCode
                                 val tv = createStyledTextView(
                                     container.context, 0, fontSizeSp, lineHeight,
                                     readingFont, codeFont,
@@ -543,7 +449,7 @@ fun RenderedTextView(
                             } else {
                                 segText
                             }
-                            if (type == SegmentType.Table && !useGlobalHorizontalScroll) {
+                            if (type == SegmentType.Table) {
                                 // Tables need a full rebuild — cells aren't simple TextViews
                                 val tableView = buildTableLayout(
                                     segmentContent, container.context, textColor,
@@ -614,10 +520,7 @@ fun RenderedTextView(
                     }
                 } else {
                     // Single-TV mode
-                    val textView = when (currentChild) {
-                        is HorizontalScrollView -> currentChild.getChildAt(0) as TextView
-                        else -> currentChild as TextView
-                    }
+                    val textView = currentChild as TextView
 
                     when (text) {
                         is Spanned -> {
@@ -648,11 +551,6 @@ fun RenderedTextView(
                     if (controller.lastTextColor != textColor) {
                         textView.setTextColor(textColor)
                         controller.lastTextColor = textColor
-                    }
-                    if (controller.lastWrapEnabledApplied != isWordWrapEnabled) {
-                        textView.setHorizontallyScrolling(!isWordWrapEnabled)
-                        textView.isHorizontalScrollBarEnabled = !isWordWrapEnabled
-                        controller.lastWrapEnabledApplied = isWordWrapEnabled
                     }
                     if (controller.lastSelectionHighlightColor != selectionHighlightColor) {
                         textView.highlightColor = selectionHighlightColor
@@ -693,7 +591,6 @@ fun RenderedTextView(
                         if (y != null) {
                             val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
                             scrollView.smoothScrollTo(0, centeredY)
-                            if (zoomLayout.currentScale > 1f) zoomLayout.resetPan()
                         }
                         // Consumed either way, so an unresolvable target does not
                         // leave the request pending forever.
@@ -713,7 +610,6 @@ fun RenderedTextView(
                         )
                     } else {
                         val tv = when (curChild) {
-                            is HorizontalScrollView -> curChild.getChildAt(0) as? TextView
                             is TextView -> curChild
                             else -> null
                         }
@@ -727,14 +623,9 @@ fun RenderedTextView(
                     }
                 }
             },
-            onRelease = { zoomLayout ->
+            onRelease = { scrollView ->
                 controller.extentListener?.let { listener ->
-                    val rootView = zoomLayout.getChildAt(0)
-                    val scrollView = when (rootView) {
-                        is HorizontalScrollView -> rootView.getChildAt(0) as? ScrollView
-                        else -> rootView as? ScrollView
-                    }
-                    scrollView?.viewTreeObserver?.removeOnGlobalLayoutListener(listener)
+                    scrollView.viewTreeObserver?.removeOnGlobalLayoutListener(listener)
                     controller.extentListener = null
                 }
             }
