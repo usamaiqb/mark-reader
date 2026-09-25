@@ -14,23 +14,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -42,7 +40,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -73,6 +70,7 @@ fun ContentContainer(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerSearchBar(
     query: String,
@@ -104,15 +102,21 @@ fun ViewerSearchBar(
         contentColor = contentColor
     ) {
         Column {
-            TextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = {
-                    Text(
-                        text = "Search in document",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+            // The Material 3 search input, rather than a TextField or a hand-assembled
+            // decoration box. It pins its own 56dp minimum via sizeIn, which our modifier
+            // cannot lower — that is the cost of using the stock component here.
+            SearchBarDefaults.InputField(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = {
+                    focusManager.clearFocus()
+                    onNext()
                 },
+                // No suggestions surface: matches are highlighted in the document itself,
+                // so the input never expands.
+                expanded = false,
+                onExpandedChange = {},
+                placeholder = { Text(text = "Search in document") },
                 leadingIcon = {
                     if (showBackButton) {
                         IconButton(onClick = {
@@ -147,35 +151,25 @@ fun ViewerSearchBar(
                         }
                     }
                 } else null,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    focusManager.clearFocus()
-                    onNext()
-                }),
-                shape = RoundedCornerShape(28.dp),
-                colors = TextFieldDefaults.colors(
+                colors = SearchBarDefaults.inputFieldColors(
                     focusedContainerColor = tonalContainerColor,
                     unfocusedContainerColor = tonalContainerColor,
                     focusedTextColor = contentColor,
                     unfocusedTextColor = contentColor,
                     focusedPlaceholderColor = contentColor.copy(alpha = 0.55f),
                     unfocusedPlaceholderColor = contentColor.copy(alpha = 0.55f),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
                     cursorColor = contentColor
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = 4.dp)
                     .focusRequester(focusRequester)
             )
-
             // Controls row — flat, no elevation, same surface as the row above.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                    .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -199,7 +193,7 @@ fun ViewerSearchBar(
                         Text(
                             text = status,
                             style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -217,7 +211,7 @@ fun ViewerSearchBar(
                         enabled = hasMatches,
                         shape = RoundedCornerShape(
                             topStart = 20.dp, bottomStart = 20.dp,
-                            topEnd = 4.dp, bottomEnd = 4.dp
+                            topEnd = 8.dp, bottomEnd = 8.dp
                         ),
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = tonalContainerColor,
@@ -239,7 +233,7 @@ fun ViewerSearchBar(
                         },
                         enabled = hasMatches,
                         shape = RoundedCornerShape(
-                            topStart = 4.dp, bottomStart = 4.dp,
+                            topStart = 8.dp, bottomStart = 8.dp,
                             topEnd = 20.dp, bottomEnd = 20.dp
                         ),
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
