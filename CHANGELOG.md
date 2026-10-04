@@ -3,6 +3,18 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.5] - 2026-10-04
+
+### Improved
+- Simplified the viewer's top bar to back, title, search, table of contents and overflow. The reading-surface theme is now a switch in the overflow menu, and the view mode is a menu action. The title still shows the current mode.
+- Rebuilt the search bar on the Material 3 search input, which provides proper search semantics, the keyboard search action and theme colours. The bar is also more compact.
+
+### Changed
+- Removed pinch-to-zoom in the reader. The font-size setting already covers text size, and reflowable text reads better scaled through it.
+- Removed the document-wide "word wrap off" mode. Wrapping can still be toggled per code block.
+- Now targets Android 16 (API 36).
+- Updated GitHub Actions CI dependencies.
+
 ## [1.0.4] - 2026-09-12
 
 ### Improved

@@ -1,0 +1,5 @@
+• Cleaner top bar: theme and view mode moved into the overflow menu.
+• A more compact search bar built on the Material 3 search input.
+• Pinch zoom removed; use the font-size setting instead.
+• The document-wide word-wrap-off mode is removed; code blocks keep their own wrap toggle.
+• Now targets Android 16.
