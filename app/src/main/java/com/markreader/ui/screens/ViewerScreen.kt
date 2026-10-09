@@ -100,6 +100,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -117,6 +119,7 @@ import com.markreader.ui.components.SegmentPosition
 import com.markreader.ui.components.segmentPositionFor
 import com.markreader.ui.components.segmentShape
 import com.markreader.ui.export.ExportManager
+import com.markreader.ui.resolve
 import com.markreader.ui.reader.RenderedTextView
 import kotlin.math.roundToInt
 
@@ -234,12 +237,18 @@ fun ViewerScreen(
         }
     }
 
-    val fileName = if (uiState.fileName.isNotBlank()) uiState.fileName else "Untitled"
-    val viewModeLabel = when {
-        uiState.isSourceCode -> "Source code"
-        uiState.viewMode == ViewMode.Raw -> "Raw mode"
-        else -> "Rendered mode"
+    val fileName = if (uiState.fileName.isNotBlank()) {
+        uiState.fileName
+    } else {
+        stringResource(R.string.untitled)
     }
+    val viewModeLabel = stringResource(
+        when {
+            uiState.isSourceCode -> R.string.viewer_subtitle_source_code
+            uiState.viewMode == ViewMode.Raw -> R.string.viewer_subtitle_raw_mode
+            else -> R.string.viewer_subtitle_rendered_mode
+        }
+    )
     val canToggleViewMode = !uiState.isSourceCode && uiState.rendered != null
 
     val dynamicLightScheme = remember(context, prefs.useDynamicColors) {
@@ -348,7 +357,10 @@ fun ViewerScreen(
                     containerColor = chromeColors.tonalContainer,
                     contentColor = chromeColors.content
                 ) {
-                    Icon(Icons.Rounded.Edit, contentDescription = "Edit file")
+                    Icon(
+                        Icons.Rounded.Edit,
+                        contentDescription = stringResource(R.string.viewer_edit_file)
+                    )
                 }
             }
         },
@@ -449,7 +461,7 @@ fun ViewerScreen(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Rounded.FormatListBulleted,
-                                                contentDescription = "Table of contents"
+                                                contentDescription = stringResource(R.string.toc_title)
                                             )
                                         }
                                     }
@@ -467,7 +479,7 @@ fun ViewerScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.Search,
-                                            contentDescription = "Search"
+                                            contentDescription = stringResource(R.string.viewer_search)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -483,7 +495,7 @@ fun ViewerScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.MoreVert,
-                                            contentDescription = "More options"
+                                            contentDescription = stringResource(R.string.viewer_more_options)
                                         )
                                     }
                                     DropdownMenu(
@@ -504,11 +516,13 @@ fun ViewerScreen(
                                                 },
                                                 text = {
                                                     Text(
-                                                        text = if (uiState.viewMode == ViewMode.Raw) {
-                                                            "View rendered"
-                                                        } else {
-                                                            "View raw"
-                                                        },
+                                                        text = stringResource(
+                                                            if (uiState.viewMode == ViewMode.Raw) {
+                                                                R.string.viewer_view_rendered
+                                                            } else {
+                                                                R.string.viewer_view_raw
+                                                            }
+                                                        ),
                                                         color = chromeColors.content
                                                     )
                                                 },
@@ -537,11 +551,13 @@ fun ViewerScreen(
                                             },
                                             text = {
                                                 Text(
-                                                    text = if (isSurfaceDark) {
-                                                        "Switch to light surface"
-                                                    } else {
-                                                        "Switch to dark surface"
-                                                    },
+                                                    text = stringResource(
+                                                        if (isSurfaceDark) {
+                                                            R.string.viewer_switch_to_light_surface
+                                                        } else {
+                                                            R.string.viewer_switch_to_dark_surface
+                                                        }
+                                                    ),
                                                     color = chromeColors.content
                                                 )
                                             },
@@ -561,7 +577,7 @@ fun ViewerScreen(
                                             },
                                             text = {
                                                 Text(
-                                                    text = "Wrap code blocks",
+                                                    text = stringResource(R.string.viewer_wrap_code_blocks),
                                                     color = chromeColors.content
                                                 )
                                             },
@@ -593,7 +609,7 @@ fun ViewerScreen(
                                             },
                                             text = {
                                                 Text(
-                                                    text = "Export & share",
+                                                    text = stringResource(R.string.viewer_export_and_share),
                                                     color = chromeColors.content
                                                 )
                                             },
@@ -611,7 +627,12 @@ fun ViewerScreen(
                                                     tint = chromeColors.content
                                                 )
                                             },
-                                            text = { Text(text = "Settings", color = chromeColors.content) },
+                                            text = {
+                                                Text(
+                                                    text = stringResource(R.string.action_settings),
+                                                    color = chromeColors.content
+                                                )
+                                            },
                                             onClick = {
                                                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                                 isMenuExpanded = false
@@ -692,7 +713,7 @@ fun ViewerScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "This file is empty.",
+                            text = stringResource(R.string.viewer_empty_file),
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -702,14 +723,14 @@ fun ViewerScreen(
                             androidx.compose.material3.Button(
                                 onClick = { onOpenEditor(uriString!!, isMarkdownFile) }
                             ) {
-                                Text(text = "Edit")
+                                Text(text = stringResource(R.string.action_edit))
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         androidx.compose.material3.TextButton(
                             onClick = { launcher.launch(OPENABLE_MIME_TYPES) }
                         ) {
-                            Text(text = "Open Different File")
+                            Text(text = stringResource(R.string.viewer_open_different_file))
                         }
                     }
                 }
@@ -723,7 +744,8 @@ fun ViewerScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = uiState.errorMessage ?: "Unable to open file.",
+                            text = uiState.errorMessage?.resolve()
+                                ?: stringResource(R.string.error_open_file),
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -732,7 +754,7 @@ fun ViewerScreen(
                                 launcher.launch(OPENABLE_MIME_TYPES)
                             }
                         ) {
-                            Text(text = "Open Different File")
+                            Text(text = stringResource(R.string.viewer_open_different_file))
                         }
                     }
                 }
@@ -745,9 +767,10 @@ fun ViewerScreen(
                     // A warning banner sits above the reader and outside its scroll
                     // container, so it takes the inset itself and the reader starts below
                     // it. Rare enough that losing the overlay in that case is fine.
-                    val hasWarning = !uiState.warningMessage.isNullOrBlank()
+                    val warningMessage = uiState.warningMessage?.resolve()
+                    val hasWarning = !warningMessage.isNullOrBlank()
                     ContentContainer(
-                        warningMessage = uiState.warningMessage,
+                        warningMessage = warningMessage,
                         topInset = if (hasWarning) chromeTopInset else 0.dp
                     ) {
                         RenderedTextView(
@@ -806,11 +829,15 @@ fun ViewerScreen(
                             .padding(start = 12.dp)
                     ) {
                         Text(
-                            text = "Table of contents",
+                            text = stringResource(R.string.toc_title),
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "${uiState.headings.size} heading${if (uiState.headings.size == 1) "" else "s"}",
+                            text = pluralStringResource(
+                                R.plurals.toc_heading_count,
+                                uiState.headings.size,
+                                uiState.headings.size
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = chromeColors.muted
                         )
@@ -827,13 +854,13 @@ fun ViewerScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close"
+                            contentDescription = stringResource(R.string.action_close)
                         )
                     }
                 }
                 if (uiState.headings.isEmpty()) {
                     Text(
-                        text = "No headings found.",
+                        text = stringResource(R.string.toc_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = chromeColors.muted,
                         modifier = Modifier.padding(start = 12.dp, top = 4.dp)
@@ -882,7 +909,7 @@ fun ViewerScreen(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = "Export & share",
+                    text = stringResource(R.string.viewer_export_and_share),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(start = 12.dp)
                 )
@@ -896,8 +923,8 @@ fun ViewerScreen(
                 )
                 ExportSheetItem(
                     icon = Icons.Rounded.PictureAsPdf,
-                    title = "Export as PDF",
-                    subtitle = "Print-ready document",
+                    title = stringResource(R.string.export_pdf_title),
+                    subtitle = stringResource(R.string.export_pdf_subtitle),
                     position = SegmentPosition.First,
                     colors = chromeColors,
                     onClick = {
@@ -908,8 +935,8 @@ fun ViewerScreen(
                 )
                 ExportSheetItem(
                     icon = Icons.Rounded.Language,
-                    title = "Export as HTML",
-                    subtitle = "Styled web page",
+                    title = stringResource(R.string.export_html_title),
+                    subtitle = stringResource(R.string.export_html_subtitle),
                     position = SegmentPosition.Middle,
                     colors = chromeColors,
                     onClick = {
@@ -920,8 +947,8 @@ fun ViewerScreen(
                 )
                 ExportSheetItem(
                     icon = Icons.Rounded.Share,
-                    title = "Share raw text",
-                    subtitle = "Send the markdown source",
+                    title = stringResource(R.string.export_share_raw_title),
+                    subtitle = stringResource(R.string.export_share_raw_subtitle),
                     position = SegmentPosition.Last,
                     colors = chromeColors,
                     onClick = {
@@ -956,7 +983,10 @@ private fun ReadingProgressChip(
         contentColor = contentColor
     ) {
         Text(
-            text = "${(value * 100).roundToInt()}%",
+            text = stringResource(
+                R.string.viewer_reading_progress_percent,
+                (value * 100).roundToInt()
+            ),
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -1059,7 +1089,7 @@ private fun TocHeadingRow(
                 shape = CircleShape
             ) {
                 Text(
-                    text = "H${heading.level}",
+                    text = stringResource(R.string.toc_heading_level, heading.level),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -1080,7 +1110,7 @@ private fun TocHeadingRow(
                     shape = CircleShape
                 ) {
                     Text(
-                        text = "Reading",
+                        text = stringResource(R.string.viewer_reading_progress),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)

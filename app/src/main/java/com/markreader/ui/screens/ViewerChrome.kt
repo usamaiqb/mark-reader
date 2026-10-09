@@ -40,8 +40,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.markreader.R
 
 @Composable
 fun ContentContainer(
@@ -116,7 +118,7 @@ fun ViewerSearchBar(
                 // so the input never expands.
                 expanded = false,
                 onExpandedChange = {},
-                placeholder = { Text(text = "Search in document") },
+                placeholder = { Text(text = stringResource(R.string.search_placeholder)) },
                 leadingIcon = {
                     if (showBackButton) {
                         IconButton(onClick = {
@@ -125,7 +127,7 @@ fun ViewerSearchBar(
                         }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = stringResource(R.string.action_back),
                                 tint = contentColor
                             )
                         }
@@ -145,7 +147,7 @@ fun ViewerSearchBar(
                         }) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
-                                contentDescription = "Clear search",
+                                contentDescription = stringResource(R.string.search_clear),
                                 tint = contentColor
                             )
                         }
@@ -180,9 +182,13 @@ fun ViewerSearchBar(
                 ) {
                     AnimatedContent(
                         targetState = when {
-                            query.isBlank() -> "Type to search"
-                            hasMatches -> "${matchIndex + 1} of $matchCount"
-                            else -> "No matches"
+                            query.isBlank() -> stringResource(R.string.search_hint)
+                            hasMatches -> stringResource(
+                                R.string.search_match_position,
+                                matchIndex + 1,
+                                matchCount
+                            )
+                            else -> stringResource(R.string.search_no_matches)
                         },
                         transitionSpec = {
                             (fadeIn(tween(150)) + slideInVertically { it / 2 }) togetherWith
@@ -222,7 +228,7 @@ fun ViewerSearchBar(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.KeyboardArrowUp,
-                            contentDescription = "Previous match"
+                            contentDescription = stringResource(R.string.search_previous_match)
                         )
                     }
                     FilledTonalIconButton(
@@ -245,7 +251,7 @@ fun ViewerSearchBar(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = "Next match"
+                            contentDescription = stringResource(R.string.search_next_match)
                         )
                     }
                 }

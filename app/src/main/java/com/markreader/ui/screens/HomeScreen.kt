@@ -56,6 +56,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -146,12 +147,12 @@ fun HomeScreen(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
             LargeTopAppBar(
-                title = { Text(text = "MarkReader") },
+                title = { Text(text = stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Rounded.Settings,
-                            contentDescription = "Settings"
+                            contentDescription = stringResource(R.string.home_settings_description)
                         )
                     }
                 },
@@ -191,7 +192,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                     }
                     item(key = "recent_header") {
-                        SectionHeader("Recent")
+                        SectionHeader(stringResource(R.string.home_section_recent))
                     }
                     itemsIndexed(
                         items = recents,
@@ -250,7 +251,7 @@ private fun QuickActionsRow(
                 modifier = Modifier.size(ButtonDefaults.IconSize)
             )
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-            Text(text = "Open file")
+            Text(text = stringResource(R.string.home_open_file))
         }
         Spacer(modifier = Modifier.width(8.dp))
         FilledTonalButton(
@@ -273,7 +274,7 @@ private fun QuickActionsRow(
                 modifier = Modifier.size(ButtonDefaults.IconSize)
             )
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
-            Text(text = "New file")
+            Text(text = stringResource(R.string.home_new_file))
         }
     }
 }
@@ -332,7 +333,11 @@ private fun RecentFileRow(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${fileTypeLabel(file.displayName)} · $relativeTime",
+                    text = stringResource(
+                        R.string.home_recent_subtitle,
+                        fileTypeLabel(file.displayName),
+                        relativeTime
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -347,7 +352,7 @@ private fun RecentFileRow(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Close,
-                    contentDescription = "Remove from recents",
+                    contentDescription = stringResource(R.string.home_remove_from_recents),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
@@ -376,18 +381,18 @@ private fun EmptyHomeContent(
 
         Image(
             painter = painterResource(id = R.drawable.ic_logo),
-            contentDescription = "MarkReader app icon",
+            contentDescription = stringResource(R.string.home_app_icon_description),
             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
             modifier = Modifier.size(128.dp)
         )
         Text(
-            text = "Open a file",
+            text = stringResource(R.string.home_empty_title),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(top = 24.dp)
         )
         Text(
-            text = "Choose a Markdown or source code file to start reading. Recent files will show up here.",
+            text = stringResource(R.string.home_empty_body),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -409,7 +414,7 @@ private fun EmptyHomeContent(
             )
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
             Text(
-                text = "Open File",
+                text = stringResource(R.string.home_empty_open_file),
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -429,7 +434,7 @@ private fun EmptyHomeContent(
             )
             Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
             Text(
-                text = "New File",
+                text = stringResource(R.string.home_empty_new_file),
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -443,9 +448,10 @@ private fun EmptyHomeContent(
 private fun fileExtension(displayName: String): String =
     displayName.substringAfterLast('.', "").lowercase()
 
+@Composable
 private fun fileTypeLabel(displayName: String): String = when (val ext = fileExtension(displayName)) {
-    "md", "markdown" -> "Markdown"
-    "txt", "" -> "Text"
+    "md", "markdown" -> stringResource(R.string.file_type_markdown)
+    "txt", "" -> stringResource(R.string.file_type_text)
     else -> ext.uppercase()
 }
 

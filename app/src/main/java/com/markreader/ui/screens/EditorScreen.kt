@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -77,6 +78,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,8 +86,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.markreader.R
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
+import com.markreader.ui.resolve
 import com.markreader.ui.reader.RenderedTextView
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
@@ -117,6 +121,11 @@ fun EditorScreen(
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Resolved here rather than in the effect below, which is not a composable scope.
+    val savedMessage = stringResource(R.string.editor_saved)
+    val cannotSaveDirectlyMessage = stringResource(R.string.editor_cannot_save_directly)
+    val saveAsLabel = stringResource(R.string.editor_save_as)
+
     val saveAsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(
             if (isMarkdown) "text/markdown" else "text/plain"
@@ -128,13 +137,13 @@ fun EditorScreen(
         when (uiState.saveResult) {
             is SaveResult.Success -> {
                 currentOnFileSaved()
-                snackbarHostState.showSnackbar("Saved")
+                snackbarHostState.showSnackbar(savedMessage)
                 viewModel.onSaveResultConsumed()
             }
             is SaveResult.NoPermission -> {
                 val result = snackbarHostState.showSnackbar(
-                    message = "Can't save directly — save a copy instead?",
-                    actionLabel = "Save As",
+                    message = cannotSaveDirectlyMessage,
+                    actionLabel = saveAsLabel,
                     duration = SnackbarDuration.Long
                 )
                 if (result == SnackbarResult.ActionPerformed) {
@@ -165,7 +174,10 @@ fun EditorScreen(
                     IconButton(onClick = {
                         if (uiState.isModified) showDiscardDialog = true else onNavigateBack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back)
+                        )
                     }
                 }
             )
@@ -178,7 +190,7 @@ fun EditorScreen(
                 exit = fadeOut() + scaleOut()
             ) {
                 ExtendedFloatingActionButton(
-                    text = { Text("Save") },
+                    text = { Text(stringResource(R.string.editor_save)) },
                     icon = { Icon(Icons.Filled.Save, contentDescription = null) },
                     onClick = viewModel::save
                 )
@@ -202,7 +214,7 @@ fun EditorScreen(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(uiState.errorMessage ?: "Unable to open file.")
+                        Text(uiState.errorMessage?.resolve() ?: stringResource(R.string.error_open_file))
                     }
                 }
                 else -> {
@@ -214,7 +226,7 @@ fun EditorScreen(
                                 onClick = { viewModel.onTabChanged(EditorTab.Edit) }
                             ) {
                                 Text(
-                                    text = "Edit",
+                                    text = stringResource(R.string.editor_tab_edit),
                                     modifier = Modifier.padding(vertical = 12.dp),
                                     style = MaterialTheme.typography.labelLarge
                                 )
@@ -224,7 +236,7 @@ fun EditorScreen(
                                 onClick = { viewModel.onTabChanged(EditorTab.Preview) }
                             ) {
                                 Text(
-                                    text = "Preview",
+                                    text = stringResource(R.string.editor_tab_preview),
                                     modifier = Modifier.padding(vertical = 12.dp),
                                     style = MaterialTheme.typography.labelLarge
                                 )
@@ -277,7 +289,13 @@ fun EditorScreen(
                                     Box {
                                         if (uiState.textFieldValue.text.isEmpty()) {
                                             Text(
-                                                text = if (isMarkdown) "Start writing markdown…" else "Start typing…",
+                                                text = stringResource(
+                                                    if (isMarkdown) {
+                                                        R.string.editor_placeholder_markdown
+                                                    } else {
+                                                        R.string.editor_placeholder_text
+                                                    }
+                                                ),
                                                 style = TextStyle(
                                                     fontFamily = editorFontFamily,
                                                     fontSize = prefs.fontSizeSp.sp,
@@ -299,7 +317,7 @@ fun EditorScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "Rendering preview…",
+                                    text = stringResource(R.string.editor_rendering_preview),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -348,16 +366,18 @@ fun EditorScreen(
     if (showDiscardDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
-            title = { Text("Discard changes?") },
-            text = { Text("Your unsaved changes will be lost.") },
+            title = { Text(stringResource(R.string.editor_discard_title)) },
+            text = { Text(stringResource(R.string.editor_discard_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDiscardDialog = false
                     onNavigateBack()
-                }) { Text("Discard") }
+                }) { Text(stringResource(R.string.editor_discard_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             }
         )
     }
@@ -376,22 +396,34 @@ private fun FormattingToolbar(viewModel: EditorViewModel) {
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                FormatIconButton(Icons.Filled.FormatBold, "Bold") { viewModel.formatBold() }
-                FormatIconButton(Icons.Filled.FormatItalic, "Italic") { viewModel.formatItalic() }
-                FormatIconButton(Icons.Filled.FormatStrikethrough, "Strikethrough") { viewModel.formatStrikethrough() }
+                FormatIconButton(Icons.Filled.FormatBold, R.string.format_bold) { viewModel.formatBold() }
+                FormatIconButton(Icons.Filled.FormatItalic, R.string.format_italic) { viewModel.formatItalic() }
+                FormatIconButton(
+                    Icons.Filled.FormatStrikethrough,
+                    R.string.format_strikethrough
+                ) { viewModel.formatStrikethrough() }
                 FormatDivider()
                 FormatTextButton("H1") { viewModel.formatHeading(1) }
                 FormatTextButton("H2") { viewModel.formatHeading(2) }
                 FormatTextButton("H3") { viewModel.formatHeading(3) }
                 FormatDivider()
-                FormatIconButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Bullet list") { viewModel.formatBullet() }
-                FormatIconButton(Icons.Filled.FormatListNumbered, "Numbered list") { viewModel.formatNumbered() }
-                FormatIconButton(Icons.Filled.HorizontalRule, "Horizontal rule") { viewModel.formatHorizontalRule() }
+                FormatIconButton(
+                    Icons.AutoMirrored.Filled.FormatListBulleted,
+                    R.string.format_bullet_list
+                ) { viewModel.formatBullet() }
+                FormatIconButton(
+                    Icons.Filled.FormatListNumbered,
+                    R.string.format_numbered_list
+                ) { viewModel.formatNumbered() }
+                FormatIconButton(
+                    Icons.Filled.HorizontalRule,
+                    R.string.format_horizontal_rule
+                ) { viewModel.formatHorizontalRule() }
                 FormatDivider()
-                FormatIconButton(Icons.Filled.Code, "Inline code") { viewModel.formatInlineCode() }
+                FormatIconButton(Icons.Filled.Code, R.string.format_inline_code) { viewModel.formatInlineCode() }
                 FormatTextButton("```") { viewModel.formatCodeBlock() }
-                FormatIconButton(Icons.Filled.FormatQuote, "Blockquote") { viewModel.formatBlockquote() }
-                FormatIconButton(Icons.Filled.Link, "Link") { viewModel.formatLink() }
+                FormatIconButton(Icons.Filled.FormatQuote, R.string.format_blockquote) { viewModel.formatBlockquote() }
+                FormatIconButton(Icons.Filled.Link, R.string.format_link) { viewModel.formatLink() }
                 Spacer(modifier = Modifier.width(4.dp))
             }
         }
@@ -399,11 +431,15 @@ private fun FormattingToolbar(viewModel: EditorViewModel) {
 }
 
 @Composable
-private fun FormatIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit) {
+private fun FormatIconButton(
+    icon: ImageVector,
+    @StringRes contentDescription: Int,
+    onClick: () -> Unit
+) {
     IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
         Icon(
             imageVector = icon,
-            contentDescription = contentDescription,
+            contentDescription = stringResource(contentDescription),
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )

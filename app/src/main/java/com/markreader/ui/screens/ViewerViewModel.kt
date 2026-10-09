@@ -18,8 +18,10 @@ import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
 import com.markreader.ui.markdown.MarkwonRenderer
 import com.markreader.ui.markdown.SourceCodeRenderer
+import com.markreader.ui.UiMessage
 import com.markreader.ui.reader.SearchHighlightSpan
 import com.markreader.ExternalFileCache
+import com.markreader.R
 import com.markreader.FileTooLargeException
 import com.markreader.MAX_FILE_BYTES
 import com.markreader.readBoundedText
@@ -53,8 +55,8 @@ data class ViewerUiState(
     val rawText: String = "",
     val rawHighlighted: Spanned? = null,
     val rendered: Spanned? = null,
-    val errorMessage: String? = null,
-    val warningMessage: String? = null,
+    val errorMessage: UiMessage? = null,
+    val warningMessage: UiMessage? = null,
     val isEmptyFile: Boolean = false,
     val needsPermission: Boolean = false,
     val viewMode: ViewMode = ViewMode.Rendered,
@@ -115,7 +117,7 @@ class ViewerViewModel(
         if (initialUri == null) {
             _uiState.value = ViewerUiState(
                 isLoading = false,
-                errorMessage = "No file selected."
+                errorMessage = UiMessage(R.string.viewer_error_no_file_selected)
             )
         }
     }
@@ -162,7 +164,7 @@ class ViewerViewModel(
 
             ensureReadPermission(uri)
 
-            val fileName = resolveFileName(uri) ?: "Untitled"
+            val fileName = resolveFileName(uri) ?: getApplication<Application>().getString(R.string.untitled)
 
             var readError: Exception? = null
             val markdown = try {
@@ -178,13 +180,12 @@ class ViewerViewModel(
                 loadingJob?.cancel()
                 val needsPermission = readError is SecurityException
                 val errorMessage = if (readError is FileTooLargeException) {
-                    "This file is too large to open (over ${MAX_FILE_BYTES / (1024 * 1024)} MB)."
+                    UiMessage(
+                        R.string.viewer_error_file_too_large,
+                        listOf(MAX_FILE_BYTES / (1024 * 1024))
+                    )
                 } else {
-                    val errorDetails = readError?.let { ex ->
-                        val message = ex.message?.takeIf { it.isNotBlank() } ?: "no details"
-                        " (${ex.javaClass.simpleName}: $message)"
-                    } ?: ""
-                    "Unable to open this file.$errorDetails"
+                    describeReadFailure(readError)
                 }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -248,11 +249,13 @@ class ViewerViewModel(
                     searchQuery = "",
                     searchMatchCount = 0,
                     searchMatchIndex = 0,
-                    warningMessage = when {
-                        isBinary -> "This file looks binary or malformed. Showing raw text."
-                        isSourceCode -> "Unable to highlight this source code file. Showing raw text."
-                        else -> "Unable to render this Markdown file. Showing raw text."
-                    }
+                    warningMessage = UiMessage(
+                        when {
+                            isBinary -> R.string.viewer_warning_binary
+                            isSourceCode -> R.string.viewer_warning_source_code
+                            else -> R.string.viewer_warning_markdown
+                        }
+                    )
                 )
                 baseRendered = null
                 return@launch
@@ -520,6 +523,19 @@ class ViewerViewModel(
         _uiState.value = _uiState.value.copy(rendered = cached)
         applySearchQuery(_uiState.value.searchQuery)
         return true
+    }
+
+    /**
+     * The read failure, with whatever the exception gave us appended. The class name
+     * and message are diagnostics rather than prose, so they are passed in as
+     * arguments instead of being spelled out in the resource.
+     */
+    private fun describeReadFailure(readError: Exception?): UiMessage {
+        if (readError == null) return UiMessage(R.string.viewer_error_open_failed)
+        val className = readError.javaClass.simpleName
+        val message = readError.message?.takeIf { it.isNotBlank() }
+            ?: return UiMessage(R.string.viewer_error_open_failed_class, listOf(className))
+        return UiMessage(R.string.viewer_error_open_failed_detail, listOf(className, message))
     }
 
     private fun isProbablyBinary(text: String): Boolean {

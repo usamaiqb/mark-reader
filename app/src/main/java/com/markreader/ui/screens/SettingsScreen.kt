@@ -2,6 +2,7 @@ package com.markreader.ui.screens
 
 import android.app.Application
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -79,6 +80,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.markreader.R
 import com.markreader.data.AppThemeModePreference
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReaderThemePreference
@@ -169,7 +172,7 @@ private fun <T> PickerSettingsRow(
     title: String,
     subtitle: String,
     options: List<T>,
-    optionLabel: (T) -> String,
+    optionLabel: @Composable (T) -> String,
     selectedLabel: String,
     onSelect: (T) -> Unit
 ) {
@@ -232,7 +235,7 @@ private fun <T> PickerSettingsRow(
 private fun <T> OptionSheet(
     title: String,
     options: List<T>,
-    optionLabel: (T) -> String,
+    optionLabel: @Composable (T) -> String,
     selectedLabel: String,
     onSelect: (T) -> Unit,
     onDismiss: () -> Unit
@@ -288,7 +291,7 @@ private fun <T> OptionSheet(
                         if (selected) {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
-                                contentDescription = "Selected",
+                                contentDescription = stringResource(R.string.settings_selected),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
@@ -507,7 +510,7 @@ private fun ReaderPreviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Preview",
+                    text = stringResource(R.string.settings_preview),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = mutedColor,
@@ -523,13 +526,13 @@ private fun ReaderPreviewCard(
                 ) {
                     Icon(
                         imageVector = if (previewDark) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
-                        contentDescription = "Toggle preview between light and dark reader theme",
+                        contentDescription = stringResource(R.string.settings_preview_toggle),
                         tint = mutedColor
                     )
                 }
             }
             Text(
-                text = "The Art of Reading",
+                text = stringResource(R.string.settings_preview_heading),
                 fontFamily = readingFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = (fontSizeSp * 1.2f).sp,
@@ -538,7 +541,7 @@ private fun ReaderPreviewCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Comfortable typography makes long documents a pleasure to read. Changes apply instantly.",
+                text = stringResource(R.string.settings_preview_body),
                 fontFamily = readingFamily,
                 fontSize = fontSizeSp.sp,
                 lineHeight = (fontSizeSp * lineHeight).sp,
@@ -553,7 +556,7 @@ private fun ReaderPreviewCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "fun read(file: Uri) = markdown.render(file)",
+                    text = stringResource(R.string.settings_preview_code),
                     fontFamily = codeFamily,
                     fontSize = (fontSizeSp * 0.85f).sp,
                     lineHeight = (fontSizeSp * 0.85f * lineHeight).sp,
@@ -580,7 +583,9 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
-    val versionLabel = remember(context) {
+    val versionFormat = stringResource(R.string.settings_version)
+    val versionUnknown = stringResource(R.string.settings_version_unknown)
+    val versionLabel = remember(context, versionFormat, versionUnknown) {
         runCatching {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -589,8 +594,8 @@ fun SettingsScreen(
                 @Suppress("DEPRECATION")
                 packageInfo.versionCode.toLong()
             }
-            "Version ${packageInfo.versionName ?: "1.0"} ($versionCode)"
-        }.getOrDefault("Version unknown")
+            String.format(versionFormat, packageInfo.versionName ?: "1.0", versionCode)
+        }.getOrDefault(versionUnknown)
     }
 
     var fontSizeDraft by rememberSaveable(preferences.fontSizeSp) {
@@ -607,12 +612,12 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
             LargeTopAppBar(
-                title = { Text(text = "Settings") },
+                title = { Text(text = stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 },
@@ -634,14 +639,14 @@ fun SettingsScreen(
         ) {
             // ── Appearance ─────────────────────────────────────────────
             Column {
-                SectionHeader("Appearance")
+                SectionHeader(stringResource(R.string.settings_section_appearance))
                 val supportsDynamicColors = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 SettingsGroup {
                     SegmentedSettingsRow(
                         position = if (supportsDynamicColors) SegmentPosition.First else SegmentPosition.Single,
                         icon = Icons.Rounded.Palette,
-                        title = "App theme",
-                        subtitle = "Overall look of the app"
+                        title = stringResource(R.string.settings_app_theme),
+                        subtitle = stringResource(R.string.settings_app_theme_subtitle)
                     ) {
                         AppThemeModePreferenceControl(
                             selected = preferences.appThemeMode,
@@ -652,8 +657,8 @@ fun SettingsScreen(
                         SwitchSettingsRow(
                             position = SegmentPosition.Last,
                             icon = Icons.Rounded.Wallpaper,
-                            title = "Use dynamic colors",
-                            subtitle = "Tint the app from your wallpaper",
+                            title = stringResource(R.string.settings_dynamic_colors),
+                            subtitle = stringResource(R.string.settings_dynamic_colors_subtitle),
                             checked = preferences.useDynamicColors,
                             onCheckedChange = viewModel::setUseDynamicColors
                         )
@@ -663,7 +668,7 @@ fun SettingsScreen(
 
             // ── Reader ────────────────────────────────────────────────
             Column {
-                SectionHeader("Reader")
+                SectionHeader(stringResource(R.string.settings_section_reader))
 
                 ReaderPreviewCard(
                     preferences = preferences,
@@ -676,61 +681,64 @@ fun SettingsScreen(
                     PickerSettingsRow(
                         position = SegmentPosition.First,
                         icon = Icons.Rounded.LightMode,
-                        title = "Reader light theme",
-                        subtitle = "Used when reading in light mode",
+                        title = stringResource(R.string.settings_reader_light_theme),
+                        subtitle = stringResource(R.string.settings_reader_light_theme_subtitle),
                         options = listOf(
                             ReaderThemePreference.Light,
                             ReaderThemePreference.Sepia
                         ),
-                        optionLabel = { it.displayLabel() },
-                        selectedLabel = preferences.readerLightTheme.displayLabel(),
+                        optionLabel = { stringResource(it.displayLabel()) },
+                        selectedLabel = stringResource(preferences.readerLightTheme.displayLabel()),
                         onSelect = viewModel::setReaderLightTheme
                     )
                     PickerSettingsRow(
                         position = SegmentPosition.Middle,
                         icon = Icons.Rounded.DarkMode,
-                        title = "Reader dark theme",
-                        subtitle = "Used when reading in dark mode",
+                        title = stringResource(R.string.settings_reader_dark_theme),
+                        subtitle = stringResource(R.string.settings_reader_dark_theme_subtitle),
                         options = listOf(
                             ReaderThemePreference.Dark,
                             ReaderThemePreference.Amoled
                         ),
-                        optionLabel = { it.displayLabel() },
-                        selectedLabel = preferences.readerDarkTheme.displayLabel(),
+                        optionLabel = { stringResource(it.displayLabel()) },
+                        selectedLabel = stringResource(preferences.readerDarkTheme.displayLabel()),
                         onSelect = viewModel::setReaderDarkTheme
                     )
                     PickerSettingsRow(
                         position = SegmentPosition.Middle,
                         icon = Icons.Rounded.TextFields,
-                        title = "Reading font",
-                        subtitle = "Typeface for prose and headings",
+                        title = stringResource(R.string.settings_reading_font),
+                        subtitle = stringResource(R.string.settings_reading_font_subtitle),
                         options = listOf(
                             ReadingFontPreference.Merriweather,
                             ReadingFontPreference.SystemSerif,
                             ReadingFontPreference.MerriweatherSans
                         ),
-                        optionLabel = { it.displayLabel() },
-                        selectedLabel = preferences.readingFont.displayLabel(),
+                        optionLabel = { stringResource(it.displayLabel()) },
+                        selectedLabel = stringResource(preferences.readingFont.displayLabel()),
                         onSelect = viewModel::setReadingFont
                     )
                     PickerSettingsRow(
                         position = SegmentPosition.Middle,
                         icon = Icons.Rounded.Code,
-                        title = "Code font",
-                        subtitle = "Typeface for code blocks and source view",
+                        title = stringResource(R.string.settings_code_font),
+                        subtitle = stringResource(R.string.settings_code_font_subtitle),
                         options = listOf(
                             CodeFontPreference.JetBrainsMono,
                             CodeFontPreference.SystemMono
                         ),
-                        optionLabel = { it.displayLabel() },
-                        selectedLabel = preferences.codeFont.displayLabel(),
+                        optionLabel = { stringResource(it.displayLabel()) },
+                        selectedLabel = stringResource(preferences.codeFont.displayLabel()),
                         onSelect = viewModel::setCodeFont
                     )
                     SliderSettingsRow(
                         position = SegmentPosition.Middle,
                         icon = Icons.Rounded.FormatSize,
-                        title = "Font size",
-                        valueLabel = "${fontSizeDraft.toInt()}sp",
+                        title = stringResource(R.string.settings_font_size),
+                        valueLabel = stringResource(
+                            R.string.settings_font_size_value,
+                            fontSizeDraft.toInt()
+                        ),
                         value = fontSizeDraft,
                         onValueChange = { fontSizeDraft = it },
                         onValueChangeFinished = {
@@ -744,8 +752,11 @@ fun SettingsScreen(
                     SliderSettingsRow(
                         position = SegmentPosition.Middle,
                         icon = Icons.Rounded.FormatLineSpacing,
-                        title = "Line height",
-                        valueLabel = "${String.format(Locale.US, "%.1f", lineHeightDraft)}x",
+                        title = stringResource(R.string.settings_line_height),
+                        valueLabel = stringResource(
+                            R.string.settings_line_height_value,
+                            String.format(Locale.US, "%.1f", lineHeightDraft)
+                        ),
                         value = lineHeightDraft,
                         onValueChange = { lineHeightDraft = it },
                         onValueChangeFinished = {
@@ -759,8 +770,8 @@ fun SettingsScreen(
                     SegmentedSettingsRow(
                         position = SegmentPosition.Last,
                         icon = Icons.AutoMirrored.Rounded.FormatAlignLeft,
-                        title = "Text alignment",
-                        subtitle = "How paragraphs are laid out"
+                        title = stringResource(R.string.settings_text_alignment),
+                        subtitle = stringResource(R.string.settings_text_alignment_subtitle)
                     ) {
                         AlignmentPreference(
                             selected = preferences.textAlignment,
@@ -772,7 +783,7 @@ fun SettingsScreen(
 
             // ── About ──────────────────────────────────────────────────
             Column {
-                SectionHeader("About")
+                SectionHeader(stringResource(R.string.settings_section_about))
                 SettingsGroup {
                     val uriHandler = LocalUriHandler.current
                     SettingsSurface(
@@ -796,7 +807,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "GitHub",
+                                    text = stringResource(R.string.settings_github),
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -831,7 +842,7 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Column {
                                 Text(
-                                    text = "MarkReader",
+                                    text = stringResource(R.string.app_name),
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -842,7 +853,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "A focused Markdown reader for local files.",
+                                    text = stringResource(R.string.settings_app_description),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -874,7 +885,7 @@ private fun AppThemeModePreferenceControl(
             selected = selected == AppThemeModePreference.System,
             icon = { Icon(Icons.Rounded.BrightnessAuto, contentDescription = null) }
         ) {
-            Text("System")
+            Text(stringResource(R.string.theme_mode_system))
         }
         SegmentedButton(
             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
@@ -885,7 +896,7 @@ private fun AppThemeModePreferenceControl(
             selected = selected == AppThemeModePreference.Light,
             icon = { Icon(Icons.Rounded.LightMode, contentDescription = null) }
         ) {
-            Text("Light")
+            Text(stringResource(R.string.theme_mode_light))
         }
         SegmentedButton(
             shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
@@ -896,7 +907,7 @@ private fun AppThemeModePreferenceControl(
             selected = selected == AppThemeModePreference.Dark,
             icon = { Icon(Icons.Rounded.DarkMode, contentDescription = null) }
         ) {
-            Text("Dark")
+            Text(stringResource(R.string.theme_mode_dark))
         }
     }
 }
@@ -923,7 +934,7 @@ private fun AlignmentPreference(
                 )
             }
         ) {
-            Text("Left")
+            Text(stringResource(R.string.alignment_left))
         }
         SegmentedButton(
             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
@@ -939,29 +950,32 @@ private fun AlignmentPreference(
                 )
             }
         ) {
-            Text("Justified")
+            Text(stringResource(R.string.alignment_justified))
         }
     }
 }
 
 // ── Display label helpers ──────────────────────────────────────────────────────
 
-private fun ReaderThemePreference.displayLabel(): String = when (this) {
-    ReaderThemePreference.Light -> "Light"
-    ReaderThemePreference.Dark -> "Dark"
-    ReaderThemePreference.Amoled -> "AMOLED"
-    ReaderThemePreference.Sepia -> "Sepia"
+@StringRes
+private fun ReaderThemePreference.displayLabel(): Int = when (this) {
+    ReaderThemePreference.Light -> R.string.reader_theme_light
+    ReaderThemePreference.Dark -> R.string.reader_theme_dark
+    ReaderThemePreference.Amoled -> R.string.reader_theme_amoled
+    ReaderThemePreference.Sepia -> R.string.reader_theme_sepia
 }
 
-private fun ReadingFontPreference.displayLabel(): String = when (this) {
-    ReadingFontPreference.Merriweather -> "Merriweather"
-    ReadingFontPreference.SystemSerif -> "System serif"
-    ReadingFontPreference.MerriweatherSans -> "Merriweather Sans"
+@StringRes
+private fun ReadingFontPreference.displayLabel(): Int = when (this) {
+    ReadingFontPreference.Merriweather -> R.string.reading_font_merriweather
+    ReadingFontPreference.SystemSerif -> R.string.reading_font_system_serif
+    ReadingFontPreference.MerriweatherSans -> R.string.reading_font_merriweather_sans
 }
 
-private fun CodeFontPreference.displayLabel(): String = when (this) {
-    CodeFontPreference.JetBrainsMono -> "JetBrains Mono"
-    CodeFontPreference.SystemMono -> "System monospace"
+@StringRes
+private fun CodeFontPreference.displayLabel(): Int = when (this) {
+    CodeFontPreference.JetBrainsMono -> R.string.code_font_jetbrains_mono
+    CodeFontPreference.SystemMono -> R.string.code_font_system_mono
 }
 
 private fun ReadingFontPreference.fontFamily(): FontFamily = when (this) {

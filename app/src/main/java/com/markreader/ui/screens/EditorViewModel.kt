@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.core.graphics.ColorUtils
 import com.markreader.ExternalFileCache
+import com.markreader.R
 import com.markreader.FileTooLargeException
 import com.markreader.readBoundedText
 import com.markreader.tryTakePersistablePermission
@@ -19,6 +20,7 @@ import com.markreader.data.AppThemeModePreference
 import com.markreader.data.PreferencesRepository
 import com.markreader.data.RecentFilesRepository
 import com.markreader.data.UserPreferences
+import com.markreader.ui.UiMessage
 import com.markreader.ui.markdown.MarkwonRenderer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +48,7 @@ data class EditorUiState(
     val previewText: android.text.Spanned? = null,
     val activeTab: EditorTab = EditorTab.Edit,
     val userPreferences: UserPreferences = UserPreferences(),
-    val errorMessage: String? = null
+    val errorMessage: UiMessage? = null
 )
 
 class EditorViewModel(
@@ -94,7 +96,8 @@ class EditorViewModel(
     private fun loadContent() {
         viewModelScope.launch {
             val uri = Uri.parse(initialUri)
-            val fileName = resolveFileName(uri) ?: "Untitled"
+            val fileName = resolveFileName(uri)
+                ?: getApplication<Application>().getString(R.string.untitled)
             var tooLarge = false
             val content = try {
                 readTextFromUri(uri)
@@ -111,8 +114,8 @@ class EditorViewModel(
                 fileName = fileName,
                 textFieldValue = TextFieldValue(content ?: ""),
                 errorMessage = when {
-                    tooLarge -> "This file is too large to edit."
-                    content == null -> "Unable to read file."
+                    tooLarge -> UiMessage(R.string.editor_error_file_too_large)
+                    content == null -> UiMessage(R.string.editor_error_read_failed)
                     else -> null
                 }
             )
