@@ -17,7 +17,7 @@ class SourceCodeRenderer(isDark: Boolean) {
     private val theme: Prism4jTheme = if (isDark) Prism4jThemeOneDark() else Prism4jThemeOneLight()
 
     suspend fun highlight(code: String, language: String): Spanned = withContext(Dispatchers.Default) {
-        val grammar = prism4j.grammar(language)
+        val grammar = prism4j.grammar(prismGrammarFor(language))
             ?: return@withContext SpannableStringBuilder(code)
         val out = SpannableStringBuilder()
         walkNodes(prism4j.tokenize(code, grammar), out)
@@ -42,3 +42,23 @@ class SourceCodeRenderer(isDark: Boolean) {
         theme.apply("", syntax, out, start, end)
     }
 }
+
+/**
+ * Language name to Prism4j grammar id.
+ *
+ * Several are approximations: Prism4j bundles no Rust, Ruby, TOML or TypeScript grammar, so
+ * those borrow one of similar lexical shape. The approximation lives here rather than in
+ * `DocumentType` deliberately — it is a highlighting compromise, not a claim about what the
+ * file is, and a `.rs` file should not have to call itself C to get coloured. Anything not
+ * listed is passed through unchanged, and an id Prism4j does not know degrades to plain text.
+ */
+private val PRISM_GRAMMARS = mapOf(
+    "rust" to "c",
+    "ruby" to "python",
+    "toml" to "yaml",
+    "typescript" to "javascript",
+    "html" to "markup",
+    "xml" to "markup"
+)
+
+internal fun prismGrammarFor(language: String): String = PRISM_GRAMMARS[language] ?: language

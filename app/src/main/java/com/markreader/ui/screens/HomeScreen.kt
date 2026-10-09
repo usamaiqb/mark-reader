@@ -62,7 +62,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.markreader.OPENABLE_MIME_TYPES
+import com.markreader.file.DocumentType
+import com.markreader.file.DocumentTypeResolver
+import com.markreader.file.OPENABLE_MIME_TYPES
 import com.markreader.R
 import com.markreader.tryTakePersistablePermission
 import com.markreader.data.RecentFile
@@ -78,7 +80,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenViewer: (String) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenEditor: (String, Boolean) -> Unit = { _, _ -> },
+    onOpenEditor: (String) -> Unit = {},
     viewModel: HomeViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -134,8 +136,8 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.navigateToEditor.collectLatest { (uriString, isMarkdown) ->
-            currentOnOpenEditor(uriString, isMarkdown)
+        viewModel.navigateToEditor.collectLatest { uriString ->
+            currentOnOpenEditor(uriString)
         }
     }
 
@@ -445,18 +447,19 @@ private fun EmptyHomeContent(
 
 // ── File type helpers ──────────────────────────────────────────────────────────
 
-private fun fileExtension(displayName: String): String =
-    displayName.substringAfterLast('.', "").lowercase()
-
 @Composable
-private fun fileTypeLabel(displayName: String): String = when (val ext = fileExtension(displayName)) {
-    "md", "markdown" -> stringResource(R.string.file_type_markdown)
-    "txt", "" -> stringResource(R.string.file_type_text)
-    else -> ext.uppercase()
-}
+private fun fileTypeLabel(displayName: String): String =
+    when (DocumentTypeResolver.resolveFromHints(displayName)) {
+        DocumentType.Markdown -> stringResource(R.string.file_type_markdown)
+        DocumentType.PlainText -> stringResource(R.string.file_type_text)
+        // The extension is the most specific name we have for the rest, and shorter than
+        // anything we would write for it.
+        else -> displayName.substringAfterLast('.', "").uppercase()
+    }
 
-private fun fileTypeIcon(displayName: String): ImageVector = when (fileExtension(displayName)) {
-    "md", "markdown" -> Icons.AutoMirrored.Rounded.MenuBook
-    "txt", "" -> Icons.Rounded.Description
-    else -> Icons.Rounded.Code
-}
+private fun fileTypeIcon(displayName: String): ImageVector =
+    when (DocumentTypeResolver.resolveFromHints(displayName)) {
+        DocumentType.Markdown -> Icons.AutoMirrored.Rounded.MenuBook
+        DocumentType.PlainText -> Icons.Rounded.Description
+        else -> Icons.Rounded.Code
+    }

@@ -99,15 +99,13 @@ import com.markreader.ui.theme.SansReadingFontFamily
 @Composable
 fun EditorScreen(
     uriString: String?,
-    isMarkdown: Boolean,
     onNavigateBack: () -> Unit,
     onFileSaved: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: EditorViewModel = viewModel(
         factory = EditorViewModel.factory(
             LocalContext.current.applicationContext as Application,
-            uriString,
-            isMarkdown
+            uriString
         )
     )
 ) {
@@ -128,7 +126,7 @@ fun EditorScreen(
 
     val saveAsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(
-            if (isMarkdown) "text/markdown" else "text/plain"
+            if (uiState.isMarkdown) "text/markdown" else "text/plain"
         ),
         onResult = { uri -> if (uri != null) viewModel.onSaveAs(uri) }
     )
@@ -219,7 +217,7 @@ fun EditorScreen(
                 }
                 else -> {
                     // Tabs for markdown
-                    if (isMarkdown) {
+                    if (uiState.isMarkdown) {
                         PrimaryTabRow(selectedTabIndex = if (uiState.activeTab == EditorTab.Edit) 0 else 1) {
                             Tab(
                                 selected = uiState.activeTab == EditorTab.Edit,
@@ -246,7 +244,7 @@ fun EditorScreen(
 
                     // Editor or Preview content
                     val prefs = uiState.userPreferences
-                    val editorFontFamily = if (isMarkdown) {
+                    val editorFontFamily = if (uiState.isMarkdown) {
                         when (prefs.readingFont) {
                             ReadingFontPreference.Merriweather -> ReadingFontFamily
                             ReadingFontPreference.SystemSerif -> FontFamily.Serif
@@ -259,7 +257,7 @@ fun EditorScreen(
                         }
                     }
 
-                    val showEdit = !isMarkdown || uiState.activeTab == EditorTab.Edit
+                    val showEdit = !uiState.isMarkdown || uiState.activeTab == EditorTab.Edit
 
                     if (showEdit) {
                         val scrollState = rememberScrollState()
@@ -290,7 +288,7 @@ fun EditorScreen(
                                         if (uiState.textFieldValue.text.isEmpty()) {
                                             Text(
                                                 text = stringResource(
-                                                    if (isMarkdown) {
+                                                    if (uiState.isMarkdown) {
                                                         R.string.editor_placeholder_markdown
                                                     } else {
                                                         R.string.editor_placeholder_text
@@ -353,7 +351,7 @@ fun EditorScreen(
                     }
 
                     // Formatting toolbar — markdown edit mode, visible when keyboard is up
-                    if (isMarkdown && uiState.activeTab == EditorTab.Edit) {
+                    if (uiState.isMarkdown && uiState.activeTab == EditorTab.Edit) {
                         AnimatedVisibility(visible = keyboardVisible) {
                             FormattingToolbar(viewModel = viewModel)
                         }
