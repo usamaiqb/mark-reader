@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <!--
+    Source of socialPreview.png, the repository's social preview (uploaded in GitHub's
+    Settings → General → Social preview; GitHub does not read it from the repo). The layout is
+    featureGraphic.svg at 1.25x, re-centred on GitHub's 1280x640 card. The fonts are the app's
+    bundled ones, referenced rather than embedded, so render from a checkout with Chrome.
+  -->
+  <defs>
+    <style>
+      @font-face { font-family: "Merriweather"; font-weight: 700; src: url("../app/src/main/res/font/merriweather_bold.ttf"); }
+      @font-face { font-family: "Merriweather Sans"; font-weight: 400; src: url("../app/src/main/res/font/merriweather_sans_regular.ttf"); }
+      .title { font-family: "Merriweather", Georgia, serif; font-weight: 700; font-size: 95px; letter-spacing: -1.25px; fill: #1F1F22; }
+      .tagline { font-family: "Merriweather Sans", "Segoe UI", Roboto, sans-serif; font-size: 30px; fill: #5B5B60; }
+    </style>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#007AFF" stop-opacity="0.15"/>
+      <stop offset="70%" stop-color="#007AFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#007AFF" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#007AFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="tileShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="3" flood-color="#1C1C2E" flood-opacity="0.14"/>
+      <feDropShadow dx="0" dy="20" stdDeviation="25" flood-color="#1C1C2E" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <!-- Background: solid, so the card reads the same on light and dark pages. -->
+  <rect width="1280" height="640" fill="#FFFFFF"/>
+  <circle cx="50" cy="-25" r="262" fill="url(#glow)"/>
+  <circle cx="1355" cy="665" r="325" fill="url(#glow)" opacity="0.9"/>
+
+  <!-- Icon tile, the launcher foreground's paths scaled from its 108-unit viewport. -->
+  <circle cx="333" cy="325" r="188" fill="url(#halo)"/>
+  <g filter="url(#tileShadow)">
+    <rect x="239" y="226" width="188" height="188" rx="50" fill="#FFFFFF" stroke="#D5DAE3" stroke-width="1.75"/>
+  </g>
+  <svg x="259" y="246" width="148" height="148" viewBox="27 27 54 54">
+    <path fill="#3A3A3C" d="M29,68V40h8l8,18l8,-18h8v28h-6V50l-10,18l-10,-18v18z"/>
+    <path fill="#007AFF" d="M67,40h8v14h4l-8,14l-8,-14h4z"/>
+  </svg>
+
+  <!-- Wordmark -->
+  <text x="476" y="324" class="title">MarkReader</text>
+  <text x="476" y="389" class="tagline">Markdown and code. <tspan fill="#007AFF">Offline.</tspan></text>
+</svg>
