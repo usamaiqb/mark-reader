@@ -1,0 +1,161 @@
+<resources>
+    <string name="app_name">MarkReader</string>
+
+    <!-- Общие действия -->
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_edit">Редактировать</string>
+    <string name="action_settings">Настройки</string>
+    <string name="untitled">Без названия</string>
+    <string name="error_open_file">Не удалось открыть файл.</string>
+
+    <!-- Главный экран -->
+    <string name="home_settings_description">Настройки</string>
+    <string name="home_section_recent">Недавние</string>
+    <string name="home_open_file">Открыть файл</string>
+    <string name="home_new_file">Создать файл</string>
+    <string name="home_remove_from_recents">Убрать из недавних</string>
+    <string name="home_app_icon_description">Значок приложения MarkReader</string>
+    <string name="home_empty_title">Откройте файл</string>
+    <string name="home_empty_body">Выберите файл Markdown или исходного кода, чтобы начать чтение. Недавно открытые файлы появятся здесь.</string>
+    <string name="home_empty_open_file">Открыть файл</string>
+    <string name="home_empty_new_file">Создать файл</string>
+    <string name="home_recent_subtitle">%1$s · %2$s</string>
+    <string name="file_type_markdown">Markdown</string>
+    <string name="file_type_text">Текст</string>
+
+    <!-- Просмотр документа -->
+    <string name="viewer_subtitle_source_code">Исходный код</string>
+    <string name="viewer_subtitle_raw_mode">Исходный текст</string>
+    <string name="viewer_subtitle_rendered_mode">Форматированный текст</string>
+    <string name="viewer_edit_file">Редактировать файл</string>
+    <string name="viewer_search">Поиск</string>
+    <string name="viewer_more_options">Другие действия</string>
+    <string name="viewer_view_rendered">Показать форматирование</string>
+    <string name="viewer_view_raw">Показать исходный текст</string>
+    <string name="viewer_switch_to_light_surface">Светлый фон</string>
+    <string name="viewer_switch_to_dark_surface">Тёмный фон</string>
+    <string name="viewer_wrap_code_blocks">Перенос строк в блоках кода</string>
+    <string name="viewer_export_and_share">Экспорт и отправка</string>
+    <string name="viewer_reading_progress">Прочитано</string>
+    <string name="viewer_reading_progress_percent">%1$d%%</string>
+    <string name="viewer_empty_file">Этот файл пуст.</string>
+    <string name="viewer_open_different_file">Открыть другой файл</string>
+
+    <!-- Поиск -->
+    <string name="search_placeholder">Поиск в документе</string>
+    <string name="search_clear">Очистить поиск</string>
+    <string name="search_hint">Введите текст для поиска</string>
+    <string name="search_no_matches">Совпадений нет</string>
+    <string name="search_match_position">%1$d из %2$d</string>
+    <string name="search_previous_match">Предыдущее совпадение</string>
+    <string name="search_next_match">Следующее совпадение</string>
+
+    <!-- Оглавление -->
+    <string name="toc_title">Оглавление</string>
+    <string name="toc_empty">Заголовки не найдены.</string>
+    <string name="toc_heading_level">H%1$d</string>
+    <plurals name="toc_heading_count">
+        <item quantity="one">%1$d заголовок</item>
+        <item quantity="few">%1$d заголовка</item>
+        <item quantity="many">%1$d заголовков</item>
+        <item quantity="other">%1$d заголовка</item>
+    </plurals>
+
+    <!-- Экспорт -->
+    <string name="export_pdf_title">Экспорт в PDF</string>
+    <string name="export_pdf_subtitle">Документ для печати</string>
+    <string name="export_html_title">Экспорт в HTML</string>
+    <string name="export_html_subtitle">Веб-страница с оформлением</string>
+    <string name="export_share_raw_title">Поделиться исходным текстом</string>
+    <string name="export_share_raw_subtitle">Отправить исходный текст Markdown</string>
+    <string name="export_share_html_chooser">Поделиться HTML</string>
+    <string name="export_share_markdown_chooser">Поделиться Markdown</string>
+
+    <!-- Сообщения при просмотре -->
+    <string name="viewer_error_no_file_selected">Файл не выбран.</string>
+    <string name="viewer_error_file_too_large">Файл слишком большой для открытия (более %1$d МБ).</string>
+    <string name="viewer_error_open_failed">Не удалось открыть этот файл.</string>
+    <string name="viewer_error_open_failed_class">Не удалось открыть этот файл. (%1$s)</string>
+    <string name="viewer_error_open_failed_detail">Не удалось открыть этот файл. (%1$s: %2$s)</string>
+    <string name="viewer_warning_binary">Возможно, файл содержит двоичные данные или повреждён. Показан исходный текст.</string>
+    <string name="viewer_warning_source_code">Не удалось подсветить синтаксис. Показан исходный текст.</string>
+    <string name="viewer_warning_markdown">Не удалось отобразить форматирование Markdown. Показан исходный текст.</string>
+
+    <!-- Редактор -->
+    <string name="editor_save">Сохранить</string>
+    <string name="editor_saved">Сохранено</string>
+    <string name="editor_save_as">Сохранить как</string>
+    <string name="editor_cannot_save_directly">Не удалось сохранить файл — сохранить копию?</string>
+    <string name="editor_cannot_save_encoding">Кодировка файла не распознана — сохранить копию?</string>
+    <string name="editor_tab_edit">Редактор</string>
+    <string name="editor_tab_preview">Предпросмотр</string>
+    <string name="editor_placeholder_markdown">Начните писать в Markdown…</string>
+    <string name="editor_placeholder_text">Начните вводить текст…</string>
+    <string name="editor_rendering_preview">Подготовка предпросмотра…</string>
+    <string name="editor_discard_title">Отменить изменения?</string>
+    <string name="editor_discard_body">Несохранённые изменения будут потеряны.</string>
+    <string name="editor_discard_confirm">Отменить изменения</string>
+    <string name="editor_error_file_too_large">Файл слишком большой для редактирования.</string>
+    <string name="editor_error_read_failed">Не удалось прочитать файл.</string>
+
+    <!-- Форматирование -->
+    <string name="format_bold">Полужирный</string>
+    <string name="format_italic">Курсив</string>
+    <string name="format_strikethrough">Зачёркнутый</string>
+    <string name="format_bullet_list">Маркированный список</string>
+    <string name="format_numbered_list">Нумерованный список</string>
+    <string name="format_horizontal_rule">Горизонтальная линия</string>
+    <string name="format_inline_code">Код в строке</string>
+    <string name="format_blockquote">Цитата</string>
+    <string name="format_link">Ссылка</string>
+
+    <!-- Настройки -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_selected">Выбрано</string>
+    <string name="settings_section_appearance">Оформление</string>
+    <string name="settings_section_reader">Чтение</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="settings_app_theme">Тема приложения</string>
+    <string name="settings_app_theme_subtitle">Общее оформление приложения</string>
+    <string name="settings_dynamic_colors">Динамические цвета</string>
+    <string name="settings_dynamic_colors_subtitle">Цвета приложения на основе обоев</string>
+    <string name="settings_reader_light_theme">Светлая тема чтения</string>
+    <string name="settings_reader_light_theme_subtitle">Для чтения в светлом режиме</string>
+    <string name="settings_reader_dark_theme">Тёмная тема чтения</string>
+    <string name="settings_reader_dark_theme_subtitle">Для чтения в тёмном режиме</string>
+    <string name="settings_reading_font">Шрифт для чтения</string>
+    <string name="settings_reading_font_subtitle">Шрифт текста и заголовков</string>
+    <string name="settings_code_font">Шрифт кода</string>
+    <string name="settings_code_font_subtitle">Шрифт блоков кода и исходного текста</string>
+    <string name="settings_font_size">Размер шрифта</string>
+    <string name="settings_font_size_value">%1$d sp</string>
+    <string name="settings_line_height">Межстрочный интервал</string>
+    <string name="settings_line_height_value">%1$s×</string>
+    <string name="settings_text_alignment">Выравнивание текста</string>
+    <string name="settings_text_alignment_subtitle">Расположение текста в абзацах</string>
+    <string name="settings_github">GitHub</string>
+    <string name="settings_app_description">Удобное чтение локальных файлов Markdown.</string>
+    <string name="settings_version">Версия %1$s (%2$d)</string>
+    <string name="settings_version_unknown">Версия неизвестна</string>
+
+    <!-- Предпросмотр настроек -->
+    <string name="settings_preview">Предпросмотр</string>
+    <string name="settings_preview_toggle">Переключить предпросмотр между светлой и тёмной темами чтения</string>
+    <string name="settings_preview_heading">Искусство чтения</string>
+    <string name="settings_preview_body">Удобное оформление текста превращает чтение длинных документов в удовольствие. Изменения применяются сразу.</string>
+
+    <!-- Варианты настроек -->
+    <string name="theme_mode_system">Как в системе</string>
+    <string name="theme_mode_light">Светлая</string>
+    <string name="theme_mode_dark">Тёмная</string>
+    <string name="alignment_left">По левому краю</string>
+    <string name="alignment_justified">По ширине</string>
+    <string name="reader_theme_light">Светлая</string>
+    <string name="reader_theme_dark">Тёмная</string>
+    <string name="reader_theme_amoled">AMOLED</string>
+    <string name="reader_theme_sepia">Сепия</string>
+    <string name="reading_font_system_serif">Системный с засечками</string>
+    <string name="code_font_system_mono">Системный моноширинный</string>
+</resources>
