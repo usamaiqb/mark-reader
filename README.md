@@ -9,6 +9,8 @@
 
 Read Markdown and source code on your phone, rendered the way it was meant to look, with a built-in editor for your notes. No ads, no tracking, no accounts, and no internet access.
 
+Also available on [desktop](https://github.com/usamaiqb/markreader-desktop).
+
 <p align="center">
   <a href="https://f-droid.org/packages/com.markreader/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80" /></a>
 </p>
