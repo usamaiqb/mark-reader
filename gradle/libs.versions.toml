@@ -20,6 +20,7 @@ navigationCompose = "2.8.5"
 lifecycle = "2.8.7"
 datastore = "1.1.1"
 splashscreen = "1.0.1"
+webkit = "1.12.1"
 material = "1.12.0"
 
 # Rendering. Both Prism4j coordinates must move together — the bundler is an annotation
@@ -52,6 +53,9 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+
+# WebViewAssetLoader, which serves the vendored renderer and document resources from one origin.
+androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 
 google-material = { module = "com.google.android.material:material", version.ref = "material" }
 

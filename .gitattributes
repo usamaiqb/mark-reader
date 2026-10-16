@@ -31,3 +31,13 @@ gradlew text eol=lf
 *.gif binary
 *.webp binary
 *.zip binary
+
+# Vendored document renderer — no line-ending conversion.
+#
+# These files are generated output, copied byte for byte from the desktop repo's `build:esm`
+# (see app/src/main/assets/renderer/MANIFEST.md), and Gradle packages them into the APK
+# verbatim. `* text=auto` above would give a Windows checkout CRLF and a Linux one LF, which
+# means two machines building the same commit produce different APKs — and F-Droid rebuilds
+# from source and compares against ours byte for byte. Two of the stylesheets are also
+# byte-identical copies of VS Code's, kept that way so they can be re-diffed upstream.
+app/src/main/assets/renderer/** -text

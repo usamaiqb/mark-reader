@@ -152,6 +152,8 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
+    implementation(libs.androidx.webkit)
+
     implementation(libs.markwon.core)
     implementation(libs.markwon.ext.tables)
     implementation(libs.markwon.syntax.highlight)

@@ -17,7 +17,19 @@ object DocumentTypeResolver {
      * are text is not a question a file name can answer. Callers holding the content
      * should use [resolve] instead.
      */
-    fun resolveFromHints(fileName: String, mimeType: String? = null): DocumentType {
+    fun resolveFromHints(fileName: String, mimeType: String? = null): DocumentType =
+        recognize(fileName, mimeType) ?: DocumentType.PlainText
+
+    /**
+     * As [resolveFromHints], but **null when neither hint places the file** rather than falling
+     * back to [DocumentType.PlainText].
+     *
+     * The difference matters to callers that must not treat "unknown" as text. A reader can open
+     * an unrecognised file as plain text and be right most of the time; something deciding
+     * whether to decode bytes or stream them cannot, because the unrecognised case there is a
+     * PNG, not a README.
+     */
+    fun recognize(fileName: String, mimeType: String? = null): DocumentType? {
         val name = fileName.substringAfterLast('/').lowercase()
         val extension = name.substringAfterLast('.', "")
         val byName = if (extension.isEmpty()) {
@@ -25,7 +37,7 @@ object DocumentTypeResolver {
         } else {
             byExtension(extension)
         }
-        return byName ?: byMimeType(mimeType) ?: DocumentType.PlainText
+        return byName ?: byMimeType(mimeType)
     }
 
     /**
@@ -73,7 +85,9 @@ object DocumentTypeResolver {
     private const val BINARY_SAMPLE_CHARS = 2000
     private const val BINARY_UNPRINTABLE_RATIO = 20
 
-    private val MARKDOWN_EXTENSIONS = setOf("md", "markdown", "mdown", "mkd", "mkdn")
+    private val MARKDOWN_EXTENSIONS = setOf(
+        "md", "markdown", "mdown", "mkd", "mkdn", "mdwn", "mdtxt", "mdtext", "workbook"
+    )
 
     private val CSV_EXTENSIONS = setOf("csv")
 

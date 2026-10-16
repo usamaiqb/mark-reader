@@ -1,0 +1,217 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* Copyright (c) 2026 DigiGate */
+
+/*---------------------------------------------------------------------------------------------
+ *  The document stylesheet MarkReader owns.
+ *
+ *  `markdown.css` and `highlight.css` are copied verbatim from VS Code and must stay
+ *  byte-identical, so they can be re-diffed when upstream moves. Every local deviation lives
+ *  here instead. `test/unit/vendored-files.test.ts` pins their hashes; if it fails because you
+ *  edited one of them, the edit belongs in this file.
+ *
+ *  Loaded after `markdown.css` and `theme.css`, and before `app.css`. It carries two kinds of
+ *  rule, kept in separate sections below:
+ *
+ *    1. Overrides of upstream — direction-awareness and mobile, neither of which VS Code's
+ *       stylesheets attempt. There is not one logical property in either of them, so this
+ *       section will keep growing. That is expected, not drift.
+ *    2. MarkReader's own document-level rules. These were in `app.css`, which is the desktop
+ *       chrome stylesheet — so a host loading only the document stylesheets got every mermaid
+ *       diagram followed by its own source, and permanently visible heading anchors. They
+ *       style elements `document.ts` creates, so they belong with the document.
+ *--------------------------------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------------------------
+ *  1. Overrides of the VS Code stylesheets
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * RTL: the blockquote rule at `markdown.css:397` is physical — `border-left-*` plus asymmetric
+ * `padding: 0px 16px 0 10px`. In an RTL document the bar lands on the wrong side. Neutralize
+ * the physical properties, then restate them as logical ones; the verbosity is the price of
+ * leaving the upstream file alone.
+ */
+blockquote {
+	padding-left: 0;
+	padding-right: 0;
+	padding-inline-start: 10px;
+	padding-inline-end: 16px;
+	border-left-width: 0;
+	border-inline-start-width: 5px;
+	border-inline-start-style: solid;
+}
+
+/* RTL: `markdown.css:384` pins table headers to the left, against the column text. */
+th {
+	text-align: start;
+}
+
+/*
+ * Mobile: upstream's `html, body { padding: 0 26px }` costs 52px of a phone's width. Only the
+ * inline padding is touched — `body { padding-top: 1em }` and the desktop toolbar offset in
+ * `app.css` both survive.
+ */
+@media (max-width: 600px) {
+	html,
+	body {
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+}
+
+/*---------------------------------------------------------------------------------------------
+ *  2. MarkReader's document-level rules
+ *--------------------------------------------------------------------------------------------*/
+
+/* Heading anchor links, in the style of the GitHub / docs convention. */
+.markdown-body :is(h1, h2, h3, h4, h5, h6) {
+	position: relative;
+}
+
+.heading-anchor {
+	position: absolute;
+	inset-inline-start: -0.85em;
+	width: 0.85em;
+	opacity: 0;
+	text-decoration: none;
+	color: var(--mr-description-foreground);
+	font-weight: 400;
+	cursor: pointer;
+}
+
+.markdown-body :is(h1, h2, h3, h4, h5, h6):hover > .heading-anchor {
+	opacity: 1;
+}
+
+.heading-anchor:hover {
+	text-decoration: none;
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Briefly flash a heading that was jumped to, so the target is obvious. */
+@keyframes mr-target-flash {
+	from { background-color: var(--mr-list-activeBackground); }
+	to { background-color: transparent; }
+}
+
+.mr-target-flash {
+	animation: mr-target-flash 1.2s ease-out;
+	border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------------- mermaid */
+
+.mermaid-block {
+	margin: 0 0 16px;
+	padding: 12px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+	background: var(--vscode-textCodeBlock-background);
+	overflow-x: auto;
+	text-align: center;
+}
+
+.mermaid-block > svg {
+	max-width: 100%;
+	height: auto;
+}
+
+/* Shown until mermaid has rendered, and kept if the diagram fails to parse. */
+.mermaid-block > .mermaid-fallback {
+	margin: 0;
+	border: 0;
+	background: transparent;
+	text-align: start;
+	white-space: pre-wrap;
+}
+
+.mermaid-block.rendered > .mermaid-fallback {
+	display: none;
+}
+
+.mermaid-block.failed {
+	border-color: var(--vscode-editorError-foreground);
+}
+
+.mermaid-block .mermaid-error {
+	margin-bottom: 6px;
+	color: var(--vscode-editorError-foreground);
+	text-align: start;
+	font-size: 0.9em;
+}
+
+/*
+ * Mobile: a diagram scaled to fit a phone is unreadable — the spike measured exactly this at
+ * 1080px. Below that width let it keep its natural size and scroll inside the block, which
+ * `.mermaid-block` is already set up for.
+ */
+@media (max-width: 600px) {
+	.mermaid-block > svg {
+		max-width: none;
+	}
+}
+
+/* ------------------------------------------------------------------------ katex */
+
+.katex-display {
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding: 2px 0;
+}
+
+.katex {
+	/* Inherit the document text color rather than KaTeX's own default. */
+	color: inherit;
+}
+
+.katex-error {
+	color: var(--vscode-editorError-foreground);
+}
+
+/* Task lists, which markdown-it emits as plain checkbox inputs. */
+.markdown-body input[type="checkbox"] {
+	margin: 0 0.35em 0.15em 0;
+	vertical-align: middle;
+}
+
+.markdown-body li:has(> input[type="checkbox"]) {
+	list-style: none;
+	margin-inline-start: -1.15em;
+}
+
+/* Tables scroll rather than forcing the page to scroll horizontally. */
+.markdown-body .table-wrapper {
+	overflow-x: auto;
+	margin-bottom: 0.7em;
+}
+
+.markdown-body .table-wrapper > table {
+	margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ front matter */
+
+/*
+ * VS Code's own front-matter rules live in `markdown.css` and stay there, untouched. These
+ * three override its physical properties with logical ones, so a front-matter table in an RTL
+ * document aligns and indents from the right — see `samples/rtl.md`.
+ *
+ * Overrides, not a copy. An earlier attempt moved the whole upstream block here and edited it,
+ * which left `markdown.css` 44 lines short of upstream and defeated the byte-identity the file
+ * exists for. `document-overrides.css` loads after `markdown.css`, so equal-specificity rules
+ * here win without `!important`.
+ */
+table.frontmatter th,
+table.frontmatter td {
+	text-align: start;
+}
+
+table.frontmatter td > ul {
+	padding-left: 0;
+	padding-inline-start: 1.2em;
+}
+
+.frontmatter-error {
+	border-left: 0;
+	border-inline-start: 4px solid var(--vscode-editorError-foreground, #f48771);
+}

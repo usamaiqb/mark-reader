@@ -2,6 +2,7 @@ package com.markreader.file
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,6 +13,25 @@ class DocumentTypeResolverTest {
         listOf("notes.md", "NOTES.MD", "readme.markdown", "a.mkd").forEach {
             assertEquals(it, DocumentType.Markdown, DocumentTypeResolver.resolveFromHints(it))
         }
+    }
+
+    /** The WebView host's resource table knew these four before the resolver did. */
+    @Test
+    fun `the less common markdown extensions resolve too`() {
+        listOf("a.mdwn", "a.mdtxt", "a.mdtext", "a.workbook").forEach {
+            assertEquals(it, DocumentType.Markdown, DocumentTypeResolver.resolveFromHints(it))
+        }
+    }
+
+    @Test
+    fun `recognize returns null where resolveFromHints assumes text`() {
+        assertNull(DocumentTypeResolver.recognize("photo.png"))
+        assertNull(DocumentTypeResolver.recognize("font.woff2"))
+        assertEquals(
+            DocumentType.PlainText,
+            DocumentTypeResolver.resolveFromHints("photo.png")
+        )
+        assertEquals(DocumentType.Markdown, DocumentTypeResolver.recognize("notes.md"))
     }
 
     @Test

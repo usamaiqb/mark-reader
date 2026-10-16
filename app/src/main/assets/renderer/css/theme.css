@@ -1,0 +1,159 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* Copyright (c) 2026 DigiGate */
+
+/*---------------------------------------------------------------------------------------------
+ *  The theme shim.
+ *
+ *  markdown.css and highlight.css are copied unmodified from VS Code, so they expect the
+ *  `--vscode-*` custom properties the workbench normally injects, plus a `vscode-light` /
+ *  `vscode-dark` class on the body. This file supplies both.
+ *
+ *  Values are taken from the Default Dark Modern and Default Light Modern themes.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---------------------------------------------------------------- dark (default) */
+body.vscode-dark {
+	--vscode-editor-background: #1f1f1f;
+	--vscode-editor-foreground: #cccccc;
+	--vscode-editor-font-family: "Cascadia Code", "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+
+	--vscode-textCodeBlock-background: #2b2b2b;
+	--vscode-textLink-foreground: #4daafc;
+	--vscode-textLink-activeForeground: #4daafc;
+	--vscode-textBlockQuote-background: #2b2b2b;
+	--vscode-textBlockQuote-border: #454545;
+	--vscode-textSeparator-foreground: #3d3d3d;
+
+	--vscode-widget-border: #3c3c3c;
+	--vscode-editorWidget-border: #454545;
+	--vscode-contrastBorder: transparent;
+
+	--vscode-editorError-foreground: #f48771;
+	--vscode-inputValidation-errorBackground: rgba(244, 135, 113, 0.1);
+
+	--vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+	--vscode-toolbar-activeBackground: rgba(99, 102, 103, 0.31);
+	--vscode-testing-iconPassed: #73c991;
+
+	--vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+	--vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+
+	/* Sidebar / chrome — MarkReader additions, same palette family */
+	--mr-sidebar-background: #181818;
+	--mr-sidebar-foreground: #cccccc;
+	--mr-chrome-border: #2b2b2b;
+	--mr-list-hoverBackground: #2a2d2e;
+	--mr-list-activeBackground: #04395e;
+	--mr-list-activeForeground: #ffffff;
+	--mr-description-foreground: #9d9d9d;
+	--mr-focus-border: #0078d4;
+
+	/*
+	 * Diff colors. The rules that consume these live in the copied markdown.css but never
+	 * match here, since MarkReader doesn't emit the diff markup. Defined so the file stays
+	 * byte-identical to upstream rather than needing edits.
+	 */
+	--vscode-diffEditor-insertedTextBackground: rgba(155, 185, 85, 0.2);
+	--vscode-diffEditor-removedTextBackground: rgba(255, 0, 0, 0.2);
+	--vscode-diffEditor-insertedTextBorder: rgba(155, 185, 85, 0.4);
+	--vscode-diffEditor-removedTextBorder: rgba(255, 0, 0, 0.4);
+	--vscode-diffEditorGutter-insertedLineBackground: #587c0c;
+	--vscode-diffEditorGutter-removedLineBackground: #94151b;
+	--vscode-editorGutter-modifiedBackground: #1b81a8;
+
+	color: var(--vscode-editor-foreground);
+	background-color: var(--vscode-editor-background);
+}
+
+/* ---------------------------------------------------------------- light */
+body.vscode-light {
+	--vscode-editor-background: #ffffff;
+	--vscode-editor-foreground: #3b3b3b;
+	--vscode-editor-font-family: "Cascadia Code", "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+
+	--vscode-textCodeBlock-background: #f3f3f3;
+	--vscode-textLink-foreground: #005fb8;
+	--vscode-textLink-activeForeground: #005fb8;
+	--vscode-textBlockQuote-background: #f8f8f8;
+	--vscode-textBlockQuote-border: #d4d4d4;
+	--vscode-textSeparator-foreground: #d4d4d4;
+
+	--vscode-widget-border: #e5e5e5;
+	--vscode-editorWidget-border: #d4d4d4;
+	--vscode-contrastBorder: transparent;
+
+	--vscode-editorError-foreground: #e51400;
+	--vscode-inputValidation-errorBackground: #f2dede;
+
+	--vscode-toolbar-hoverBackground: rgba(184, 184, 184, 0.31);
+	--vscode-toolbar-activeBackground: rgba(166, 166, 166, 0.31);
+	--vscode-testing-iconPassed: #007100;
+
+	--vscode-scrollbarSlider-background: rgba(100, 100, 100, 0.4);
+	--vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+
+	--mr-sidebar-background: #f8f8f8;
+	--mr-sidebar-foreground: #3b3b3b;
+	--mr-chrome-border: #e5e5e5;
+	--mr-list-hoverBackground: #e8e8e8;
+	--mr-list-activeBackground: #e4e6f1;
+	--mr-list-activeForeground: #3b3b3b;
+	--mr-description-foreground: #767676;
+	--mr-focus-border: #005fb8;
+
+	--vscode-diffEditor-insertedTextBackground: rgba(155, 185, 85, 0.2);
+	--vscode-diffEditor-removedTextBackground: rgba(255, 0, 0, 0.2);
+	--vscode-diffEditor-insertedTextBorder: rgba(155, 185, 85, 0.4);
+	--vscode-diffEditor-removedTextBorder: rgba(255, 0, 0, 0.4);
+	--vscode-diffEditorGutter-insertedLineBackground: #587c0c;
+	--vscode-diffEditorGutter-removedLineBackground: #94151b;
+	--vscode-editorGutter-modifiedBackground: #1b81a8;
+
+	color: var(--vscode-editor-foreground);
+	background-color: var(--vscode-editor-background);
+}
+
+/*
+ * Links. VS Code's markdown.css deliberately leaves link color to the workbench, so it
+ * has to be set here or anchors inherit the body color.
+ */
+body a,
+body a code {
+	color: var(--vscode-textLink-foreground);
+}
+
+body a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+/* Blockquotes, likewise unstyled for color upstream. */
+body blockquote {
+	background: var(--vscode-textBlockQuote-background);
+	border-color: var(--vscode-textBlockQuote-border);
+}
+
+/* Scrollbars, to match the workbench rather than the platform default. */
+::-webkit-scrollbar {
+	width: 14px;
+	height: 14px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border: 3px solid transparent;
+	background-clip: content-box;
+	border-radius: 7px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+	background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+	background: transparent;
+}

@@ -1,0 +1,117 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (c) 2026 DigiGate -->
+<!--
+	The Android host page — the counterpart of the desktop app's `src/renderer/index.html`,
+	and hand-written rather than generated. See MANIFEST.md for the boundary.
+
+	It is deliberately almost empty. Everything the desktop page carries as chrome — toolbar,
+	sidebar, outline pane, find bar, `app.css` — is Compose's job on Android, so the page is
+	the document container and nothing else. That makes it very close to the desktop repo's
+	`test/stub-host.html`, which is the point: the stub is the proof this page can exist.
+
+	It must stay in this directory, beside `css/`. `lazy.js` injects KaTeX's stylesheet at the
+	relative href `css/katex.css`, resolved against this page's URL.
+-->
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<!--
+		The Android half of the security work. Option 3 runs a script pipeline over untrusted
+		document content, which the Markwon reader could not; the desktop side of the answer
+		(DOMPurify, the scoped resource handler, the `openExternal` allowlist) ships in the
+		generated modules, and this policy plus `ExternalLinks.kt` are the parts only a host
+		can state.
+
+		Read against the desktop policy in `index.html`, two directives differ:
+
+		- **`img-src` and `media-src` omit `https:`.** The app declares no `INTERNET`
+		  permission and keeps it that way, so a remote image could not load regardless — but
+		  the omission is deliberate rather than incidental: a document that can fetch a remote
+		  URL can exfiltrate through it. Remote images therefore render broken on Android and
+		  load on desktop, an accepted cross-host difference. Revisit alongside the device
+		  checks in docs/plan/TESTING.md, not before.
+		- **No `mdr:` or `ipc:` origins.** This page is served by `WebViewAssetLoader` from its
+		  own origin, so document resources are same-origin (`/__mdr/…`) and `'self'` already
+		  covers them. That is also what lets `readFile` be a plain `fetch`.
+
+		`connect-src` is `'self'`, not `'none'`: `readFile` is that same-origin fetch. `'self'`
+		here is the asset-loader origin, which is intercepted on-device and reaches no network.
+
+		`'unsafe-inline'` in `style-src` is load-bearing — KaTeX, mermaid and the renderer's own
+		affordances all set inline styles, and CSP counts a `style` attribute as inline. There
+		is no `'unsafe-inline'` or `'unsafe-eval'` in `script-src`, which is the directive that
+		actually matters here: it is what stops a script the sanitizer somehow missed.
+	-->
+	<!-- Kept on one line: CSP tokenizes on whitespace, so wrapping it is legal, but a policy
+	     that silently fails to parse on some older WebView is a hole that looks like nothing. -->
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none';">
+
+	<title>MarkReader</title>
+
+	<!--
+		The document stylesheets, in the order the desktop page loads them. `app.css` is the
+		desktop chrome and is not vendored at all; `css/katex.css` is absent on purpose — it is
+		1.4 MB of stylesheet with its fonts inlined, and `lazy.js` injects it the first time a
+		document actually contains math.
+	-->
+	<link rel="stylesheet" href="css/markdown.css">
+	<link rel="stylesheet" href="css/highlight.css">
+	<link rel="stylesheet" href="css/theme.css">
+	<link rel="stylesheet" href="css/document-overrides.css">
+
+	<style>
+		/*
+		 * What `app.css` would otherwise give the document container, less everything that is
+		 * about desktop chrome. `markdown.css` already owns the inline padding and
+		 * `body { padding-top: 1em }`; this only removes the default margin under it.
+		 */
+		html,
+		body {
+			margin: 0;
+		}
+
+		/* WebView otherwise inflates text on a "wide" page, fighting the configured size. */
+		html {
+			-webkit-text-size-adjust: 100%;
+		}
+
+		/* Links are handled in JS, so the grey tap flash is feedback for nothing. */
+		body {
+			-webkit-tap-highlight-color: transparent;
+		}
+
+		/*
+		 * Before `applyTheme()` has run there is no `vscode-dark` / `vscode-light` class, and
+		 * `theme.css` hangs the background off those — so an unthemed body paints white, which
+		 * on a dark theme is a flash. Following the system preference covers the default
+		 * (`theme: 'system'`); a reader who has forced the other way in app settings still sees
+		 * one frame of the wrong colour. Painting the WebView's own background from the Compose
+		 * theme is the real fix and belongs with the collapsing-chrome work, not here.
+		 */
+		body:not(.vscode-dark):not(.vscode-light) {
+			background-color: #ffffff;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			body:not(.vscode-dark):not(.vscode-light) {
+				background-color: #1f1f1f;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<div class="markdown-body" dir="auto" id="markdown-body"></div>
+
+	<!--
+		One module, and no inline script anywhere on the page — which is what keeps `script-src`
+		free of `'unsafe-inline'`.
+	-->
+	<script type="module" src="android-host.js"></script>
+</body>
+
+</html>
