@@ -39,6 +39,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    androidResources {
+        // Lists the translated locales in the manifest, so Android 13+ offers a per-app language
+        // in system settings. The default locale is named in res/resources.properties.
+        generateLocaleConfig = true
+    }
+
     signingConfigs {
         if (releaseStoreFile != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null) {
             create("release") {
