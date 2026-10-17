@@ -68,7 +68,7 @@ internal class ReaderContentController(
 
     /** Content identity of the text currently applied to the views. */
     var lastTextHash: Int = 0
-    var lastTextRef: Any? = null
+    var lastTextRef: CharSequence? = null
 
     /** Styling currently applied to the views. */
     var lastStyleKey: ContentKey = UNSTYLED

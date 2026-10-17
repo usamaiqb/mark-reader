@@ -324,7 +324,7 @@ fun EditorScreen(
                             val previewScrollY = remember { mutableIntStateOf(0) }
                             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                 RenderedTextView(
-                                    text = previewText,
+                                    content = previewText,
                                     textColor = previewTextColor,
                                     padding = PaddingValues(0.dp),
                                     savedScrollY = previewScrollY,

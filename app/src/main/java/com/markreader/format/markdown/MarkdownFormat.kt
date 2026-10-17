@@ -63,7 +63,7 @@ class MarkdownFormat(private val newRenderer: (isDark: Boolean) -> MarkwonRender
     }
 
     override fun headings(text: String, content: ReaderContent): List<HeadingItem> =
-        parseHeadings(text, (content as? ReaderContent.Spans)?.spanned?.toString())
+        parseHeadings(text, (content as? ReaderContent.Spans)?.text?.toString())
 
     override fun invalidateRenderers() = renderers.clear()
 

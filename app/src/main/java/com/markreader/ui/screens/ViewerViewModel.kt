@@ -52,8 +52,8 @@ data class ViewerUiState(
     val isLoadingVisible: Boolean = false,
     val fileName: String = "",
     val rawText: String = "",
-    val rawHighlighted: Spanned? = null,
-    val rendered: Spanned? = null,
+    val rawHighlighted: ReaderContent? = null,
+    val rendered: ReaderContent? = null,
     val errorMessage: UiMessage? = null,
     val warningMessage: UiMessage? = null,
     val isEmptyFile: Boolean = false,
@@ -93,12 +93,12 @@ class ViewerViewModel(
     private var loadingJob: Job? = null
     private var rebuildJob: Job? = null
     private var searchJob: Job? = null
-    private var baseRendered: Spanned? = null
+    private var baseRendered: ReaderContent? = null
     private var renderDarkModeOverride: Boolean? = null
     private var preferencesLoaded = false
     private var pendingExternalRerender = initialUri != null
     private var renderCacheTextHash = 0
-    private val renderCache = mutableMapOf<RenderCacheKey, Spanned>()
+    private val renderCache = mutableMapOf<RenderCacheKey, ReaderContent>()
 
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
@@ -234,7 +234,7 @@ class ViewerViewModel(
             val theme = RenderTheme(
                 renderDarkModeOverride ?: isDarkTheme(_uiState.value.userPreferences, systemDarkTheme)
             )
-            val loaded = format?.load(markdown, theme).asSpans()
+            val loaded = format?.load(markdown, theme)
 
             if (format == null || loaded == null) {
                 loadingJob?.cancel()
@@ -263,15 +263,15 @@ class ViewerViewModel(
 
             val headings = format.headings(markdown, loaded)
             loadingJob?.cancel()
-            baseRendered = loaded.spanned
-            renderCache[RenderCacheKey(documentType, theme)] = loaded.spanned
+            baseRendered = loaded
+            renderCache[RenderCacheKey(documentType, theme)] = loaded
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 isLoadingVisible = false,
                 fileName = fileName,
                 rawText = markdown,
                 rawHighlighted = null,
-                rendered = loaded.spanned,
+                rendered = loaded,
                 errorMessage = null,
                 warningMessage = null,
                 headings = headings,
@@ -449,10 +449,10 @@ class ViewerViewModel(
             if (tryApplyCachedRender(documentType, theme)) {
                 return@launch
             }
-            val loaded = format.load(markdown, theme).asSpans() ?: return@launch
-            baseRendered = loaded.spanned
-            renderCache[RenderCacheKey(documentType, theme)] = loaded.spanned
-            _uiState.value = _uiState.value.copy(rendered = loaded.spanned)
+            val loaded = format.load(markdown, theme) ?: return@launch
+            baseRendered = loaded
+            renderCache[RenderCacheKey(documentType, theme)] = loaded
+            _uiState.value = _uiState.value.copy(rendered = loaded)
             applySearchQuery(_uiState.value.searchQuery)
         }
     }
@@ -544,12 +544,18 @@ class ViewerViewModel(
     private fun applySearchQuery(query: String) {
         val currentState = _uiState.value
         val activeViewMode = currentState.viewMode
+        // Search is span-based: it counts matches in a string and paints them with spans. That
+        // is a requirement of this implementation, not of the reader, so the narrowing lives
+        // here rather than at the format boundary — a rendered document that is not text has
+        // no offsets to walk and gets no matches. P6a hands the rendered view's search to the
+        // WebView's own find-in-page and this path keeps raw mode.
+        val renderedSpans = (baseRendered as? ReaderContent.Spans)?.text
         val baseText = when (activeViewMode) {
             ViewMode.Raw -> currentState.rawText
-            ViewMode.Rendered -> baseRendered?.toString().orEmpty()
+            ViewMode.Rendered -> renderedSpans?.toString().orEmpty()
         }
 
-        if (activeViewMode == ViewMode.Rendered && baseRendered == null) {
+        if (activeViewMode == ViewMode.Rendered && renderedSpans == null) {
             _matchOffsets = emptyList()
             _uiState.value = currentState.copy(
                 rawHighlighted = null,
@@ -577,7 +583,7 @@ class ViewerViewModel(
         _matchOffsets = offsets
 
         val highlighted = when (activeViewMode) {
-            ViewMode.Rendered -> SpannableString(baseRendered)
+            ViewMode.Rendered -> SpannableString(renderedSpans)
             ViewMode.Raw -> SpannableString(baseText)
         }
         val prefs = _uiState.value.userPreferences
@@ -639,14 +645,14 @@ class ViewerViewModel(
 
         _uiState.value = when (activeViewMode) {
             ViewMode.Rendered -> _uiState.value.copy(
-                rendered = highlighted,
+                rendered = ReaderContent.Spans(highlighted),
                 rawHighlighted = null,
                 searchMatchCount = offsets.size,
                 searchMatchIndex = if (offsets.isEmpty()) 0 else activeIndex
             )
             ViewMode.Raw -> _uiState.value.copy(
                 rendered = baseRendered,
-                rawHighlighted = highlighted,
+                rawHighlighted = ReaderContent.Spans(highlighted),
                 searchMatchCount = offsets.size,
                 searchMatchIndex = if (offsets.isEmpty()) 0 else activeIndex
             )
@@ -684,10 +690,3 @@ class ViewerViewModel(
         }
     }
 }
-
-/**
- * The reader surface still draws styled text and nothing else, so this is where the other two
- * [ReaderContent] shapes stop. P4 retypes the surface and this narrowing goes with it — until
- * then no format produces a [ReaderContent.Html] or [ReaderContent.Table] to lose.
- */
-private fun ReaderContent?.asSpans(): ReaderContent.Spans? = this as? ReaderContent.Spans

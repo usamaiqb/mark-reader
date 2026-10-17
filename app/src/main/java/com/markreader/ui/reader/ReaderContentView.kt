@@ -31,6 +31,7 @@ import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.format.HeadingItem
+import com.markreader.format.ReaderContent
 
 /**
  * A [ScrollView] that never scrolls itself to keep a focused descendant on screen.
@@ -82,7 +83,7 @@ private class FocusStableScrollView(context: Context) : ScrollView(context) {
 
 @Composable
 fun RenderedTextView(
-    text: Any,
+    content: ReaderContent,
     textColor: Int,
     padding: PaddingValues,
     /**
@@ -114,6 +115,14 @@ fun RenderedTextView(
     textAlignment: TextAlignmentPreference,
     codeBlockBackgroundColor: Int
 ) {
+    // The reader surface draws text and nothing else. The other two shapes have no producer
+    // yet — P6a hosts a WebView for [ReaderContent.Html], P5 draws [ReaderContent.Table]
+    // natively — and this `when` is exhaustive, so neither can start producing one without
+    // deciding here what the surface does with it.
+    val text: CharSequence = when (content) {
+        is ReaderContent.Spans -> content.text
+        is ReaderContent.Html, is ReaderContent.Table -> ""
+    }
     val contentKey = remember(text, fontSizeSp, lineHeight, readingFont, codeFont, isMonospaced, textAlignment) {
         ContentKey(
             textHash = text.hashCode(),
@@ -125,13 +134,17 @@ fun RenderedTextView(
             textAlignment = textAlignment
         )
     }
+    // Split mode gives code blocks and tables their own horizontally scrollable views, and it
+    // is driven by the marker spans the renderer left behind — so unstyled text can never be in
+    // it. That is the one place the narrowing genuinely belongs: not "what could this be", but
+    // "does this carry the markers the splitter reads".
+    val markers = text as? Spanned
     // Span scans over the whole document — cached per text, never per frame.
-    val docHasCodeBlocks = remember(text) { text is Spanned && hasCodeBlocks(text) }
-    val docHasTables = remember(text) { text is Spanned && hasTables(text) }
-    // Split mode gives code blocks and tables their own horizontally scrollable
-    // views. Only worth the cost when the document actually contains one.
-    val isSplitMode = remember(text, isCodeBlockWrapEnabled, docHasCodeBlocks, docHasTables) {
-        text is Spanned && ((!isCodeBlockWrapEnabled && docHasCodeBlocks) || docHasTables)
+    val docHasCodeBlocks = remember(markers) { markers != null && hasCodeBlocks(markers) }
+    val docHasTables = remember(markers) { markers != null && hasTables(markers) }
+    // Only worth the cost when the document actually contains one.
+    val isSplitMode = remember(markers, isCodeBlockWrapEnabled, docHasCodeBlocks, docHasTables) {
+        markers != null && ((!isCodeBlockWrapEnabled && docHasCodeBlocks) || docHasTables)
     }
     val restoreKey = remember(contentKey, isCodeBlockWrapEnabled) {
         RestoreKey(contentKey, isCodeBlockWrapEnabled)
@@ -317,7 +330,7 @@ fun RenderedTextView(
                 if (currentChild is LinearLayout) {
                     // Split mode
                     val container = currentChild
-                    val spanned = text as Spanned
+                    val spanned = markers ?: return@AndroidView
                     val textRefChanged = spanned !== controller.lastTextRef
                     val textHash = if (textRefChanged || controller.lastTextHash == 0) {
                         spanned.toString().hashCode()
@@ -522,24 +535,23 @@ fun RenderedTextView(
                     // Single-TV mode
                     val textView = currentChild as TextView
 
-                    when (text) {
-                        is Spanned -> {
-                            if (text !== controller.lastTextRef) {
-                                textView.text = text
-                                controller.lastTextHash = text.toString().hashCode()
-                                controller.lastTextRef = text
-                            }
+                    if (markers != null) {
+                        // Spans can change while the string does not — a search highlight
+                        // re-render is exactly that — so identity is the only safe test.
+                        if (text !== controller.lastTextRef) {
+                            textView.text = text
+                            controller.lastTextHash = text.toString().hashCode()
+                            controller.lastTextRef = text
                         }
-                        else -> {
-                            if (text !== controller.lastTextRef) {
-                                val textHash = text.hashCode()
-                                if (textHash != controller.lastTextHash) {
-                                    textView.text = text.toString()
-                                    controller.lastTextHash = textHash
-                                }
-                                controller.lastTextRef = text
-                            }
+                    } else if (text !== controller.lastTextRef) {
+                        // Nothing but characters, so equal content is the same render — and
+                        // no Spannable is allocated to draw it.
+                        val textHash = text.hashCode()
+                        if (textHash != controller.lastTextHash) {
+                            textView.text = text.toString()
+                            controller.lastTextHash = textHash
                         }
+                        controller.lastTextRef = text
                     }
                     if (controller.lastStyleKey != contentKey) {
                         applyStyleToTextView(

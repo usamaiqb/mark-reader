@@ -67,7 +67,7 @@ data class EditorUiState(
     val isModified: Boolean = false,
     val isSaving: Boolean = false,
     val saveResult: SaveResult? = null,
-    val previewText: android.text.Spanned? = null,
+    val previewText: ReaderContent? = null,
     /** Null once a document has loaded means it cannot be written back — see [SaveResult.UnknownEncoding]. */
     val encoding: TextEncoding? = null,
     val activeTab: EditorTab = EditorTab.Edit,
@@ -307,9 +307,8 @@ class EditorViewModel(
         }
         // The format owns the renderer and its per-theme cache, so the preview and the viewer
         // now render through one Markwon configuration rather than two built separately.
-        val content = format?.load(text, RenderTheme(isDark))
         _uiState.value = _uiState.value.copy(
-            previewText = (content as? ReaderContent.Spans)?.spanned
+            previewText = format?.load(text, RenderTheme(isDark))
         )
     }
 

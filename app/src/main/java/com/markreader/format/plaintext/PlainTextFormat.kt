@@ -1,6 +1,5 @@
 package com.markreader.format.plaintext
 
-import android.text.SpannableString
 import com.markreader.R
 import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
@@ -30,6 +29,8 @@ object PlainTextFormat : DocumentFormat {
     /** Nothing to fall back to: this format's rendering is its source. */
     override val renderFailureWarningRes: Int? = null
 
+    // Handed over as-is. [ReaderContent.Spans] takes a CharSequence precisely so that a format
+    // with no styling to add does not copy the whole document into a Spannable to say so.
     override suspend fun load(text: String, theme: RenderTheme): ReaderContent =
-        ReaderContent.Spans(SpannableString(text))
+        ReaderContent.Spans(text)
 }

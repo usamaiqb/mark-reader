@@ -119,6 +119,7 @@ import com.markreader.ui.components.SegmentPosition
 import com.markreader.ui.components.segmentPositionFor
 import com.markreader.ui.components.segmentShape
 import com.markreader.format.HeadingItem
+import com.markreader.format.ReaderContent
 import com.markreader.ui.export.ExportManager
 import com.markreader.ui.resolve
 import com.markreader.ui.reader.RenderedTextView
@@ -760,10 +761,12 @@ fun ViewerScreen(
                     }
                 }
                 else -> {
-                    val text = if (uiState.viewMode == ViewMode.Raw) {
-                        uiState.rawHighlighted ?: uiState.rawText
+                    // The fallback wraps the raw String rather than rendering it: no format
+                    // produced anything, so there is nothing to draw but the characters.
+                    val content = if (uiState.viewMode == ViewMode.Raw) {
+                        uiState.rawHighlighted ?: ReaderContent.Spans(uiState.rawText)
                     } else {
-                        uiState.rendered ?: uiState.rawText
+                        uiState.rendered ?: ReaderContent.Spans(uiState.rawText)
                     }
                     // A warning banner sits above the reader and outside its scroll
                     // container, so it takes the inset itself and the reader starts below
@@ -775,7 +778,7 @@ fun ViewerScreen(
                         topInset = if (hasWarning) chromeTopInset else 0.dp
                     ) {
                         RenderedTextView(
-                            text = text,
+                            content = content,
                             textColor = contentColor.toArgb(),
                             padding = PaddingValues(0.dp),
                             contentTopInset = if (hasWarning) 0.dp else chromeTopInset,
