@@ -121,7 +121,8 @@ fun RenderedTextView(
     // hidden behind an `else` so that a fourth shape still cannot be added without deciding what
     // happens here, and they draw nothing rather than throwing: a mis-routed document is a blank
     // reader, not a crashed one.
-    val text: CharSequence = when (content) {
+    val searchDecoration = (content as? ReaderContent.Spans)?.text as? NativeSearchText
+    val text: CharSequence = searchDecoration?.source ?: when (content) {
         is ReaderContent.Spans -> content.text
         is ReaderContent.Markdown, is ReaderContent.Table -> ""
     }
@@ -569,6 +570,18 @@ fun RenderedTextView(
                     if (controller.lastSelectionHighlightColor != selectionHighlightColor) {
                         textView.highlightColor = selectionHighlightColor
                         controller.lastSelectionHighlightColor = selectionHighlightColor
+                    }
+                }
+
+                // Search changes invalidate drawing only: never replace text, its spans,
+                // selection or Layout when moving between cached matches.
+                if (currentChild is SearchHighlightTextView) {
+                    currentChild.setSearchDecoration(searchDecoration)
+                } else if (currentChild is LinearLayout) {
+                    for (i in 0 until currentChild.childCount.coerceAtMost(controller.splitBoundaries.size)) {
+                        val boundary = controller.splitBoundaries[i]
+                        (extractTextView(currentChild.getChildAt(i)) as? SearchHighlightTextView)
+                            ?.setSearchDecoration(searchDecoration, boundary.start)
                     }
                 }
 

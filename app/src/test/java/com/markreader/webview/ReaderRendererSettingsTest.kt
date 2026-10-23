@@ -68,6 +68,22 @@ class ReaderRendererSettingsTest {
     }
 
     @Test
+    fun `code font preference reaches renderer independently of body font`() {
+        val bundled = settings(UserPreferences(codeFont = com.markreader.data.CodeFontPreference.JetBrainsMono))
+        val system = settings(UserPreferences(codeFont = com.markreader.data.CodeFontPreference.SystemMono))
+        assertTrue(bundled.codeFontFamily!!.startsWith("\"JetBrains Mono\""))
+        assertTrue(system.codeFontFamily!!.startsWith("\"Roboto Mono\""))
+        assertEquals(bundled.fontFamily, system.fontFamily)
+    }
+
+    @Test
+    fun `source document presentation is explicit not inferred from a single fence`() {
+        val source = rendererSettingsFor(UserPreferences(), false, true, sourceCode = true)
+        assertTrue(source.sourceCode)
+        assertEquals(false, settings().sourceCode)
+    }
+
+    @Test
     fun `the code block wrap toggle drives word wrap`() {
         assertTrue(settings(wrap = true).wordWrap)
         assertEquals(false, settings(wrap = false).wordWrap)

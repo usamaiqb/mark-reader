@@ -29,6 +29,8 @@ data class RendererSettings(
     val fontSize: Int? = null,
     val lineHeight: Int? = null,
     val fontFamily: String? = null,
+    val codeFontFamily: String? = null,
+    val sourceCode: Boolean = false,
 ) {
     internal fun toJson(): JSONObject = JSONObject().apply {
         put("theme", theme.wire)
@@ -36,5 +38,7 @@ data class RendererSettings(
         fontSize?.let { put("fontSize", it) }
         lineHeight?.let { put("lineHeight", it) }
         fontFamily?.let { put("fontFamily", it) }
+        codeFontFamily?.let { put("codeFontFamily", it) }
+        put("sourceCode", sourceCode)
     }
 }

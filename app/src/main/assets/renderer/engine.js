@@ -155,19 +155,12 @@ export class MarkdownItEngine {
             }
         };
     }
+    /** markdown-it calls this rule `fence`, not `fenced`. Preserve its escaping/highlighting. */
     #addFencedRenderer(md) {
-        const original = md.renderer.rules['fenced'];
-        md.renderer.rules['fenced'] = (tokens, idx, options, env, self) => {
-            const token = tokens[idx];
-            if (token.map?.length) {
-                token.attrJoin('class', 'hljs');
-            }
-            if (original) {
-                return original(tokens, idx, options, env, self);
-            }
-            else {
-                return self.renderToken(tokens, idx, options);
-            }
+        const original = md.renderer.rules.fence;
+        md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+            tokens[idx].attrJoin('class', 'hljs');
+            return original(tokens, idx, options, env, self);
         };
     }
     /**

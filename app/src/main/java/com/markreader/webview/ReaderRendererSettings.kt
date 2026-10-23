@@ -8,22 +8,15 @@ import kotlin.math.roundToInt
 /**
  * The reader's stored preferences, as the settings the renderer understands.
  *
- * Two of the app's settings do not survive the trip, and both are deliberate rather than
- * overlooked:
- *
- *  - **Sepia and AMOLED have no palette in the renderer.** It ships VS Code's two, `vscode-light`
- *    and `vscode-dark`, and [RendererTheme] says so. Sepia reads as light and AMOLED as dark
- *    until a third and fourth palette are written — and they belong in the *desktop* repo's
- *    `document-overrides.css`, since this app only vendors a copy of it.
- *  - **The bundled reading fonts are in `res/font/`**, which the page cannot reach: everything it
- *    loads comes through the asset loader. The families below still name Merriweather and
- *    JetBrains Mono first, so the mapping is already correct on the day the files are served —
- *    today CSS falls straight through them to the generic that follows.
+ * Bundled body and code fonts are served by the local asset loader. Code uses its own font
+ * preference rather than silently falling back to the document's reading font.
+ * Sepia currently maps to light and AMOLED to dark until dedicated palettes are provided.
  */
 fun rendererSettingsFor(
     preferences: UserPreferences,
     isDark: Boolean,
     isCodeBlockWrapEnabled: Boolean,
+    sourceCode: Boolean = false,
 ): RendererSettings {
     // `fontSize` and `lineHeight` are both CSS pixels over there, where the app holds a size in
     // sp and a *multiplier*. Sending the multiplier would be a line height of 2px.
@@ -35,6 +28,8 @@ fun rendererSettingsFor(
         fontSize = fontSize,
         lineHeight = lineHeight.coerceIn(MIN_LINE_HEIGHT, MAX_LINE_HEIGHT),
         fontFamily = readingStack(preferences.readingFont),
+        codeFontFamily = codeStack(preferences.codeFont),
+        sourceCode = sourceCode,
     )
 }
 
@@ -49,7 +44,7 @@ private fun readingStack(font: ReadingFontPreference): String = when (font) {
         "\"Merriweather Sans\", system-ui, \"Roboto\", \"Noto Sans\", sans-serif"
 }
 
-/** Unused until the fonts are served, and kept beside its sibling so the pair move together. */
+/** Code fonts are independent of the prose family, for both fences and whole source files. */
 internal fun codeStack(font: CodeFontPreference): String = when (font) {
     CodeFontPreference.JetBrainsMono -> "\"JetBrains Mono\", \"Roboto Mono\", monospace"
     CodeFontPreference.SystemMono -> "\"Roboto Mono\", monospace"

@@ -25,6 +25,7 @@ import { ensureMath, prepareForDocument } from './lazy.js';
 import { isMarkdownPath, samePath } from './paths.js';
 import { getPlugins } from './plugins.js';
 import { setDocumentHtml } from './sanitizer.js';
+import { enhanceCodeBlocks, enhanceTables, syncCodeWrapButtons } from './presentation.js';
 /** Distance from the top of the viewport at which a heading counts as "current". */
 const READING_LINE = 90;
 /** Headroom left above a revealed target, so it isn't flush against the top edge. */
@@ -182,8 +183,10 @@ export class DocumentView {
         });
         setDocumentHtml(this.root, output.html);
         this.addHeadingAnchors();
-        this.addCodeBlockCopyButtons();
-        this.wrapWideTables();
+        enhanceCodeBlocks(this.root, {
+            copyText: typeof this.host.copyText === 'function' ? text => this.host.copyText(text) : undefined,
+        });
+        enhanceTables(this.root);
         void this.renderMermaidBlocks();
         this.setHeadings(output.headings);
         this.refreshFind();
@@ -192,39 +195,6 @@ export class DocumentView {
         this.headings = headings;
         this.emit('headings', headings);
         this.updateActiveHeading();
-    }
-    /**
-     * Ported in spirit from preview-src/index.ts, which added the same affordance for
-     * copying fenced code. The button markup relies on `.code-block-copy-button` from
-     * the copied markdown.css.
-     */
-    addCodeBlockCopyButtons() {
-        for (const pre of this.root.querySelectorAll('pre')) {
-            if (pre.classList.contains('mermaid-fallback') || pre.querySelector('.code-block-copy-button')) {
-                continue;
-            }
-            const button = document.createElement('button');
-            button.className = 'code-block-copy-button';
-            button.title = 'Copy';
-            button.setAttribute('aria-label', 'Copy code block');
-            button.innerHTML = `<svg class="mr-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 3.5H3.5a1 1 0 0 0-1 1v7"/></svg>`;
-            button.addEventListener('click', async () => {
-                const code = pre.querySelector('code')?.textContent ?? pre.textContent ?? '';
-                try {
-                    await navigator.clipboard.writeText(code);
-                    button.classList.add('copied');
-                    button.title = 'Copied';
-                    setTimeout(() => {
-                        button.classList.remove('copied');
-                        button.title = 'Copy';
-                    }, 1400);
-                }
-                catch {
-                    // Clipboard can reject if the window isn't focused; nothing useful to do.
-                }
-            });
-            pre.appendChild(button);
-        }
     }
     addHeadingAnchors() {
         const selector = 'h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]';
@@ -239,18 +209,6 @@ export class DocumentView {
             anchor.title = 'Link to this section';
             anchor.setAttribute('aria-hidden', 'true');
             heading.insertBefore(anchor, heading.firstChild);
-        }
-    }
-    /** Wrap tables so an over-wide table scrolls itself instead of the page. */
-    wrapWideTables() {
-        for (const table of this.root.querySelectorAll('table')) {
-            if (table.parentElement?.classList.contains('table-wrapper') || table.classList.contains('frontmatter')) {
-                continue;
-            }
-            const wrapper = document.createElement('div');
-            wrapper.className = 'table-wrapper';
-            table.parentNode?.insertBefore(wrapper, table);
-            wrapper.appendChild(table);
         }
     }
     // ------------------------------------------------------------------------ mermaid
@@ -381,6 +339,8 @@ export class DocumentView {
     }
     setWordWrap(wrap) {
         this.themeRoot.classList.toggle('wordWrap', wrap);
+        for (const block of this.root.querySelectorAll('.code-block')) delete block.dataset.wrap;
+        syncCodeWrapButtons(this.root);
     }
     // --------------------------------------------------------------------------- find
     /** Called when the host's find affordance opens, so a stale query repaints. */
@@ -418,7 +378,7 @@ export class DocumentView {
         const walker = document.createTreeWalker(this.root, NodeFilter.SHOW_TEXT, {
             acceptNode: node => {
                 const parent = node.parentElement;
-                if (!parent || parent.closest('.heading-anchor, .code-block-copy-button, script, style')) {
+                if (!parent || parent.closest('.heading-anchor, .code-block-toolbar, .code-block-status, script, style')) {
                     return NodeFilter.FILTER_REJECT;
                 }
                 return node.nodeValue && node.nodeValue.trim().length > 0

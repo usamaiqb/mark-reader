@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.markreader.webview.RendererSettings
 import com.markreader.webview.WebViewDocumentHost
+import com.markreader.webview.WebViewHeading
+import com.markreader.webview.WebViewToc
 
 /**
  * The reader surface for [com.markreader.format.ReaderContent.Markdown]: the shared renderer,
@@ -66,6 +68,11 @@ fun WebViewReader(
      * when it goes.
      */
     contentTopInset: Dp = 0.dp,
+    searchQuery: String = "",
+    onSearchResult: (query: String, count: Int, index: Int) -> Unit = { _, _, _ -> },
+    onSearchNavigationReady: (((Boolean) -> Unit)?) -> Unit = {},
+    onTocChange: (WebViewToc) -> Unit = {},
+    onHeadingNavigationReady: (((WebViewHeading) -> Unit)?) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -75,6 +82,10 @@ fun WebViewReader(
     // from either would invalidate the composition on every document that renders.
     val restore = remember { ScrollRestore() }
     val unavailable by rememberUpdatedState(onRendererUnavailable)
+    val searchResult by rememberUpdatedState(onSearchResult)
+    val navigationReady by rememberUpdatedState(onSearchNavigationReady)
+    val tocChanged by rememberUpdatedState(onTocChange)
+    val headingNavigationReady by rememberUpdatedState(onHeadingNavigationReady)
     val host = remember {
         WebViewDocumentHost(
             context,
@@ -87,7 +98,16 @@ fun WebViewReader(
     restore.target = { savedScrollY.value }
 
     DisposableEffect(host) {
-        onDispose { host.destroy() }
+        navigationReady(host.findNext)
+        host.toc.onChanged = { tocChanged(it) }
+        headingNavigationReady(host.toc::reveal)
+        onDispose {
+            host.toc.onChanged = {}
+            headingNavigationReady(null)
+            tocChanged(WebViewToc())
+            navigationReady(null)
+            host.destroy()
+        }
     }
 
     // Adopting is what makes a virtual path resolvable, so it happens before the document is
@@ -102,6 +122,10 @@ fun WebViewReader(
     LaunchedEffect(host, virtualPath, source) {
         restore.arm()
         host.showDocument(virtualPath, source)
+    }
+
+    LaunchedEffect(host, searchQuery) {
+        host.setSearchQuery(searchQuery) { query, count, index -> searchResult(query, count, index) }
     }
 
     LaunchedEffect(host, settings) {

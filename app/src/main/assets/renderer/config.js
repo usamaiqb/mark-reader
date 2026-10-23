@@ -14,6 +14,8 @@ export const defaultConfig = {
     fontSize: 14,
     lineHeight: 22,
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif',
+    codeFontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
+    sourceCode: false,
     mathMacros: {},
 };
 let current = defaultConfig;
@@ -109,6 +111,8 @@ const validators = {
     fontSize: inRange(6, 96),
     lineHeight: inRange(8, 200),
     fontFamily: nonEmptyString,
+    codeFontFamily: nonEmptyString,
+    sourceCode: asBoolean,
     mathMacros: stringRecord,
 };
 /**

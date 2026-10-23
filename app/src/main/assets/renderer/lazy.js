@@ -21,6 +21,7 @@
  *  generosity, not the tightness.
  *--------------------------------------------------------------------------------------------*/
 import { getConfig } from './config.js';
+import { hasTexSyntax } from './math.js';
 import { isMathPluginLoaded, loadMathPlugin } from './plugins.js';
 let highlighter;
 /** The highlighter, if a document has needed it yet. The engine falls back to escaped text. */
@@ -28,15 +29,12 @@ export function getHighlighter() {
     return highlighter;
 }
 /**
- * Any `$` at all counts as math.
- *
- * A tighter rule would have to reimplement KaTeX's own delimiter matching to stay correct, and
- * getting it wrong means a document quietly renders `$x^2$` as text. Since KaTeX being loaded
- * is exactly the state every document was rendered in before, a false positive cannot change
- * output — so a document with a price in it loads KaTeX, and one with no `$` anywhere does not.
+ * Any `$`, TeX delimiter/command, or math fence counts as a possible math document.
+ * Detection deliberately over-loads; token rules decide whether prose is mathematical.
+ * All fonts are already embedded as data URLs in css/katex.css (no network dependency).
  */
 function needsMath(text) {
-    return text.includes('$') || /^\s*(```|~~~)\s*math/m.test(text);
+    return text.includes('$') || hasTexSyntax(text) || /^\s*(```|~~~)\s*math/m.test(text);
 }
 /**
  * A fence, or front matter — which the `codeBlock` render style highlights as YAML.

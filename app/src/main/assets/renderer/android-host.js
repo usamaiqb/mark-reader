@@ -31,6 +31,9 @@
 import { getConfig, parseConfig, setConfig, setHostDefaults } from './config.js';
 import { DocumentView } from './document.js';
 import { NO_CAPABILITIES } from './host.js';
+import { createSearchRenderNotifier } from './search.js';
+import { createClipboardBridge } from './clipboard.js';
+import { createTocController } from './toc.js';
 import { asLocalResourceUri, setResourceOrigin } from './util.js';
 
 /**
@@ -49,11 +52,17 @@ const RESOURCE_PREFIX = '/__mdr';
 const NO_BRIDGE = {
 	ready: () => console.warn('[host] no Kotlin bridge; running detached'),
 	rendered: path => console.info('[host] rendered', path),
+	searchRendered: () => {},
 	openPath: path => console.info('[host] openPath', path),
 	openExternal: url => console.info('[host] openExternal', url),
 };
 
 const bridge = window.__mdrHost ?? NO_BRIDGE;
+const clipboard = createClipboardBridge((id, text) => {
+	if (typeof bridge.copyText !== 'function') throw new Error('Native clipboard unavailable');
+	bridge.copyText(id, text);
+});
+window.addEventListener('pagehide', () => clipboard.dispose());
 
 // The host knows its own origin and says so, rather than being sniffed for. Whatever is set
 // here has to be reachable under the page's CSP — it is, as `'self'`.
@@ -114,6 +123,8 @@ const host = {
 		bridge.openExternal(url);
 	},
 
+	copyText: text => clipboard.copyText(text),
+
 	// showInFolder: deliberately absent.
 };
 
@@ -143,6 +154,17 @@ const view = new DocumentView({
  * landed. Two frames after the render, they have. That is the signal a loading state is
  * dismissed on, and the one the spike measured first paint with.
  */
+const toc = createTocController({
+	root: document.getElementById('markdown-body'),
+	notify: json => bridge.tocChanged?.(json),
+});
+view.on('headings', headings => toc.rendered(headings));
+view.on('activeHeading', slug => toc.active(slug));
+const searchRender = createSearchRenderNotifier(() => bridge.searchRendered());
+// `headings` is emitted on every render, not only when a different document opens.
+view.on('headings', () => searchRender.rendered());
+window.addEventListener('pagehide', () => searchRender.dispose(), { once: true });
+
 view.on('document', doc => {
 	if (doc) {
 		requestAnimationFrame(() => requestAnimationFrame(() => bridge.rendered(doc.path)));
@@ -160,6 +182,9 @@ view.on('document', doc => {
 function applyTypography() {
 	const config = getConfig();
 	const style = document.documentElement.style;
+	document.body.style.setProperty('--vscode-editor-font-family', config.codeFontFamily);
+	document.body.style.setProperty('--markdown-code-font-family', config.codeFontFamily);
+	document.body.classList.toggle('source-document', config.sourceCode === true);
 	style.setProperty('--markdown-font-size', `${config.fontSize}px`);
 	style.setProperty('--markdown-line-height', `${config.lineHeight}px`);
 	style.setProperty('--markdown-font-family', config.fontFamily);
@@ -174,12 +199,19 @@ const RENDER_SETTINGS = ['frontMatter'];
 // -------------------------------------------------------------- the page's own surface
 
 const page = {
+	completeCopy(json) {
+		clipboard.complete(json);
+	},
+	revealHeading(json) {
+		toc.reveal(json);
+	},
 	/**
 	 * @param json {string} a JSON `{ path, text, rootPath?, preserveScroll? }`. Kotlin hands it
 	 *   across as a string rather than an expression, so nothing is injected into the page.
 	 */
 	showDocument(json) {
 		const payload = JSON.parse(json);
+		toc.begin(payload.tocGeneration);
 		// Root-relative links (`/README.md`) resolve against the folder, when there is one.
 		view.setRootPath(payload.rootPath ?? undefined);
 		view.setDocument(

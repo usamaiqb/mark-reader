@@ -30,6 +30,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
+      - name: Run renderer and search regression tests
+        run: |
+          node --test scripts/*.test.mjs
+          node --experimental-default-type=module tests/renderer/math.test.mjs
+          node --experimental-default-type=module tests/renderer/presentation.test.mjs
+
       - name: Run unit tests
         run: ./gradlew test
 
@@ -46,3 +52,28 @@ jobs:
       # every PR instead of only at tag-cut time.
       - name: Build release APK (unsigned, validates R8)
         run: ./gradlew assembleRelease
+
+  browser:
+    name: Mobile & desktop renderer interactions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install pinned browser test dependency
+        run: |
+          npm install --prefix "$RUNNER_TEMP/renderer-tests" --no-audit --no-fund playwright-core@1.56.1
+          "$RUNNER_TEMP/renderer-tests/node_modules/.bin/playwright-core" install --with-deps chromium
+      - name: Verify tables, code, clipboard, wrap and offline fonts
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/renderer-evidence
+        run: |
+          python3 -m http.server 8766 > "$RUNNER_TEMP/renderer-server.log" 2>&1 &
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/renderer-tests/node_modules/playwright-core/index.mjs" node --experimental-default-type=module tests/renderer/presentation.e2e.mjs
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/renderer-tests/node_modules/playwright-core/index.mjs" node --experimental-default-type=module tests/renderer/math-toc.e2e.mjs
+      - name: Save visual verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: renderer-browser-evidence
+          path: ${{ runner.temp }}/renderer-evidence
+          if-no-files-found: warn

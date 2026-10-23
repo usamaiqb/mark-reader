@@ -7,6 +7,7 @@
  *  derives from and how much it changed.
  *--------------------------------------------------------------------------------------------*/
 import { getConfig } from './config.js';
+import { extendedMathPlugin } from './math.js';
 /**
  * KaTeX, loaded only once a document turns out to contain math — it is one of the two heaviest
  * things in the graph. See `lazy.ts` for why that decision is made before rendering rather
@@ -46,13 +47,17 @@ function mathPlugin(md) {
     const options = {
         enableFencedBlocks: true,
         globalGroup: true,
+        trust: false,
+        maxExpand: 1000,
+        maxSize: 100,
+        throwOnError: false,
         macros: { ...getConfig().mathMacros },
     };
     md.core.ruler.push('reset-katex-macros', () => {
         options.macros = { ...getConfig().mathMacros };
         return true;
     });
-    return md.use(katexPlugin, options);
+    return md.use(katexPlugin, options).use(extendedMathPlugin);
 }
 /**
  * Renders `- [ ]` / `- [x]` list items as checkboxes.

@@ -1,6 +1,8 @@
 package com.markreader.webview
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.net.Uri
@@ -115,7 +117,51 @@ class WebViewDocumentHost(
 
     private var destroyed = false
 
-    val webView: WebView = createWebView()
+    @SuppressLint("SetJavaScriptEnabled") // The point of option 3; see the class comment.
+    val webView: WebView = run {
+        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            // What the three device checks owed before the first option-3 release are run with.
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
+        WebView(context).apply {
+            // On, and only here. ExportManager keeps it false for PDF export, over HTML it built
+            // itself from commonmark; these two WebViews want opposite settings.
+            settings.javaScriptEnabled = true
+
+            // Everything local is reachable through the asset loader or not at all. The two
+            // file-URL settings are no-ops from API 30 but minSdk is 24.
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            @Suppress("DEPRECATION")
+            settings.allowFileAccessFromFileURLs = false
+            @Suppress("DEPRECATION")
+            settings.allowUniversalAccessFromFileURLs = false
+
+            // The page stores nothing. Reading state is the app's, in DataStore.
+            settings.domStorageEnabled = false
+            settings.setGeolocationEnabled(false)
+            settings.mediaPlaybackRequiresUserGesture = true
+
+            // Pinch zoom was removed from the reader deliberately; the WebView follows.
+            settings.setSupportZoom(false)
+            settings.builtInZoomControls = false
+
+            // `textZoom` is deliberately left alone: it is where the platform's font-size
+            // accessibility setting lands, and pinning it to 100 would discard that.
+
+            // `blockNetworkLoads` is deliberately not set. It would be belt over the braces of
+            // having no INTERNET permission at all, and it is one more thing that could turn the
+            // asset-loader origin into a blank page on some WebView build.
+
+            webViewClient = HostPageClient()
+            webChromeClient = HostPageChromeClient()
+            addJavascriptInterface(Bridge(), BRIDGE_NAME)
+        }
+    }
+
+    private val searchController = WebViewSearchController(webView, scope)
+    val toc = WebViewTocController(::call)
 
     init {
         webView.loadUrl(PAGE_URL)
@@ -179,6 +225,8 @@ class WebViewDocumentHost(
         rootPath: String? = null,
         preserveScroll: Boolean = false,
     ) {
+        searchController.invalidateDocument()
+        val tocGeneration = toc.invalidate()
         scope.launch(Dispatchers.Main) {
             val read = withContext(Dispatchers.IO) {
                 runCatching { space.readText(virtualPath) }
@@ -193,6 +241,7 @@ class WebViewDocumentHost(
             call(
                 "showDocument",
                 JSONObject()
+                    .put("tocGeneration", tocGeneration)
                     .put("path", virtualPath)
                     .put("text", text)
                     .put("rootPath", rootPath ?: JSONObject.NULL)
@@ -219,11 +268,14 @@ class WebViewDocumentHost(
         rootPath: String? = null,
         preserveScroll: Boolean = false,
     ) {
+        searchController.invalidateDocument()
+        val tocGeneration = toc.invalidate()
         scope.launch(Dispatchers.Main) {
             pageReady.await()
             call(
                 "showDocument",
                 JSONObject()
+                    .put("tocGeneration", tocGeneration)
                     .put("path", virtualPath)
                     .put("text", text)
                     .put("rootPath", rootPath ?: JSONObject.NULL)
@@ -256,8 +308,16 @@ class WebViewDocumentHost(
         }
     }
 
+    /** Debounced, latest-wins rendered-text search. All entry points run on the UI thread. */
+    fun setSearchQuery(query: String, onResult: (String, Int, Int) -> Unit) =
+        searchController.setSearchQuery(query, onResult)
+
+    /** Native findNext wraps and scrolls using the existing native match cache. */
+    val findNext: (Boolean) -> Unit = searchController::findNext
+
     fun destroy() {
         destroyed = true
+        searchController.destroy()
         webView.removeJavascriptInterface(BRIDGE_NAME)
         webView.destroy()
     }
@@ -280,49 +340,6 @@ class WebViewDocumentHost(
     }
 
     // -------------------------------------------------------------------- the WebView
-
-    @SuppressLint("SetJavaScriptEnabled") // The point of option 3; see the class comment.
-    private fun createWebView(): WebView {
-        if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
-            // What the three device checks owed before the first option-3 release are run with.
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
-
-        return WebView(context).apply {
-            // On, and only here. ExportManager keeps it false for PDF export, over HTML it built
-            // itself from commonmark; these two WebViews want opposite settings.
-            settings.javaScriptEnabled = true
-
-            // Everything local is reachable through the asset loader or not at all. The two
-            // file-URL settings are no-ops from API 30 but minSdk is 24.
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            @Suppress("DEPRECATION")
-            settings.allowFileAccessFromFileURLs = false
-            @Suppress("DEPRECATION")
-            settings.allowUniversalAccessFromFileURLs = false
-
-            // The page stores nothing. Reading state is the app's, in DataStore.
-            settings.domStorageEnabled = false
-            settings.setGeolocationEnabled(false)
-            settings.mediaPlaybackRequiresUserGesture = true
-
-            // Pinch zoom was removed from the reader deliberately; the WebView follows.
-            settings.setSupportZoom(false)
-            settings.builtInZoomControls = false
-
-            // `textZoom` is deliberately left alone: it is where the platform's font-size
-            // accessibility setting lands, and pinning it to 100 would discard that.
-
-            // `blockNetworkLoads` is deliberately not set. It would be belt over the braces of
-            // having no INTERNET permission at all, and it is one more thing that could turn the
-            // asset-loader origin into a blank page on some WebView build.
-
-            webViewClient = HostPageClient()
-            webChromeClient = HostPageChromeClient()
-            addJavascriptInterface(Bridge(), BRIDGE_NAME)
-        }
-    }
 
     private inner class HostPageClient : WebViewClient() {
 
@@ -409,6 +426,24 @@ class WebViewDocumentHost(
         @JavascriptInterface
         fun rendered(virtualPath: String) = fromHostPage { onDocumentRendered(virtualPath) }
 
+        /** Called after every renderer heading or active-section update. */
+        @JavascriptInterface
+        fun tocChanged(json: String) = fromHostPage { toc.receive(json) }
+
+        /** Called after every renderer layout, including same-document settings re-renders. */
+        @JavascriptInterface
+        fun searchRendered() = fromHostPage { searchController.rendered() }
+
+        @JavascriptInterface
+        fun copyText(requestId: String, text: String) = fromHostPage {
+            if (requestId.length > MAX_COPY_ID_LENGTH) return@fromHostPage
+            val success = text.length <= MAX_COPY_CHARS && runCatching {
+                val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                manager.setPrimaryClip(ClipData.newPlainText("Code", text))
+            }.isSuccess
+            call("completeCopy", JSONObject().put("id", requestId).put("ok", success))
+        }
+
         @JavascriptInterface
         fun openPath(virtualPath: String) = fromHostPage { openDocument(virtualPath) }
 
@@ -427,7 +462,7 @@ class WebViewDocumentHost(
          */
         private inline fun fromHostPage(crossinline action: () -> Unit) {
             scope.launch(Dispatchers.Main) {
-                if (webView.url?.startsWith(PAGE_URL) == true) {
+                if (!destroyed && webView.url?.substringBefore('#') == PAGE_URL) {
                     action()
                 }
             }
@@ -442,6 +477,8 @@ class WebViewDocumentHost(
 
         const val PAGE_URL = "$ORIGIN${ASSETS_PREFIX}renderer/android-host.html"
 
+        const val MAX_COPY_CHARS = 2_000_000
+        const val MAX_COPY_ID_LENGTH = 32
         const val BRIDGE_NAME = "__mdrHost"
 
         /**

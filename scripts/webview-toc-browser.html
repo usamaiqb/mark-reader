@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>Markdown DOM TOC regression</title>
+<style>body{margin:0}#markdown-body p{margin:20px 0;line-height:24px}</style>
+<pre id="result">Running…</pre><main id="markdown-body"></main>
+<script type="module">
+import { DocumentView } from '../app/src/main/assets/renderer/document.js';
+import { createTocController } from '../app/src/main/assets/renderer/toc.js';
+const root = document.getElementById('markdown-body');
+const messages=[];
+const toc=createTocController({root,notify:s=>messages.push(JSON.parse(s)),getInset:()=>80});
+toc.begin(1);
+const view=new DocumentView({root,host:{capabilities:{},openExternal:async()=>{},openPath:async()=>{}}});
+view.on('headings',h=>toc.rendered(h)); view.on('activeHeading',s=>toc.active(s));
+const frame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+const check=(condition,message)=>{if(!condition)throw Error(message)};
+try {
+ await view.setDocumentAsync({path:'/test.md',text:'# **Formatted** `code`\n\n## **Formatted** `code`\n\n'+('filler\n\n'.repeat(300))+'### Late *heading*\n\n#### Four\n\n##### Five\n\n###### Six\n\n'+('tail\n\n'.repeat(100))},{});
+ await frame();
+ const headings=messages.at(-1).headings;
+ check(headings.length===6,'all six levels');
+ check(headings[0].text==='Formatted code','formatted text');
+ check(headings[0].slug!==headings[1].slug,'unique repeated slug');
+ const results=[];
+ for(const index of [1,2]){
+  const item=headings[index];
+  const node=Array.from(root.querySelectorAll('h1,h2,h3,h4,h5,h6')).find(n=>n.id===item.slug);
+  if(index===2){ const spacer=document.createElement('div'); spacer.style.height='3500px'; node.before(spacer); }
+  check(toc.reveal(JSON.stringify({generation:1,slug:item.slug})),'target accepted');
+  await frame();
+  const top=node.getBoundingClientRect().top;
+  check(Math.abs(top-92)<2,'actual DOM target below chrome');
+  results.push({slug:item.slug,top,scrollY:window.scrollY});
+ }
+ check(!toc.reveal('{"generation":0,"slug":"late-heading"}'),'stale generation rejected');
+ window.tocTestResult={pass:true,headings,results};
+}catch(e){window.tocTestResult={pass:false,error:String(e)};}
+document.getElementById('result').textContent=JSON.stringify(window.tocTestResult,null,2);
+</script>
