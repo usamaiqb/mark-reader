@@ -48,6 +48,22 @@ class ViewerChoicesTest {
     }
 
     @Test
+    fun `the fallback keeps its search highlighting, as raw mode does`() {
+        // The source is on screen either way, so a search over the source has to be able to
+        // paint it either way. It used to draw the unmarked text and report matches nobody
+        // could see.
+        val content = readerContentFor(
+            isRawMode = false,
+            rawText = "# source",
+            rawHighlighted = highlighted,
+            rendered = rendered,
+            rendererUnavailable = true
+        )
+
+        assertSame(highlighted, content)
+    }
+
+    @Test
     fun `raw mode keeps its search highlighting, renderer or not`() {
         for (unavailable in listOf(false, true)) {
             val content = readerContentFor(
@@ -73,6 +89,54 @@ class ViewerChoicesTest {
         )
 
         assertEquals(ReaderContent.Spans("# source"), content)
+    }
+
+    // --------------------------------------------------------------- which surface is drawing
+
+    @Test
+    fun `only a rendered Markdown document with a working renderer is drawn by the page`() {
+        assertTrue(
+            isDrawnByPage(isRawMode = false, rendered = rendered, rendererUnavailable = false)
+        )
+        assertFalse(
+            isDrawnByPage(isRawMode = true, rendered = rendered, rendererUnavailable = false)
+        )
+        assertFalse(
+            isDrawnByPage(isRawMode = false, rendered = rendered, rendererUnavailable = true)
+        )
+        // A format that produced text, or nothing at all, is drawn by a TextView.
+        assertFalse(
+            isDrawnByPage(isRawMode = false, rendered = highlighted, rendererUnavailable = false)
+        )
+        assertFalse(
+            isDrawnByPage(isRawMode = false, rendered = null, rendererUnavailable = false)
+        )
+    }
+
+    @Test
+    fun `the surface test agrees with what is drawn, in every combination`() {
+        // The two are read for different reasons — one routes a search, the other picks a view —
+        // and a disagreement between them is a search running against a surface that is not
+        // there. Asserted rather than assumed, across the whole input space.
+        for (isRawMode in listOf(false, true)) {
+            for (unavailable in listOf(false, true)) {
+                for (produced in listOf(rendered, highlighted, null)) {
+                    val content = readerContentFor(
+                        isRawMode = isRawMode,
+                        rawText = "# source",
+                        rawHighlighted = null,
+                        rendered = produced,
+                        rendererUnavailable = unavailable
+                    )
+
+                    assertEquals(
+                        "isRawMode=$isRawMode unavailable=$unavailable rendered=$produced",
+                        content is ReaderContent.Markdown,
+                        isDrawnByPage(isRawMode, produced, unavailable)
+                    )
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------- what it is called

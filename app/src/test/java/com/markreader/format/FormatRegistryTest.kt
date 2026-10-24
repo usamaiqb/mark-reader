@@ -82,16 +82,6 @@ class FormatRegistryTest {
     }
 
     @Test
-    fun `only formats with headings produce any`() {
-        val content = ReaderContent.Table(emptyList())
-        assertEquals(emptyList<HeadingItem>(), PlainTextFormat.headings("# Heading", content))
-        assertEquals(
-            emptyList<HeadingItem>(),
-            registry.formatFor(DocumentType.SourceCode("kotlin"))!!.headings("# Heading", content)
-        )
-    }
-
-    @Test
     fun `invalidation reaches every format the registry has handed out`() {
         val recording = RecordingFormat()
         val withRecording = FormatRegistry(recording)

@@ -21,8 +21,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.markreader.webview.HeadingItem
+import com.markreader.webview.PageCommand
 import com.markreader.webview.RendererSettings
 import com.markreader.webview.WebViewDocumentHost
+import kotlinx.coroutines.flow.Flow
 
 /**
  * The reader surface for [com.markreader.format.ReaderContent.Markdown]: the shared renderer,
@@ -38,6 +41,11 @@ import com.markreader.webview.WebViewDocumentHost
  * resume position keep working. Making the chrome *collapse* over it — nested scroll, which a
  * WebView makes materially harder than the native container that design was written for — is
  * planned separately.
+ *
+ * Search and the table of contents cross here in both directions, because both belong to the
+ * rendering and the rendering is in the page: requests go in through [commands], and the page
+ * reports its outline, the heading being read and its match count back out. Compose draws all
+ * three — the WebView draws no chrome of its own.
  *
  * The host owns a WebView, which outlives its Activity if nobody says otherwise, so it is
  * destroyed on dispose and the document is dropped from the path space with it.
@@ -58,6 +66,20 @@ fun WebViewReader(
      * way. Carries the WebView version when known.
      */
     onRendererUnavailable: (webViewVersion: String?) -> Unit,
+    /**
+     * Search and outline requests, from the chrome that draws them.
+     *
+     * A flow rather than parameters because these are requests, not state: "next match" has no
+     * value to hold. Collected for as long as this reader is composed, which is also as long as
+     * the page it drives exists.
+     */
+    commands: Flow<PageCommand>,
+    /** The document's outline, as the page rendered it. */
+    onOutlineChange: (List<HeadingItem>) -> Unit,
+    /** The heading being read, by slug, or null in a document with no headings. */
+    onActiveHeadingChange: (slug: String?) -> Unit,
+    /** Which match the page's find is on, and how many there are. An index of -1 means none. */
+    onFindStateChange: (index: Int, total: Int) -> Unit,
     modifier: Modifier = Modifier,
     /**
      * Chrome drawn over the reader. Pushed into the page as document padding rather than applied
@@ -74,13 +96,21 @@ fun WebViewReader(
     // length: this is written from a WebView callback and read from another, and a snapshot write
     // from either would invalidate the composition on every document that renders.
     val restore = remember { ScrollRestore() }
+    // The host is remembered, so it would otherwise hold whichever callbacks the first
+    // composition happened to pass.
     val unavailable by rememberUpdatedState(onRendererUnavailable)
+    val outlineChanged by rememberUpdatedState(onOutlineChange)
+    val activeHeadingChanged by rememberUpdatedState(onActiveHeadingChange)
+    val findStateChanged by rememberUpdatedState(onFindStateChange)
     val host = remember {
         WebViewDocumentHost(
             context,
             scope,
             onDocumentRendered = { restore.run() },
             onRendererUnavailable = { unavailable(it) },
+            onOutlineChanged = { outlineChanged(it) },
+            onActiveHeadingChanged = { activeHeadingChanged(it) },
+            onFindStateChanged = { index, total -> findStateChanged(index, total) },
         )
     }
     restore.webView = host.webView
@@ -110,6 +140,10 @@ fun WebViewReader(
 
     LaunchedEffect(host, contentTopInset) {
         host.applyContentInset(contentTopInset.value)
+    }
+
+    LaunchedEffect(host, commands) {
+        commands.collect { command -> host.send(command) }
     }
 
     Box(

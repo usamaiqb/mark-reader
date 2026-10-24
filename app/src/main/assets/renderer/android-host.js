@@ -8,15 +8,17 @@
  *
  *    1. installs `window.markreader` as a `DocumentHost`, on top of the `@JavascriptInterface`
  *       object Kotlin injects as `__mdrHost`;
- *    2. builds the one `DocumentView` this page holds;
+ *    2. builds the one `DocumentView` this page holds, and forwards the events Compose has to
+ *       draw from — the outline, the active heading, the match count — out through `__mdrHost`;
  *    3. exposes `window.__mdrPage` for Kotlin to drive through `evaluateJavascript`.
  *
  *  **The two directions are deliberately separate objects.** `window.markreader` is the
  *  contract in `host.ts` — the narrow surface the shared document module is allowed to assume,
  *  which on Android is `capabilities`, `openExternal`, `openPath` and `readFile`. `__mdrPage`
- *  is this page's own control surface, which is nobody's contract and can change freely. The
- *  desktop bridge conflates them because there the shell *is* the page; here the shell is
- *  Compose, so keeping them apart is what stops app concerns leaking into the host contract.
+ *  is this page's own control surface, which is nobody's contract and can change freely, and the
+ *  event forwarding above is its inbound half and equally ours to change. The desktop bridge
+ *  conflates them because there the shell *is* the page; here the shell is Compose, so keeping
+ *  them apart is what stops app concerns leaking into the host contract.
  *
  *  `showInFolder` is absent, not stubbed. Android has no file manager to reveal into, and the
  *  contract says a host that cannot do something omits it — `capabilitiesOf()` then reports
@@ -51,6 +53,9 @@ const NO_BRIDGE = {
 	rendered: path => console.info('[host] rendered', path),
 	openPath: path => console.info('[host] openPath', path),
 	openExternal: url => console.info('[host] openExternal', url),
+	outline: json => console.info('[host] outline', json),
+	activeHeading: slug => console.info('[host] activeHeading', slug),
+	findState: (index, total) => console.info('[host] findState', index, total),
 };
 
 const bridge = window.__mdrHost ?? NO_BRIDGE;
@@ -149,6 +154,27 @@ view.on('document', doc => {
 	}
 });
 
+/*
+ * The outline and the find state are the two things Compose has to draw that only the page
+ * knows, so they leave as events rather than being asked for. `document.js` recomputes both on
+ * every render — a theme switch, a live reload, a document opened by following a link — and
+ * Kotlin has no way to notice that happened.
+ *
+ * The outline crosses as JSON because it is a list. The other two are primitives, which
+ * `addJavascriptInterface` marshals on its own, so wrapping them in an object would only give
+ * the Kotlin side something to parse.
+ *
+ * The active heading is `undefined` in a document with no headings at all; `''` carries that
+ * across, because a `@JavascriptInterface` String parameter is a poor place to learn the
+ * difference between a missing argument and a null one.
+ *
+ * The find state's query is dropped: the app is holding the query, and it is only ever told
+ * the answer to something it asked. What it cannot know is the count.
+ */
+view.on('headings', headings => bridge.outline(JSON.stringify(headings)));
+view.on('activeHeading', slug => bridge.activeHeading(slug ?? ''));
+view.on('find', state => bridge.findState(state.index, state.total));
+
 /**
  * Writes the three typography custom properties `markdown.css` reads.
  *
@@ -221,6 +247,58 @@ const page = {
 		} else if (RENDER_SETTINGS.some(key => before[key] !== after[key])) {
 			view.render();
 		}
+	},
+
+	/**
+	 * Finds `query` in the rendering, paints every match and reveals the first.
+	 *
+	 * **The match set is the page's, not Kotlin's.** Matches are DOM ranges over the rendered
+	 * document, and this is the only side that has the rendering — so what goes back out is a
+	 * count and an index, through the `find` event above, and the search bar is drawn from that.
+	 *
+	 * Highlighting needs the CSS Custom Highlight API, which `document.js` feature-detects. Below
+	 * that the count and the navigation still work and nothing is painted, which is a poor search
+	 * but not a broken one.
+	 *
+	 * @param json {string} a JSON `{ query }`.
+	 */
+	runFind(json) {
+		view.runFind(String(JSON.parse(json).query ?? ''));
+	},
+
+	/**
+	 * Moves to another match, wrapping at either end.
+	 *
+	 * @param json {string} a JSON `{ delta }` — `1` for the next match, `-1` for the previous.
+	 */
+	stepFind(json) {
+		view.stepFind(Number(JSON.parse(json).delta) || 0);
+	},
+
+	/**
+	 * Drops the query and its highlights, because the search affordance closed.
+	 *
+	 * `openFind` has no counterpart here on purpose: it re-runs whatever query the *page* was
+	 * last given, and the app is the one holding the query — the search bar's text survives the
+	 * bar closing, so opening it sends `runFind` and there is nothing for a second door to do.
+	 */
+	closeFind() {
+		view.closeFind();
+	},
+
+	/**
+	 * Scrolls a heading into view: the table of contents today, the resume position when that
+	 * moves onto an anchor.
+	 *
+	 * The headroom left above the target is the renderer's (`REVEAL_OFFSET`), which knows nothing
+	 * about the chrome Compose draws over the page — so a reveal that does not also collapse the
+	 * chrome can land the heading behind it. Fixing that properly means teaching the shared
+	 * reveal about the content inset, which is desktop work.
+	 *
+	 * @param json {string} a JSON `{ slug }`, one of the slugs the outline reported.
+	 */
+	revealSlug(json) {
+		view.revealSlug(String(JSON.parse(json).slug ?? ''));
 	},
 };
 

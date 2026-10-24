@@ -332,8 +332,6 @@ fun EditorScreen(
                                     onScrollChanged = { _, _ -> },
                                     onScrollExtentChanged = {},
                                     onScrollConsumed = {},
-                                    headings = emptyList(),
-                                    onActiveHeadingChanged = {},
                                     isCodeBlockWrapEnabled = true,
                                     selectionHighlightColor = if (previewIsDark) 0x99FFD54F.toInt() else 0x994285F4.toInt(),
                                     fontSizeSp = prefs.fontSizeSp,

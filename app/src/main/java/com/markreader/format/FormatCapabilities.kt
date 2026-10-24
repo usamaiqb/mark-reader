@@ -11,7 +11,14 @@ package com.markreader.format
  * The defaults describe the least capable document there is: text that renders as itself.
  */
 data class FormatCapabilities(
-    /** The document has a heading structure, so a table of contents is meaningful. */
+    /**
+     * The document has a heading structure, so a table of contents is meaningful.
+     *
+     * Says only that the *format* has headings, not where they are. The outline itself comes from
+     * whatever drew the document — for the shared renderer, from the page — because a heading's
+     * position is a fact about the rendering. Without this a code file, which reaches the renderer
+     * as one fenced block, would offer a table of contents that is always empty.
+     */
     val hasHeadings: Boolean = false,
     /**
      * The rendered form differs from the source, so the raw/rendered toggle does something.

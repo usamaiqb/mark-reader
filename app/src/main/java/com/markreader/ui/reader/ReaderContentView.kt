@@ -18,9 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +28,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
-import com.markreader.format.HeadingItem
 import com.markreader.format.ReaderContent
 
 /**
@@ -103,8 +100,6 @@ fun RenderedTextView(
     onScrollChanged: (scrollY: Int, maxScrollY: Int) -> Unit,
     onScrollExtentChanged: (maxScrollY: Int) -> Unit,
     onScrollConsumed: () -> Unit,
-    headings: List<HeadingItem>,
-    onActiveHeadingChanged: (Int) -> Unit,
     isCodeBlockWrapEnabled: Boolean,
     selectionHighlightColor: Int,
     fontSizeSp: Float,
@@ -162,9 +157,6 @@ fun RenderedTextView(
             codeBlockBackgroundColor = codeBlockBackgroundColor
         )
     }
-    val currentHeadings by rememberUpdatedState(headings)
-    val onActiveHeadingChangedState by rememberUpdatedState(onActiveHeadingChanged)
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -211,25 +203,6 @@ fun RenderedTextView(
                     }
                     setOnScrollChangeListener { _, _, scrollY, _, _ ->
                         onScrollChanged(scrollY, computeMaxScrollY(this))
-                        val list = currentHeadings
-                        if (list.isEmpty()) return@setOnScrollChangeListener
-                        val firstChild = getChildAt(0) ?: return@setOnScrollChangeListener
-                        if (firstChild is LinearLayout) {
-                            onActiveHeadingChangedState(
-                                findActiveHeadingInSplit(
-                                    firstChild, controller.splitBoundaries, list, scrollY
-                                )
-                            )
-                        } else {
-                            val tv = firstChild as? TextView
-                                ?: return@setOnScrollChangeListener
-                            val layout = tv.layout ?: return@setOnScrollChangeListener
-                            if (layout.text.isEmpty()) return@setOnScrollChangeListener
-                            val y = scrollY + tv.paddingTop
-                            onActiveHeadingChangedState(
-                                findActiveHeadingIndex(layout.lineMetrics(), list, y)
-                            )
-                        }
                     }
                     // Report scroll extent whenever content lays out so reading
                     // progress is available before the first scroll event. This
@@ -609,31 +582,6 @@ fun RenderedTextView(
                         // Consumed either way, so an unresolvable target does not
                         // leave the request pending forever.
                         onScrollConsumed()
-                    }
-                }
-
-                // Heading tracking
-                val curChild = scrollView.getChildAt(0)
-                if (currentHeadings.isNotEmpty()) {
-                    if (curChild is LinearLayout) {
-                        onActiveHeadingChangedState(
-                            findActiveHeadingInSplit(
-                                curChild, controller.splitBoundaries,
-                                currentHeadings, scrollView.scrollY
-                            )
-                        )
-                    } else {
-                        val tv = when (curChild) {
-                            is TextView -> curChild
-                            else -> null
-                        }
-                        val layout = tv?.layout
-                        if (layout != null && layout.text.isNotEmpty()) {
-                            val y = scrollView.scrollY + (tv?.paddingTop ?: 0)
-                            onActiveHeadingChangedState(
-                                findActiveHeadingIndex(layout.lineMetrics(), currentHeadings, y)
-                            )
-                        }
                     }
                 }
             },

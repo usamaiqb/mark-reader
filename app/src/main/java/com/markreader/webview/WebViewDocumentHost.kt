@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -42,11 +43,15 @@ import org.json.JSONObject
  * `readFile` is a plain `fetch` instead of a second bridge, and [SafPathSpace] is the only thing
  * that has to know a path means a SAF document.
  *
- * **What crosses into Kotlin is four methods and nothing else.** No file reading, no settings, no
- * window control: `ready`, `rendered`, `openPath`, `openExternal`. `openPath` deliberately does
- * not read the file on the page's side even though `readFile` could, because SAF permission, the
- * encoding decision, the recents list and the resume position all live out here — a document the
- * page opened by itself would be invisible to all four.
+ * **What crosses into Kotlin is seven methods and nothing else.** No file reading, no settings, no
+ * window control. Four are lifecycle and navigation — `ready`, `rendered`, `openPath`,
+ * `openExternal` — and three report what only the page can know, because it is the side holding
+ * the rendering: the document's outline, which heading is being read, and how many matches a
+ * search has. Compose draws its table of contents and its search bar from those three.
+ *
+ * `openPath` deliberately does not read the file on the page's side even though `readFile` could,
+ * because SAF permission, the encoding decision, the recents list and the resume position all
+ * live out here — a document the page opened by itself would be invisible to all four.
  *
  * ### The security half
  *
@@ -92,6 +97,15 @@ class WebViewDocumentHost(
      * WebView's version name when it is known, for a message worth reading.
      */
     private val onRendererUnavailable: (webViewVersion: String?) -> Unit = {},
+    /** The document's outline, as the page rendered it. Re-reported on every render. */
+    private val onOutlineChanged: (outline: List<HeadingItem>) -> Unit = {},
+    /** The heading being read, by slug, or null in a document with no headings. */
+    private val onActiveHeadingChanged: (slug: String?) -> Unit = {},
+    /**
+     * The result of the last find: which match is current, and how many there are. [index] is -1
+     * when there are none.
+     */
+    private val onFindStateChanged: (index: Int, total: Int) -> Unit = { _, _ -> },
 ) {
 
     private val space = SafPathSpace(context.contentResolver)
@@ -146,18 +160,16 @@ class WebViewDocumentHost(
     // ------------------------------------------------------------------ the path space
 
     /**
-     * Takes a picked folder into the virtual path space and returns its root, so a document in it
-     * can resolve its sibling images. Naming a document inside it is `"$root/$relativePath"` —
-     * the same arithmetic the renderer does, and all the contract permits anyone to do.
-     *
-     * The URI permission is the picker's to take; this does not.
-     */
-    fun adoptTree(treeUri: Uri): String = space.adoptTree(treeUri)
-
-    /**
      * Takes a single document — from a file manager, or the share sheet — into the space and
      * returns its complete virtual path. Its relative references will 404, because a single-document
      * grant is all the app has permission to read.
+     *
+     * Single documents are all this host adopts, because they are all the reader opens. Folders
+     * are already `SafPathSpace`'s to adopt, and a delegation for them belongs here on the day
+     * something calls it — a document naming a sibling is `"$root/$relativePath"`, the same
+     * arithmetic the renderer does.
+     *
+     * The URI permission is the picker's to take; this does not.
      */
     fun adoptDocument(documentUri: Uri, displayName: String): String =
         space.adoptDocument(documentUri, displayName)
@@ -248,6 +260,32 @@ class WebViewDocumentHost(
         }
     }
 
+    // --------------------------------------------------------------- search and outline
+
+    /**
+     * Asks the page for something about search or the outline.
+     *
+     * One method rather than four, because these are the requests that cannot be expressed as
+     * state — see [PageCommand]. Nothing comes back from any of them directly: the page owns the
+     * match set, since matches are DOM ranges over a rendering only it has, so what it has to say
+     * arrives through [onFindStateChanged] and [onOutlineChanged] instead. Those also fire again
+     * whenever the document is re-rendered underneath a live query.
+     *
+     * A [PageCommand.Reveal] naming nothing is ignored by the page, which is what acting on a
+     * stale outline looks like.
+     */
+    fun send(command: PageCommand) {
+        scope.launch(Dispatchers.Main) {
+            pageReady.await()
+            when (command) {
+                is PageCommand.Find -> call("runFind", JSONObject().put("query", command.query))
+                is PageCommand.StepFind -> call("stepFind", JSONObject().put("delta", command.delta))
+                PageCommand.CloseFind -> call("closeFind")
+                is PageCommand.Reveal -> call("revealSlug", JSONObject().put("slug", command.slug))
+            }
+        }
+    }
+
     /** Applies reader settings. Safe before the first document; the page re-renders if it needs to. */
     fun applySettings(settings: RendererSettings) {
         scope.launch(Dispatchers.Main) {
@@ -269,14 +307,12 @@ class WebViewDocumentHost(
      * crosses as a *string* that the page then parses. Interpolating the JSON as an expression
      * would make every document's text a script fragment in this line.
      */
-    private fun call(method: String, payload: JSONObject) {
+    private fun call(method: String, payload: JSONObject? = null) {
         if (destroyed) {
             return
         }
-        webView.evaluateJavascript(
-            "window.__mdrPage.$method(${JSONObject.quote(payload.toString())})",
-            null,
-        )
+        val argument = payload?.let { JSONObject.quote(it.toString()) } ?: ""
+        webView.evaluateJavascript("window.__mdrPage.$method($argument)", null)
     }
 
     // -------------------------------------------------------------------- the WebView
@@ -416,6 +452,27 @@ class WebViewDocumentHost(
         fun openExternal(url: String) = fromHostPage { openExternalUrl(context, url) }
 
         /**
+         * The document's outline, as JSON — the one report here that is a list rather than a
+         * value, and the only reason this bridge parses anything.
+         *
+         * A malformed entry is skipped rather than failing the whole outline: a table of contents
+         * missing one row is still navigation, and there is no user-facing way to say more.
+         */
+        @JavascriptInterface
+        fun outline(json: String) = fromHostPage { onOutlineChanged(parseOutline(json)) }
+
+        /** Empty means the document has no headings at all; see `android-host.js`. */
+        @JavascriptInterface
+        fun activeHeading(slug: String) = fromHostPage {
+            onActiveHeadingChanged(slug.takeIf { it.isNotEmpty() })
+        }
+
+        @JavascriptInterface
+        fun findState(index: Int, total: Int) = fromHostPage {
+            onFindStateChanged(index, total)
+        }
+
+        /**
          * Hops to the main thread, and refuses to act on anything but the host page.
          *
          * `addJavascriptInterface` exposes the bridge to whatever document is loaded, not to one
@@ -435,6 +492,33 @@ class WebViewDocumentHost(
     }
 
     private companion object {
+
+        /**
+         * The outline, out of the array `android-host.js` stringifies.
+         *
+         * Only the three fields the table of contents draws are read. The page also reports the
+         * source line each heading came from, which nothing here has a use for yet — the resume
+         * position is planned to lean on the slug, not the line.
+         */
+        fun parseOutline(json: String): List<HeadingItem> {
+            val array = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
+            return (0 until array.length()).mapNotNull { headingAt(array, it) }
+        }
+
+        /** Null for an entry the table of contents could not act on, which is one with no slug. */
+        private fun headingAt(array: JSONArray, index: Int): HeadingItem? {
+            val entry = array.optJSONObject(index) ?: return null
+            val slug = entry.optString("slug")
+            if (slug.isEmpty()) {
+                return null
+            }
+            return HeadingItem(
+                text = entry.optString("text"),
+                level = entry.optInt("level", 1),
+                slug = slug,
+            )
+        }
+
         const val TAG = "MarkReaderWebView"
 
         /** [WebViewAssetLoader]'s default domain. Its `https` origin is the page's own. */

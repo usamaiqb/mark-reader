@@ -63,14 +63,6 @@ interface DocumentFormat {
         load(text, theme)
 
     /**
-     * The document's table of contents. Empty unless [FormatCapabilities.hasHeadings].
-     *
-     * Takes both the source and its rendering because the offsets have to index the text the
-     * reader actually scrolls, not the markup that produced it.
-     */
-    fun headings(text: String, content: ReaderContent): List<HeadingItem> = emptyList()
-
-    /**
      * Drop any cached renderer. The reader palette changed, so a renderer built for the old one
      * would paint the previous theme's colours.
      */
