@@ -7,7 +7,6 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import com.markreader.format.HeadingItem
 
 /**
  * The part of a laid-out [Layout] the anchor math reads.
@@ -129,67 +128,6 @@ internal fun scrollYForOffsetInSplit(
 internal fun scrollYForOffsetInText(lines: LineMetrics, paddingTop: Int, offset: Int): Int =
     lines.getLineTop(lines.getLineForOffset(offset)) + paddingTop
 
-/**
- * Index of the last heading whose line starts at or above [y], or -1 when the
- * viewport sits above the first one. Headings are ordered by offset, so this is
- * a binary search.
- */
-internal fun findActiveHeadingIndex(
-    lines: LineMetrics,
-    headings: List<HeadingItem>,
-    y: Int
-): Int {
-    var low = 0
-    var high = headings.lastIndex
-    var result = -1
-    val textLength = lines.textLength
-    while (low <= high) {
-        val mid = (low + high) ushr 1
-        val offset = headings[mid].offset.coerceIn(0, textLength - 1)
-        val line = lines.getLineForOffset(offset)
-        val top = lines.getLineTop(line)
-        if (top <= y) {
-            result = mid
-            low = mid + 1
-        } else {
-            high = mid - 1
-        }
-    }
-    return result
-}
-
-/**
- * The same lookup across a split container. Segments are laid out independently,
- * so there is no single monotonic line index to binary search — each segment's
- * headings are checked against its own layout.
- */
-internal fun findActiveHeadingInSplit(
-    boundaries: List<Segment>,
-    childCount: Int,
-    headings: List<HeadingItem>,
-    adjustedY: Int,
-    placementAt: (Int) -> SegmentPlacement
-): Int {
-    if (headings.isEmpty() || boundaries.isEmpty()) return -1
-    var result = -1
-    for (i in 0 until childCount.coerceAtMost(boundaries.size)) {
-        val placement = placementAt(i)
-        val lines = placement.lines ?: continue
-        val (segStart, segEnd, _) = boundaries[i]
-        for (h in headings.indices) {
-            val offset = headings[h].offset
-            if (offset < segStart || offset >= segEnd) continue
-            val localOffset = (offset - segStart).coerceIn(0, lines.textLength - 1)
-            val line = lines.getLineForOffset(localOffset)
-            val top = placement.top + lines.getLineTop(line)
-            if (top <= adjustedY) {
-                result = h
-            }
-        }
-    }
-    return result
-}
-
 // ---------- View adapters ----------
 
 internal fun segmentPlacement(view: View): SegmentPlacement {
@@ -254,18 +192,6 @@ internal fun resolveScrollY(
     val lines = tv.layout?.lineMetrics() ?: return null
     return scrollYForOffsetInText(lines, tv.paddingTop, offset)
 }
-
-internal fun findActiveHeadingInSplit(
-    container: LinearLayout,
-    boundaries: List<Segment>,
-    headings: List<HeadingItem>,
-    scrollY: Int
-): Int = findActiveHeadingInSplit(
-    boundaries = boundaries,
-    childCount = container.childCount,
-    headings = headings,
-    adjustedY = scrollY + container.paddingTop
-) { segmentPlacement(container.getChildAt(it)) }
 
 internal fun computeMaxScrollY(scrollView: ScrollView): Int {
     val child = scrollView.getChildAt(0) ?: return 0

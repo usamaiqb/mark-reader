@@ -118,12 +118,12 @@ import com.markreader.ui.components.GroupOuterRadius
 import com.markreader.ui.components.SegmentPosition
 import com.markreader.ui.components.segmentPositionFor
 import com.markreader.ui.components.segmentShape
-import com.markreader.format.HeadingItem
 import com.markreader.format.ReaderContent
 import com.markreader.ui.export.ExportManager
 import com.markreader.ui.resolve
 import com.markreader.ui.reader.RenderedTextView
 import com.markreader.ui.reader.WebViewReader
+import com.markreader.webview.HeadingItem
 import com.markreader.webview.rendererSettingsFor
 import kotlin.math.roundToInt
 
@@ -246,24 +246,18 @@ fun ViewerScreen(
     } else {
         stringResource(R.string.untitled)
     }
-    // Set once the WebView reports it cannot run the renderer. Held for the session rather than
-    // per document: a WebView too old for the renderer will not become new enough for the next
-    // one, and retrying would cost every document a ten-second wait before falling back.
-    var rendererUnavailable by rememberSaveable { mutableStateOf(false) }
-    var rendererWebViewVersion by rememberSaveable { mutableStateOf<String?>(null) }
-
     val viewModeLabel = stringResource(
         viewModeLabelFor(
             hasRawView = uiState.capabilities.hasRawView,
             isRawMode = uiState.viewMode == ViewMode.Raw,
             formatNameRes = uiState.formatNameRes,
-            rendererUnavailable = rendererUnavailable
+            rendererUnavailable = uiState.rendererUnavailable
         )
     )
     val canToggleViewMode = canToggleViewMode(
         hasRawView = uiState.capabilities.hasRawView,
         hasRendered = uiState.rendered != null,
-        rendererUnavailable = rendererUnavailable
+        rendererUnavailable = uiState.rendererUnavailable
     )
 
     val dynamicLightScheme = remember(context, prefs.useDynamicColors) {
@@ -362,14 +356,15 @@ fun ViewerScreen(
         rawText = uiState.rawText,
         rawHighlighted = uiState.rawHighlighted,
         rendered = uiState.rendered,
-        rendererUnavailable = rendererUnavailable
+        rendererUnavailable = uiState.rendererUnavailable
     )
-    // Both features exist today and neither survived the swap to the WebView — rebuilding them
-    // in the page, where the rendering is, is planned. Until then the controls are hidden rather than left
-    // to report nothing: raw mode still searches, and a table of contents built from source
-    // offsets would scroll to the wrong place. Deleting this `&&` is most of what re-enables
-    // them.
-    val isContentIndexable = readerContent is ReaderContent.Spans
+    // Search runs on both surfaces, so nothing gates the search button. The outline only exists
+    // where the page is drawing: it is a list of slugs, and only the page can act on a slug.
+    val canShowOutline = uiState.capabilities.hasHeadings && isDrawnByPage(
+        isRawMode = uiState.viewMode == ViewMode.Raw,
+        rendered = uiState.rendered,
+        rendererUnavailable = uiState.rendererUnavailable
+    )
 
     Scaffold(
         // Matches the reading surface. The content now runs full height under the
@@ -481,7 +476,7 @@ fun ViewerScreen(
                                     }
                                 },
                                 navigationIcon = {
-                                    if (uiState.capabilities.hasHeadings && isContentIndexable) {
+                                    if (canShowOutline) {
                                         FilledTonalIconButton(
                                             onClick = {
                                                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -500,24 +495,22 @@ fun ViewerScreen(
                                     }
                                 },
                                 actions = {
-                                    if (isContentIndexable) {
-                                        FilledTonalIconButton(
-                                            onClick = {
-                                                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                                viewModel.onSearchToggled()
-                                            },
-                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                                containerColor = chromeColors.tonalContainer,
-                                                contentColor = chromeColors.content
-                                            )
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Search,
-                                                contentDescription = stringResource(R.string.viewer_search)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            viewModel.onSearchToggled()
+                                        },
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = chromeColors.tonalContainer,
+                                            contentColor = chromeColors.content
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Search,
+                                            contentDescription = stringResource(R.string.viewer_search)
+                                        )
                                     }
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     FilledTonalIconButton(
                                         onClick = {
                                             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -799,10 +792,10 @@ fun ViewerScreen(
                     // container, so it takes the inset itself and the reader starts below
                     // it. Rare enough that losing the overlay in that case is fine.
                     val warningMessage = when {
-                        !rendererUnavailable -> uiState.warningMessage?.resolve()
-                        rendererWebViewVersion != null -> stringResource(
+                        !uiState.rendererUnavailable -> uiState.warningMessage?.resolve()
+                        uiState.rendererWebViewVersion != null -> stringResource(
                             R.string.viewer_warning_webview_unavailable_version,
-                            rendererWebViewVersion.orEmpty()
+                            uiState.rendererWebViewVersion.orEmpty()
                         )
                         else -> stringResource(R.string.viewer_warning_webview_unavailable)
                     }
@@ -830,10 +823,11 @@ fun ViewerScreen(
                                 contentTopInset = if (hasWarning) 0.dp else chromeTopInset,
                                 savedScrollY = savedScrollY,
                                 onScroll = viewModel::onScrollPositionChanged,
-                                onRendererUnavailable = { version ->
-                                    rendererWebViewVersion = version
-                                    rendererUnavailable = true
-                                }
+                                onRendererUnavailable = viewModel::onRendererUnavailable,
+                                commands = viewModel.pageCommands,
+                                onOutlineChange = viewModel::onOutlineChanged,
+                                onActiveHeadingChange = viewModel::onActiveHeadingChanged,
+                                onFindStateChange = viewModel::onFindStateChanged
                             )
                             is ReaderContent.Spans,
                             is ReaderContent.Table -> RenderedTextView(
@@ -846,8 +840,6 @@ fun ViewerScreen(
                                 onScrollChanged = viewModel::onScrollPositionChanged,
                                 onScrollExtentChanged = viewModel::onScrollExtentChanged,
                                 onScrollConsumed = viewModel::onScrollConsumed,
-                                headings = uiState.headings,
-                                onActiveHeadingChanged = viewModel::onActiveHeadingChanged,
                                 isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
                                 selectionHighlightColor = selectionHighlightColor,
                                 fontSizeSp = prefs.fontSizeSp,
@@ -931,9 +923,13 @@ fun ViewerScreen(
                     )
                 } else {
                     val tocListState = rememberLazyListState()
+                    // Opens on the section being read, one row up so it has context above it.
+                    val activeHeadingIndex = uiState.headings.indexOfFirst {
+                        it.slug == uiState.activeHeadingSlug
+                    }
                     LaunchedEffect(Unit) {
-                        if (uiState.activeHeadingIndex > 0) {
-                            tocListState.scrollToItem(uiState.activeHeadingIndex - 1)
+                        if (activeHeadingIndex > 0) {
+                            tocListState.scrollToItem(activeHeadingIndex - 1)
                         }
                     }
                     LazyColumn(
@@ -945,11 +941,11 @@ fun ViewerScreen(
                             TocHeadingRow(
                                 heading = heading,
                                 position = segmentPositionFor(index, uiState.headings.size),
-                                isActive = index == uiState.activeHeadingIndex,
+                                isActive = index == activeHeadingIndex,
                                 colors = chromeColors,
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    viewModel.onHeadingSelected(heading.offset)
+                                    viewModel.onHeadingSelected(heading)
                                     isTocVisible = false
                                 }
                             )
