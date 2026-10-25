@@ -1,0 +1,5 @@
+• Documents render with the same engine as MarkReader for desktop, with wider syntax highlighting.
+• Search and the table of contents work in rendered documents.
+• 16 new languages, and a per-app language setting on Android 13+.
+• Sepia and AMOLED show as light and dark in rendered documents for now.
+• If the device's WebView is too old to render a document, its source is shown instead.
