@@ -176,12 +176,33 @@ view.on('activeHeading', slug => bridge.activeHeading(slug ?? ''));
 view.on('find', state => bridge.findState(state.index, state.total));
 
 /**
- * Writes the three typography custom properties `markdown.css` reads.
+ * The code font, held here rather than in `config.js`.
+ *
+ * The app has a code-font setting and the shared configuration has no key for one — code takes
+ * `--vscode-editor-font-family` from the theme shim, which is a *palette* value. Adding a key
+ * to `config.ts` is desktop work, and desktop has no bundled monospace to point it at, so this
+ * host carries the setting alone: `parseConfig` would drop it, which is why it is read off the
+ * raw payload in `applyConfig` and kept here instead of going through `setConfig`.
+ *
+ * Undefined until the app sends one, which leaves the theme's own stack in place.
+ *
+ * @type {string | undefined}
+ */
+let codeFontFamily;
+
+/**
+ * Writes the three typography custom properties `markdown.css` reads, and the one it reads for
+ * code.
  *
  * Nothing in the renderer does this today — `fontSize`, `lineHeight` and `fontFamily` are in
  * `config.ts` and are read by no one, so `markdown.css` falls back to its own `14px` — which is
  * a desktop-sized default on a phone. Delete this and its call sites the moment the shared
  * renderer applies its own configuration.
+ *
+ * The code family goes on the **body**, not on `<html>` with the other three. `theme.css`
+ * declares `--vscode-editor-font-family` on `body.vscode-dark` and `body.vscode-light`, and a
+ * custom property declared on a nearer ancestor wins — so a value set on `<html>` would be
+ * shadowed by the theme and silently do nothing. An inline style on the body beats a class rule.
  */
 function applyTypography() {
 	const config = getConfig();
@@ -189,6 +210,9 @@ function applyTypography() {
 	style.setProperty('--markdown-font-size', `${config.fontSize}px`);
 	style.setProperty('--markdown-line-height', `${config.lineHeight}px`);
 	style.setProperty('--markdown-font-family', config.fontFamily);
+	if (codeFontFamily) {
+		document.body.style.setProperty('--vscode-editor-font-family', codeFontFamily);
+	}
 }
 
 /** Settings the markdown-it engine is constructed with, so a change has to rebuild it. */
@@ -229,14 +253,23 @@ const page = {
 	},
 
 	/**
-	 * @param json {string} a JSON settings object, in the shape `config.ts` persists. Validated
-	 *   by `parseConfig`, which drops unknown keys and falls back per-setting — it is the same
-	 *   check the desktop app applies to settings that have been on disk, and Kotlin's DataStore
-	 *   is no more trustworthy than a file someone hand-edited.
+	 * @param json {string} a JSON settings object, in the shape `config.ts` persists, plus this
+	 *   host's own `codeFontFamily`. The shared keys are validated by `parseConfig`, which drops
+	 *   unknown ones and falls back per-setting — the same check the desktop app applies to
+	 *   settings that have been on disk, and Kotlin's DataStore is no more trustworthy than a file
+	 *   someone hand-edited. `codeFontFamily` is one `parseConfig` would drop, so it is taken off
+	 *   the raw payload and checked here.
 	 */
 	applyConfig(json) {
+		const raw = JSON.parse(json);
 		const before = getConfig();
-		const after = setConfig(parseConfig(JSON.parse(json)));
+		const after = setConfig(parseConfig(raw));
+
+		// Optional chaining because `parseConfig` tolerates a payload that is not an object at
+		// all, and a `null` from `JSON.parse` would otherwise throw here rather than there.
+		if (typeof raw?.codeFontFamily === 'string' && raw.codeFontFamily.trim().length > 0) {
+			codeFontFamily = raw.codeFontFamily;
+		}
 
 		applyTypography();
 		view.applyTheme();

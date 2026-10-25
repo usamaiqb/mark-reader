@@ -1,5 +1,6 @@
 package com.markreader.webview
 
+import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReaderThemePreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.UserPreferences
@@ -59,12 +60,26 @@ class ReaderRendererSettingsTest {
     }
 
     @Test
-    fun `the bundled family is named first so it works the day it is served`() {
+    fun `the bundled family is named first, and the stack still ends in a generic`() {
         val merriweather = settings(UserPreferences(readingFont = ReadingFontPreference.Merriweather))
 
         assertTrue(merriweather.fontFamily!!.startsWith("Merriweather,"))
-        // ...and falls through to something a phone actually has today.
+        // The generic is not vestigial now that the font is served: the page falls back per
+        // family, so a face whose fetch fails lands on something the phone has.
         assertTrue(merriweather.fontFamily!!.endsWith("serif"))
+    }
+
+    @Test
+    fun `the code font travels as its own setting`() {
+        // Not a `config.ts` key — fenced code takes `--vscode-editor-font-family` from the theme
+        // shim, so this one is the host's and `android-host.js` reads it off the raw payload.
+        // A null here is a code-font preference that silently does nothing in rendered Markdown.
+        val jetBrains = settings(UserPreferences(codeFont = CodeFontPreference.JetBrainsMono))
+
+        assertTrue(jetBrains.codeFontFamily!!.startsWith("\"JetBrains Mono\","))
+        assertTrue(jetBrains.codeFontFamily!!.endsWith("monospace"))
+        assertTrue(settings(UserPreferences(codeFont = CodeFontPreference.SystemMono))
+            .codeFontFamily!!.startsWith("\"Roboto Mono\""))
     }
 
     @Test
