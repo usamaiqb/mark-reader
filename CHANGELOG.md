@@ -3,6 +3,27 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.0] - 2026-10-25
+
+### Added
+- Documents now render with the same engine as MarkReader for desktop. Markdown follows VS Code's preview styling, and source files get real syntax highlighting for many more languages, Rust, Ruby and TOML among them.
+- Added 16 languages: Belarusian, Bosnian, Bulgarian, Croatian, Czech, French, German, Macedonian, Polish, Portuguese (Brazil), Russian, Serbian, Slovak, Slovenian, Spanish and Ukrainian.
+- On Android 13 and later, you can set MarkReader's language separately from the system language in system settings.
+
+### Improved
+- Search and the table of contents work on rendered documents. Matches are highlighted in the page, and the table of contents follows the heading you are reading.
+- The reading fonts you choose in settings apply to rendered documents.
+- Plain-text files show "Plain text" in the mode chip instead of a view mode.
+
+### Fixed
+- Opening a non-text file after a Markdown document no longer offers an empty table of contents.
+
+### Changed
+- Rendered documents need a recent Android System WebView. If the device's WebView is too old, the reader shows the document source with a warning that names the WebView version.
+- Search highlighting in rendered documents needs WebView 105 or newer. Older versions still count matches and move between them.
+- Sepia and AMOLED reading themes show as light and dark in rendered documents for now.
+- Updated GitHub Actions CI dependencies.
+
 ## [1.0.6] - 2026-10-12
 
 ### Fixed
