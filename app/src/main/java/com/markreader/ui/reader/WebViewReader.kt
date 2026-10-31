@@ -22,7 +22,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.markreader.webview.HeadingItem
+import com.markreader.webview.LocalReaderHostHolder
 import com.markreader.webview.PageCommand
+import com.markreader.webview.ReaderEvents
 import com.markreader.webview.RendererSettings
 import com.markreader.webview.WebViewDocumentHost
 import kotlinx.coroutines.flow.Flow
@@ -96,28 +98,54 @@ fun WebViewReader(
     // length: this is written from a WebView callback and read from another, and a snapshot write
     // from either would invalidate the composition on every document that renders.
     val restore = remember { ScrollRestore() }
-    // The host is remembered, so it would otherwise hold whichever callbacks the first
-    // composition happened to pass.
+    // The host outlives this composition, so it would otherwise hold whichever callbacks the
+    // first composition happened to pass.
     val unavailable by rememberUpdatedState(onRendererUnavailable)
     val outlineChanged by rememberUpdatedState(onOutlineChange)
     val activeHeadingChanged by rememberUpdatedState(onActiveHeadingChange)
     val findStateChanged by rememberUpdatedState(onFindStateChange)
-    val host = remember {
-        WebViewDocumentHost(
-            context,
-            scope,
+
+    // The held host, when there is one. Keyed on the holder's generation so the death of a render
+    // process — which drops the held host — is picked up here rather than leaving this reader
+    // pointed at a corpse.
+    val holder = LocalReaderHostHolder.current
+    val host = remember(holder, holder?.generation) {
+        holder?.acquire() ?: WebViewDocumentHost(context, scope)
+    }
+
+    restore.webView = host.webView
+    restore.target = { savedScrollY.value }
+
+    // Attached, not constructed with. A held host is shared with every document that comes after
+    // this one, so what this reader hands over has to come back when it leaves: a report arriving
+    // late would otherwise reach a disposed composition, and through it a ViewModel that has moved
+    // on to another document.
+    DisposableEffect(host, restore) {
+        val mine = ReaderEvents(
             onDocumentRendered = { restore.run() },
             onRendererUnavailable = { unavailable(it) },
             onOutlineChanged = { outlineChanged(it) },
             onActiveHeadingChanged = { activeHeadingChanged(it) },
             onFindStateChanged = { index, total -> findStateChanged(index, total) },
         )
+        host.events = mine
+        onDispose {
+            // Only if they are still ours. Navigating from one document to another **animates**,
+            // so both readers are composed at once and the incoming one attaches *before* the
+            // outgoing one is disposed — an unconditional clear here would wipe the new reader's
+            // callbacks and leave the page reporting its outline, its active heading and its match
+            // count to nobody. Silently: the document would render and the table of contents
+            // would just be empty.
+            if (host.events === mine) {
+                host.events = ReaderEvents()
+            }
+        }
     }
-    restore.webView = host.webView
-    restore.target = { savedScrollY.value }
 
-    DisposableEffect(host) {
-        onDispose { host.destroy() }
+    // Only a host this composable built is this composable's to destroy. The held one belongs to
+    // the Activity, and destroying it here is how holding it would have quietly achieved nothing.
+    DisposableEffect(host, holder) {
+        onDispose { if (holder == null) host.destroy() }
     }
 
     // Adopting is what makes a virtual path resolvable, so it happens before the document is
@@ -155,8 +183,11 @@ fun WebViewReader(
             modifier = Modifier.fillMaxSize(),
             factory = {
                 host.webView.apply {
-                    // The host is remembered across a recomposition that rebuilds this
-                    // AndroidView, and a View that still has a parent cannot be added to another.
+                    // The host outlives this AndroidView, and a View that still has a parent
+                    // cannot be added to another. It covers two cases now: a recomposition that
+                    // rebuilds this AndroidView, and the animated hand-over from one document's
+                    // reader to the next — during which the outgoing one is briefly empty, which
+                    // is what a shared WebView costs and is cheaper than building a second.
                     (parent as? ViewGroup)?.removeView(this)
                     // Otherwise the reader's own background shows through until first paint,
                     // which flashes white in a dark theme.
