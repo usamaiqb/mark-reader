@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">MarkReader</string>
     <string name="action_back">Назад</string>
     <string name="action_cancel">Скасувати</string>
     <string name="action_close">Закрити</string>

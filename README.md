@@ -94,6 +94,32 @@ cd mark-reader
 
 The APK is written to `app/build/outputs/apk/debug/`. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
+## Translations
+
+<!-- translations:start -->
+| Language | Progress |
+| --- | --- |
+| English | ████████████ 100% (source) |
+| Беларуская | ████████████ 96% |
+| Български | ████████████ 96% |
+| Bosanski | ████████████ 96% |
+| Čeština | ████████████ 96% |
+| Deutsch | ████████████ 96% |
+| Español | ████████████ 96% |
+| Français | ████████████ 96% |
+| Hrvatski | ████████████ 96% |
+| Македонски | ████████████ 96% |
+| Polski | ████████████ 96% |
+| Português (Brasil) | ████████████ 96% |
+| Русский | ████████████ 96% |
+| Slovenčina | ████████████ 96% |
+| Slovenščina | ████████████ 96% |
+| Српски | ████████████ 96% |
+| Українська | ████████████ 96% |
+<!-- translations:end -->
+
+Translations are welcome! Add or improve one in `app/src/main/res/values-<locale>/strings.xml` and open a pull request.
+
 ## Contributing
 
 Contributions are welcome. Use [Issues](https://github.com/usamaiqb/mark-reader/issues) for bugs and questions.

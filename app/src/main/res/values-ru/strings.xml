@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">MarkReader</string>
 
     <!-- Общие действия -->
     <string name="action_back">Назад</string>

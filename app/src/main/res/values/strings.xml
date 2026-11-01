@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MarkReader</string>
+    <string name="app_name" translatable="false">MarkReader</string>
 
     <!-- Shared actions and labels -->
     <string name="action_back">Back</string>
