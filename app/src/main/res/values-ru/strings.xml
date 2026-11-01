@@ -81,7 +81,6 @@
     <string name="viewer_error_open_failed_detail">Не удалось открыть этот файл. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Возможно, файл содержит двоичные данные или повреждён. Показан исходный текст.</string>
     <string name="viewer_warning_source_code">Не удалось подсветить синтаксис. Показан исходный текст.</string>
-    <string name="viewer_warning_markdown">Не удалось отобразить форматирование Markdown. Показан исходный текст.</string>
 
     <!-- Редактор -->
     <string name="editor_save">Сохранить</string>

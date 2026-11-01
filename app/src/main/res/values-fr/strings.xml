@@ -66,7 +66,6 @@
     <string name="viewer_error_open_failed_detail">Impossible d’ouvrir ce fichier. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Ce fichier semble binaire ou endommagé. Affichage du texte brut.</string>
     <string name="viewer_warning_source_code">Impossible de colorer la syntaxe. Affichage du texte brut.</string>
-    <string name="viewer_warning_markdown">Impossible de mettre en forme ce fichier Markdown. Affichage du texte brut.</string>
     <string name="editor_save">Enregistrer</string>
     <string name="editor_saved">Enregistré</string>
     <string name="editor_save_as">Enregistrer sous</string>

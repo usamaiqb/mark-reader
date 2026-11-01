@@ -67,7 +67,6 @@
     <string name="viewer_error_open_failed_detail">Tento súbor sa nedá otvoriť. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Súbor zrejme obsahuje binárne údaje alebo je poškodený. Zobrazuje sa zdrojový text.</string>
     <string name="viewer_warning_source_code">Zvýraznenie syntaxe zlyhalo. Zobrazuje sa zdrojový text.</string>
-    <string name="viewer_warning_markdown">Formátovanie Markdown zlyhalo. Zobrazuje sa zdrojový text.</string>
     <string name="editor_save">Uložiť</string>
     <string name="editor_saved">Uložené</string>
     <string name="editor_save_as">Uložiť ako</string>

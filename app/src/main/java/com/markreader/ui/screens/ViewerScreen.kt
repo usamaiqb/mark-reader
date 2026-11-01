@@ -840,19 +840,13 @@ fun ViewerScreen(
                                 onScrollChanged = viewModel::onScrollPositionChanged,
                                 onScrollExtentChanged = viewModel::onScrollExtentChanged,
                                 onScrollConsumed = viewModel::onScrollConsumed,
-                                isCodeBlockWrapEnabled = isCodeBlockWrapEnabled,
                                 selectionHighlightColor = selectionHighlightColor,
                                 fontSizeSp = prefs.fontSizeSp,
                                 lineHeight = prefs.lineHeight,
                                 readingFont = prefs.readingFont,
                                 codeFont = prefs.codeFont,
                                 isMonospaced = uiState.capabilities.isMonospaced,
-                                textAlignment = prefs.textAlignment,
-                                codeBlockBackgroundColor = if (isSurfaceDark) {
-                                    0x19FFFFFF.toInt()
-                                } else {
-                                    0x19000000.toInt()
-                                }
+                                textAlignment = prefs.textAlignment
                             )
                         }
                     }

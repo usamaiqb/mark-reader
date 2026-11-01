@@ -3,22 +3,6 @@
 MarkReader is licensed under the GNU General Public License v3.0 (`LICENSE`). It redistributes
 the material below, which keeps its own licence.
 
-# Libraries
-
-## Markwon
-
-- Artifacts: `io.noties.markwon:core`, `ext-tables`, `syntax-highlight`, `image`
-- Source: https://github.com/noties/Markwon
-- License: Apache License, Version 2.0 ([full text](APACHE-2.0.txt))
-- Copyright: Copyright 2019 Dimitry Ivanov (legal@noties.io)
-
-## Prism4j
-
-- Artifact: `io.noties:prism4j`
-- Source: https://github.com/noties/Prism4j
-- License: Apache License, Version 2.0 ([full text](APACHE-2.0.txt))
-- Copyright: Copyright 2019 Dimitry Ivanov (legal@noties.io)
-
 # Fonts
 
 MarkReader includes the following third-party font files in

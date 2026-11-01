@@ -10,8 +10,8 @@ import com.markreader.file.DocumentType
  * **Formats do not recognise files.** [com.markreader.file.DocumentTypeResolver] is the single
  * detection authority and [FormatRegistry] is a [DocumentType] to [DocumentFormat] lookup over
  * it. The reason is that `DocumentResourceHandler` in the WebView host has to ask "is this file
- * text", and moving detection into formats would drag Markwon and Prism4j into that layer to
- * answer it.
+ * text", and a format is the wrong thing to ask: it would put the whole rendering layer behind a
+ * question about bytes.
  *
  * There is also no `type` property. Nothing asks a format what it reads — the registry's `when`
  * is that mapping, and having the answer in two places is how the two drift apart.
@@ -46,25 +46,10 @@ interface DocumentFormat {
     /**
      * Render [text] for the given surface, or null if this format's renderer could not — in
      * which case the caller shows the source and says so with [renderFailureWarningRes].
+     *
+     * **One door, for both surfaces.** There was a second for a while — the editor's preview pane
+     * outlived the native reader by a phase, so a format whose rendering had moved into the page
+     * still had to answer with something drawable for it. The preview draws in the page too now.
      */
     suspend fun load(text: String, theme: RenderTheme): ReaderContent?
-
-    /**
-     * As [load], for the editor's preview pane.
-     *
-     * **A temporary second door, and closing it is planned.** The viewer's rendered path is a WebView
-     * now, but the editor preview is still a Markwon `TextView` — so a format whose [load]
-     * answers [ReaderContent.Markdown] has to answer something drawable here instead. Formats
-     * that render the same way on both surfaces inherit this default and say nothing.
-     *
-     * Only called where [FormatCapabilities.hasEditorPreview] is true.
-     */
-    suspend fun loadEditorPreview(text: String, theme: RenderTheme): ReaderContent? =
-        load(text, theme)
-
-    /**
-     * Drop any cached renderer. The reader palette changed, so a renderer built for the old one
-     * would paint the previous theme's colours.
-     */
-    fun invalidateRenderers() {}
 }

@@ -42,7 +42,8 @@ import java.util.concurrent.ConcurrentHashMap
  * whole subtree, so a document's sibling images load. A single document arriving from a file
  * manager or the share sheet is all the app has permission to read — so only its own name
  * resolves, and its relative references 404. That degrades exactly as the contract intends: a
- * broken image rather than a thrown error.
+ * broken image rather than a thrown error. A **draft** is the third case and has no source at
+ * all: its path resolves to nothing, deliberately, because there is nothing yet to resolve.
  *
  * **Everything here is touched from more than one thread.** The WebView calls in on its own
  * thread for every image on the page while the reader coroutine is still resolving the document,
@@ -67,10 +68,15 @@ class SafPathSpace(private val resolver: ContentResolver) {
      * [displayName] is what the reader already knows the file as; it becomes the last segment,
      * so its extension is what decides how the document is parsed and served. Path separators in
      * it are collapsed, since a display name is provider-supplied and need not be a bare name.
+     *
+     * **A null [documentUri] mints a path with nothing behind it**, which is what the editor's
+     * preview pane needs: a draft is text the app is holding, and may never have been saved. The
+     * page still needs a path to render *at* — it is how a document is identified, and what its
+     * own relative references are resolved against — so it gets one, and everything under it 404s.
      */
-    fun adoptDocument(documentUri: Uri, displayName: String): String {
+    fun adoptDocument(documentUri: Uri?, displayName: String): String {
         val name = displayName.replace('\\', '/').substringAfterLast('/').ifEmpty { UNNAMED }
-        return "${register(SingleDocument(documentUri, name))}/$name"
+        return "${register(documentUri?.let { SingleDocument(it, name) })}/$name"
     }
 
     /** Drops a source, so a closed document's grant stops being reachable from the page. */
@@ -104,9 +110,15 @@ class SafPathSpace(private val resolver: ContentResolver) {
     fun readText(virtualPath: String): String? =
         openStream(virtualPath)?.use { TextCodec.decode(DocumentSource.readBounded(it)).text }
 
-    private fun register(source: Source): String {
+    /**
+     * Mints a root and registers [source] under it — or registers nothing, when there is no source
+     * to read. An unregistered token resolves to nothing, so everything under it 404s.
+     */
+    private fun register(source: Source?): String {
         val token = UUID.randomUUID().toString().replace("-", "").take(TOKEN_LENGTH)
-        sources[token] = source
+        if (source != null) {
+            sources[token] = source
+        }
         return "/$PREFIX_SEGMENT/$token"
     }
 

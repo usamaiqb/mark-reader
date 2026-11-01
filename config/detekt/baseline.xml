@@ -2,14 +2,10 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:ReaderContentView.kt$controller.lastStyleKey != contentKey || controller.lastTextColor != textColor || controller.lastSelectionHighlightColor != selectionHighlightColor || controller.lastCodeBlockBackgroundColor != codeBlockBackgroundColor</ID>
     <ID>ComposableParamOrder:ReaderContentView.kt$RenderedTextView</ID>
     <ID>ComposableParamOrder:ViewerScreen.kt$ViewerScreen</ID>
     <ID>CyclomaticComplexMethod:EditorScreen.kt$@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun EditorScreen( uriString: String?, onNavigateBack: () -&gt; Unit, onFileSaved: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: EditorViewModel = viewModel( factory = EditorViewModel.factory( LocalContext.current.applicationContext as Application, uriString ) ) )</ID>
-    <ID>CyclomaticComplexMethod:Prism4jThemes.kt$Prism4jThemeOneDark$private fun colorFor(type: String): Int?</ID>
-    <ID>CyclomaticComplexMethod:Prism4jThemes.kt$Prism4jThemeOneLight$private fun colorFor(type: String): Int?</ID>
-    <ID>CyclomaticComplexMethod:ReaderContentView.kt$@Composable fun RenderedTextView( content: ReaderContent, textColor: Int, padding: PaddingValues, /** * Height of the chrome the reader draws underneath, added to the content's own top * padding *inside* the ScrollView. Kept out of [padding] deliberately: [padding] insets * the viewport, which resizes the scroll container and moves `maxScrollY`, and that is * the feedback loop this avoids. */ contentTopInset: Dp = 0.dp, // Held as State, not Int: the live scroll position changes every frame while // scrolling, and taking it as a value would recompose this composable — and // re-run the AndroidView update block — on every one of those frames. It is // only ever read to restore a position, so it is read without snapshot // observation below. savedScrollY: State&lt;Int&gt;, scrollToOffset: Int?, onScrollChanged: (scrollY: Int, maxScrollY: Int) -&gt; Unit, onScrollExtentChanged: (maxScrollY: Int) -&gt; Unit, onScrollConsumed: () -&gt; Unit, isCodeBlockWrapEnabled: Boolean, selectionHighlightColor: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono, isMonospaced: Boolean = false, textAlignment: TextAlignmentPreference, codeBlockBackgroundColor: Int )</ID>
-    <ID>CyclomaticComplexMethod:TableRenderer.kt$internal fun buildTableLayout( text: Spanned, context: Context, textColor: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, selectionHighlightColor: Int, density: Float ): TableLayout?</ID>
+    <ID>CyclomaticComplexMethod:ReaderContentView.kt$@Composable fun RenderedTextView( content: ReaderContent, textColor: Int, padding: PaddingValues, /** * Height of the chrome the reader draws underneath, added to the content's own top * padding *inside* the ScrollView. Kept out of [padding] deliberately: [padding] insets * the viewport, which resizes the scroll container and moves `maxScrollY`, and that is * the feedback loop this avoids. */ contentTopInset: Dp = 0.dp, // Held as State, not Int: the live scroll position changes every frame while // scrolling, and taking it as a value would recompose this composable — and // re-run the AndroidView update block — on every one of those frames. It is // only ever read to restore a position, so it is read without snapshot // observation below. savedScrollY: State&lt;Int&gt;, scrollToOffset: Int?, onScrollChanged: (scrollY: Int, maxScrollY: Int) -&gt; Unit, onScrollExtentChanged: (maxScrollY: Int) -&gt; Unit, onScrollConsumed: () -&gt; Unit, selectionHighlightColor: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono, isMonospaced: Boolean = false, textAlignment: TextAlignmentPreference )</ID>
     <ID>CyclomaticComplexMethod:ViewerScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ViewerScreen( onOpenSettings: () -&gt; Unit, onOpenEditor: (String) -&gt; Unit = {}, uriString: String?, fileSaved: Boolean = false, onFileSavedConsumed: () -&gt; Unit = {} )</ID>
     <ID>CyclomaticComplexMethod:ViewerTheme.kt$fun resolveReaderColors( readerLightTheme: ReaderThemePreference, readerDarkTheme: ReaderThemePreference, dynamicLightScheme: ColorScheme?, dynamicDarkScheme: ColorScheme? ): Pair&lt;ViewerColors, ViewerColors&gt;</ID>
     <ID>CyclomaticComplexMethod:ViewerViewModel.kt$ViewerViewModel$fun loadUri(uriString: String, forceReload: Boolean = false)</ID>
@@ -19,28 +15,18 @@
     <ID>LongParameterList:ReaderTextStyle.kt$( context: Context, paddingPx: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, codeFont: CodeFontPreference, isMonospaced: Boolean, textAlignment: TextAlignmentPreference, textColor: Int, selectionHighlightColor: Int, horizontalScroll: Boolean )</ID>
     <ID>LoopWithTooManyJumpStatements:ScrollAnchor.kt$for</ID>
     <ID>LoopWithTooManyJumpStatements:SearchHighlightTextView.kt$SearchHighlightTextView$for</ID>
-    <ID>LoopWithTooManyJumpStatements:TableRenderer.kt$for</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$5_000</ID>
     <ID>MagicNumber:MainActivity.kt$MainActivity$33</ID>
-    <ID>MagicNumber:MarkwonRenderer.kt$MarkwonRenderer$4f</ID>
-    <ID>MagicNumber:MarkwonRenderer.kt$MarkwonRenderer$8f</ID>
     <ID>MagicNumber:PreferencesRepository.kt$PreferencesRepository$1.6f</ID>
     <ID>MagicNumber:PreferencesRepository.kt$PreferencesRepository$18f</ID>
     <ID>MagicNumber:ReaderTextStyle.kt$26</ID>
     <ID>MagicNumber:SearchHighlightTextView.kt$SearchHighlightTextView$4</ID>
     <ID>MagicNumber:SettingsViewModel.kt$SettingsViewModel$5_000</ID>
-    <ID>MagicNumber:TableRenderer.kt$0x00FFFFFF</ID>
-    <ID>MagicNumber:TableRenderer.kt$22</ID>
-    <ID>MagicNumber:TableRenderer.kt$24</ID>
-    <ID>MagicNumber:TableRenderer.kt$75</ID>
-    <ID>MagicNumber:TableRenderer.kt$8</ID>
     <ID>MagicNumber:ViewerViewModel.kt$ViewerViewModel$1024</ID>
     <ID>MagicNumber:ViewerViewModel.kt$ViewerViewModel$400</ID>
     <ID>MatchingDeclarationName:ExpressiveList.kt$SegmentPosition</ID>
     <ID>MatchingDeclarationName:ViewerTheme.kt$ViewerColors</ID>
     <ID>MaxLineLength:EditorScreen.kt$FormatIconButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Bullet list") { viewModel.formatBullet() }</ID>
-    <ID>MaxLineLength:EditorScreen.kt$codeBlockBackgroundColor = if (previewIsDark) 0x19FFFFFF.toInt() else 0x19000000.toInt()</ID>
-    <ID>MaxLineLength:EditorScreen.kt$selectionHighlightColor = if (previewIsDark) 0x99FFD54F.toInt() else 0x994285F4.toInt()</ID>
     <ID>MaxLineLength:PreferencesRepository.kt$PreferencesRepository$val</ID>
     <ID>MaxLineLength:PreferencesRepository.kt$PreferencesRepository$val legacyTheme = prefs[Keys.LEGACY_THEME]?.let { runCatching { ReaderThemePreference.valueOf(it) }.getOrNull() }</ID>
     <ID>MaxLineLength:PreferencesRepository.kt$PreferencesRepository$val safeTheme = if (theme == ReaderThemePreference.Amoled) ReaderThemePreference.Amoled else ReaderThemePreference.Dark</ID>
@@ -48,13 +34,11 @@
     <ID>ModifierMissing:ReaderContentView.kt$RenderedTextView</ID>
     <ID>ModifierMissing:ViewerChrome.kt$ContentContainer</ID>
     <ID>ModifierMissing:ViewerScreen.kt$ViewerScreen</ID>
-    <ID>NestedBlockDepth:TableRenderer.kt$internal fun buildTableLayout( text: Spanned, context: Context, textColor: Int, fontSizeSp: Float, lineHeight: Float, readingFont: ReadingFontPreference, selectionHighlightColor: Int, density: Float ): TableLayout?</ID>
     <ID>ParameterNaming:EditorScreen.kt$onFileSaved</ID>
     <ID>ParameterNaming:ReaderContentView.kt$onScrollChanged</ID>
     <ID>ParameterNaming:ReaderContentView.kt$onScrollConsumed</ID>
     <ID>ParameterNaming:ReaderContentView.kt$onScrollExtentChanged</ID>
     <ID>ParameterNaming:ViewerScreen.kt$onFileSavedConsumed</ID>
-    <ID>SpreadOperator:MarkwonRenderer.kt$MarkwonRenderer.&lt;no name provided&gt;$(*original, marker)</ID>
     <ID>SwallowedException:EditorViewModel.kt$EditorViewModel$e: Exception</ID>
     <ID>SwallowedException:EditorViewModel.kt$EditorViewModel$e: FileTooLargeException</ID>
     <ID>SwallowedException:EditorViewModel.kt$EditorViewModel$ex: Exception</ID>

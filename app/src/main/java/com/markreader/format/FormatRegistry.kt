@@ -1,6 +1,5 @@
 package com.markreader.format
 
-import android.content.Context
 import com.markreader.file.DocumentType
 import com.markreader.format.code.SourceCodeFormat
 import com.markreader.format.markdown.MarkdownFormat
@@ -17,17 +16,13 @@ import com.markreader.format.plaintext.PlainTextFormat
  * still one
  * field and one branch.
  *
- * Not a singleton, and not injected. One instance per view model, holding the renderers for as
- * long as the screen lives.
+ * Not a singleton, and not injected: one instance per view model. It used to hold the formats'
+ * renderers for as long as the screen lived, which is why. Nothing caches a rendering on this side
+ * any more — the page does — so what is left is a lookup, and [markdown] is a seam for tests.
  */
-class FormatRegistry(private val markdown: DocumentFormat) {
+class FormatRegistry(private val markdown: DocumentFormat = MarkdownFormat) {
 
-    constructor(context: Context) : this(MarkdownFormat(context.applicationContext))
-
-    /**
-     * One format per language seen, so the highlighter cache survives a theme toggle. Bounded by
-     * the languages opened on one screen, which is one for all but the curious.
-     */
+    /** One format per language seen. Bounded by the languages opened on one screen. */
     private val sourceCode = mutableMapOf<String, DocumentFormat>()
 
     /**
@@ -42,11 +37,5 @@ class FormatRegistry(private val markdown: DocumentFormat) {
         // Csv reads as what it also is, until it gets a format of its own.
         DocumentType.Csv, DocumentType.PlainText -> PlainTextFormat
         DocumentType.Binary -> null
-    }
-
-    /** The reader palette changed, so every renderer built against the old one is stale. */
-    fun invalidateRenderers() {
-        markdown.invalidateRenderers()
-        sourceCode.values.forEach { it.invalidateRenderers() }
     }
 }

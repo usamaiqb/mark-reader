@@ -3,10 +3,16 @@ package com.markreader.webview
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -101,11 +107,54 @@ class ReaderHostHolder(
 }
 
 /**
- * The held host, for the reader to find.
+ * The host the surface being composed should drive, pointed at that surface: the Activity's held
+ * host, or one of its own where nothing is holding one.
+ *
+ * Both surfaces that drive a page come through here — the reader and the editor's preview pane —
+ * so the three rules of a shared, held WebView are stated once rather than copied:
+ *
+ *  - **Keyed on the holder's generation**, so the death of a render process is picked up rather
+ *    than leaving a surface pointed at a corpse.
+ *  - **Only a host this composition built is this composition's to destroy.** Destroying the held
+ *    one here is how holding it would have quietly achieved nothing.
+ *  - **The detach is guarded by identity.** [events] is built once per host and put back only if
+ *    it is still the host's. Moving between two surfaces **animates**, so the incoming one
+ *    attaches *before* the outgoing one is disposed, and an unconditional clear on the way out
+ *    wipes the callbacks of the surface now on screen. That failure is silent: the document
+ *    renders, and the table of contents is just empty.
+ *
+ * @param events what this surface wants to hear from the page. Called once per host.
+ */
+@Composable
+fun rememberDocumentHost(events: () -> ReaderEvents): WebViewDocumentHost {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val holder = LocalReaderHostHolder.current
+    val host = remember(holder, holder?.generation) {
+        holder?.acquire() ?: WebViewDocumentHost(context, scope)
+    }
+    val newEvents by rememberUpdatedState(events)
+    DisposableEffect(host) {
+        val mine = newEvents()
+        host.events = mine
+        onDispose {
+            if (host.events === mine) {
+                host.events = ReaderEvents()
+            }
+        }
+    }
+    DisposableEffect(host, holder) {
+        onDispose { if (holder == null) host.destroy() }
+    }
+    return host
+}
+
+/**
+ * The held host, for the surfaces that draw documents to find.
  *
  * Null where nothing provided one — a preview, a test, a screen composed outside the Activity's
- * content. `WebViewReader` builds and owns a host of its own in that case, so the composable stays
- * usable on its own; it just does not get the reuse.
+ * content. [rememberDocumentHost] builds and owns a host of its own in that case, so the surfaces
+ * stay composable on their own; they just do not get the reuse.
  *
  * A local rather than a parameter, which is the exception detekt is warning about below and is
  * deliberate: this is one Activity-scoped service with one leaf consumer, three navigation layers

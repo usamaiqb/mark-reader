@@ -88,7 +88,6 @@
     <string name="viewer_error_open_failed_detail">Unable to open this file. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">This file looks binary or malformed. Showing raw text.</string>
     <string name="viewer_warning_source_code">Unable to highlight this source code file. Showing raw text.</string>
-    <string name="viewer_warning_markdown">Unable to render this Markdown file. Showing raw text.</string>
     <string name="viewer_warning_webview_unavailable">The system WebView on this device cannot render formatted documents. Showing the source instead.</string>
     <string name="viewer_warning_webview_unavailable_version">System WebView %1$s cannot render formatted documents. Update Android System WebView to fix this. Showing the source instead.</string>
 
@@ -103,6 +102,7 @@
     <string name="editor_placeholder_markdown">Start writing markdown…</string>
     <string name="editor_placeholder_text">Start typing…</string>
     <string name="editor_rendering_preview">Rendering preview…</string>
+    <string name="editor_preview_unavailable">The system WebView on this device cannot render a preview. Keep writing in the Edit tab.</string>
     <string name="editor_discard_title">Discard changes?</string>
     <string name="editor_discard_body">Your unsaved changes will be lost.</string>
     <string name="editor_discard_confirm">Discard</string>

@@ -66,7 +66,6 @@
     <string name="viewer_error_open_failed_detail">Não foi possível abrir este arquivo. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">O arquivo parece binário ou danificado. Exibindo texto sem formatação.</string>
     <string name="viewer_warning_source_code">Não foi possível realçar a sintaxe. Exibindo texto sem formatação.</string>
-    <string name="viewer_warning_markdown">Não foi possível formatar o arquivo Markdown. Exibindo texto sem formatação.</string>
     <string name="editor_save">Salvar</string>
     <string name="editor_saved">Salvo</string>
     <string name="editor_save_as">Salvar como</string>

@@ -67,7 +67,6 @@
     <string name="viewer_error_open_failed_detail">Te datoteke ni mogoče odpreti. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Datoteka je videti binarna ali poškodovana. Prikazano je izvorno besedilo.</string>
     <string name="viewer_warning_source_code">Skladnje ni mogoče poudariti. Prikazano je izvorno besedilo.</string>
-    <string name="viewer_warning_markdown">Datoteke Markdown ni mogoče oblikovati. Prikazano je izvorno besedilo.</string>
     <string name="editor_save">Shrani</string>
     <string name="editor_saved">Shranjeno</string>
     <string name="editor_save_as">Shrani kot</string>

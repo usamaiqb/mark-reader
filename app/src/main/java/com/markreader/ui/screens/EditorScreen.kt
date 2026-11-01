@@ -14,7 +14,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,7 +65,6 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -75,7 +73,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -89,11 +86,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.markreader.R
 import com.markreader.data.CodeFontPreference
 import com.markreader.data.ReadingFontPreference
+import com.markreader.format.ReaderContent
 import com.markreader.ui.resolve
-import com.markreader.ui.reader.RenderedTextView
+import com.markreader.ui.reader.WebViewPreview
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
 import com.markreader.ui.theme.SansReadingFontFamily
+import com.markreader.webview.rendererSettingsFor
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -116,6 +115,9 @@ fun EditorScreen(
 
     LaunchedEffect(isSystemDark) { viewModel.onSystemDarkThemeChanged(isSystemDark) }
 
+    // Set once, by the page failing to start. Not saveable and not in the ViewModel: it is a fact
+    // about the WebView this Activity built, and a new one gets to be asked again.
+    var previewUnavailable by remember { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -307,41 +309,46 @@ fun EditorScreen(
                     } else {
                         // Preview tab
                         val previewText = uiState.previewText
-                        if (previewText == null) {
+                        val previewMessage = when {
+                            previewUnavailable -> stringResource(R.string.editor_preview_unavailable)
+                            previewText == null -> stringResource(R.string.editor_rendering_preview)
+                            else -> null
+                        }
+                        if (previewMessage != null) {
                             Box(
-                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                modifier = Modifier.weight(1f).fillMaxWidth().padding(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = stringResource(R.string.editor_rendering_preview),
+                                    text = previewMessage,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         } else {
-                            val previewTextColor = MaterialTheme.colorScheme.onSurface.toArgb()
-                            val previewIsDark = isSystemInDarkTheme()
-                            // The preview never restores a scroll position.
-                            val previewScrollY = remember { mutableIntStateOf(0) }
                             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                RenderedTextView(
-                                    content = previewText,
-                                    textColor = previewTextColor,
-                                    padding = PaddingValues(0.dp),
-                                    savedScrollY = previewScrollY,
-                                    scrollToOffset = null,
-                                    onScrollChanged = { _, _ -> },
-                                    onScrollExtentChanged = {},
-                                    onScrollConsumed = {},
-                                    isCodeBlockWrapEnabled = true,
-                                    selectionHighlightColor = if (previewIsDark) 0x99FFD54F.toInt() else 0x994285F4.toInt(),
-                                    fontSizeSp = prefs.fontSizeSp,
-                                    lineHeight = prefs.lineHeight,
-                                    readingFont = prefs.readingFont,
-                                    codeFont = prefs.codeFont,
-                                    isMonospaced = false,
-                                    textAlignment = prefs.textAlignment,
-                                    codeBlockBackgroundColor = if (previewIsDark) 0x19FFFFFF.toInt() else 0x19000000.toInt()
-                                )
+                                when (previewText) {
+                                    is ReaderContent.Markdown -> WebViewPreview(
+                                        source = previewText.source,
+                                        documentUri = uriString,
+                                        fileName = uiState.fileName,
+                                        settings = rendererSettingsFor(
+                                            preferences = prefs,
+                                            isDark = uiState.isPreviewDark,
+                                            // The preview has always wrapped its code blocks. The
+                                            // reader's toggle belongs to the reader.
+                                            isCodeBlockWrapEnabled = true
+                                        ),
+                                        onRendererUnavailable = { previewUnavailable = true }
+                                    )
+                                    // Nothing else reaches here: the pane is only offered where
+                                    // the format sets `hasEditorPreview`, and the one that does
+                                    // renders through the page. Spelled out rather than hidden
+                                    // behind an `else` so that a format changing its mind has to
+                                    // decide what the editor draws.
+                                    is ReaderContent.Spans,
+                                    is ReaderContent.Table,
+                                    null -> Unit
+                                }
                             }
                         }
                     }

@@ -4,7 +4,6 @@ import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.android.legacy.kapt)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.detekt)
 }
@@ -160,14 +159,7 @@ dependencies {
 
     implementation(libs.androidx.webkit)
 
-    implementation(libs.markwon.core)
-    implementation(libs.markwon.ext.tables)
-    implementation(libs.markwon.syntax.highlight)
-    implementation(libs.markwon.image) {
-        exclude(group = "com.google.guava", module = "guava")
-    }
-    implementation(libs.prism4j)
-    kapt(libs.prism4j.bundler)
+    implementation(libs.commonmark)
 
     implementation(libs.androidx.core.splashscreen)
 

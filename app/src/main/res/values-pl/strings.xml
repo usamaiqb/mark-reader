@@ -67,7 +67,6 @@
     <string name="viewer_error_open_failed_detail">Nie można otworzyć tego pliku. (%1$s: %2$s)</string>
     <string name="viewer_warning_binary">Plik może zawierać dane binarne lub być uszkodzony. Wyświetlono tekst źródłowy.</string>
     <string name="viewer_warning_source_code">Nie można wyróżnić składni. Wyświetlono tekst źródłowy.</string>
-    <string name="viewer_warning_markdown">Nie można sformatować pliku Markdown. Wyświetlono tekst źródłowy.</string>
     <string name="editor_save">Zapisz</string>
     <string name="editor_saved">Zapisano</string>
     <string name="editor_save_as">Zapisz jako</string>
