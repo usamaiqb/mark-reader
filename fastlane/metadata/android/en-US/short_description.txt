@@ -1,1 +1,1 @@
-Offline markdown, notes, and code reader with syntax highlighting
+Offline Markdown reader & editor for .md notes and code, with math and diagrams

@@ -39,18 +39,20 @@ Thank you! This helps us reach far more users than F-Droid and GitHub alone.
 <p align="center">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home Screen" />
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Markdown Viewer" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Table of Contents" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Code Viewer" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Settings" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Dark Theme" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Code, Math and Diagrams" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Table of Contents" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="200" alt="Reader Settings" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Code Viewer in Dark Theme" />
 </p>
 
 ## Features
 
 ### Reading
 
-- **Markdown rendering** - Headings, emphasis, blockquotes, lists, tables and fenced code blocks
-- **Syntax highlighting** - Source files highlighted for dozens of languages, including Kotlin, Python, JavaScript, Java, C/C++, HTML, CSS, JSON and YAML
+- **Markdown rendering** - The same engine as MarkReader for desktop, styled after VS Code's Markdown preview, with tables, task lists and fenced code blocks
+- **Math and diagrams** - LaTeX math with KaTeX, and Mermaid diagrams
+- **Front matter** - YAML front matter is shown as a table above the document
+- **Syntax highlighting** - Source files and code blocks highlighted for dozens of languages, including Kotlin, Python, JavaScript, Rust, Ruby, Java, C/C++, HTML, CSS, JSON, YAML and TOML
 - **Rendered or raw** - Switch any Markdown file between its rendered view and its source
 - **Search and outline** - Find text in a document and jump between headings from the table of contents
 - **Export and share** - Export a document as PDF or HTML, or share its source
@@ -126,8 +128,13 @@ Contributions are welcome. Use [Issues](https://github.com/usamaiqb/mark-reader/
 
 ## Credits
 
-- [Markwon](https://github.com/noties/Markwon) - Markdown rendering
-- [Prism4j](https://github.com/noties/Prism4j) - Syntax highlighting
+- [markdown-it](https://github.com/markdown-it/markdown-it) - Markdown rendering
+- [highlight.js](https://github.com/highlightjs/highlight.js) - Syntax highlighting
+- [KaTeX](https://github.com/KaTeX/KaTeX) - Math
+- [Mermaid](https://github.com/mermaid-js/mermaid) - Diagrams
+- [DOMPurify](https://github.com/cure53/DOMPurify) - HTML sanitising
+- [yaml](https://github.com/eemeli/yaml) - Front matter
+- [Visual Studio Code](https://github.com/microsoft/vscode) - Markdown preview styling
 - [Merriweather](https://github.com/SorkinType/Merriweather), [Merriweather Sans](https://github.com/SorkinType/Merriweather-Sans) and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) - Bundled fonts
 
 License notices are in [licenses/THIRD_PARTY_LICENSES.md](licenses/THIRD_PARTY_LICENSES.md).
