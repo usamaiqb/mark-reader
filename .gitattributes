@@ -7,6 +7,7 @@
 *.gradle text eol=lf
 
 # Shell scripts — LF
+*.sh text eol=lf
 gradlew text eol=lf
 
 # Windows scripts — CRLF
