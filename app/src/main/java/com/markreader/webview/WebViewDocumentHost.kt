@@ -3,7 +3,6 @@ package com.markreader.webview
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ApplicationInfo
-import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
@@ -44,11 +43,12 @@ import org.json.JSONObject
  * `readFile` is a plain `fetch` instead of a second bridge, and [SafPathSpace] is the only thing
  * that has to know a path means a SAF document.
  *
- * **What crosses into Kotlin is seven methods and nothing else.** No file reading, no settings, no
+ * **What crosses into Kotlin is eight methods and nothing else.** No file reading, no settings, no
  * window control. Four are lifecycle and navigation — `ready`, `rendered`, `openPath`,
- * `openExternal` — and three report what only the page can know, because it is the side holding
- * the rendering: the document's outline, which heading is being read, and how many matches a
- * search has. Compose draws its table of contents and its search bar from those three.
+ * `openExternal` — three report what only the page can know, because it is the side holding the
+ * rendering: the document's outline, which heading is being read, and how many matches a search
+ * has. Compose draws its table of contents and its search bar from those three. The eighth,
+ * `exported`, is the only *reply* here — see [renderExportHtml].
  *
  * `openPath` deliberately does not read the file on the page's side even though `readFile` could,
  * because SAF permission, the encoding decision, the recents list and the resume position all
@@ -77,8 +77,9 @@ import org.json.JSONObject
  * Construct with an Activity context, adopt what the user picked, then open a path:
  *
  * ```kotlin
- * val host = WebViewDocumentHost(activity, lifecycleScope, onDocumentRendered = { … })
- * host.openDocument(host.adoptDocument(uri, displayName))
+ * val host = WebViewDocumentHost(activity, lifecycleScope)
+ * host.events = ReaderEvents(onDocumentRendered = { … })
+ * host.showDocument(host.paths.adoptDocument(uri, displayName), text)
  * ```
  *
  * The page starts loading on construction, so it is warming while the document is still being
@@ -142,13 +143,27 @@ class WebViewDocumentHost(
     private val startedAt = SystemClock.uptimeMillis()
     private var documentPushedAt = 0L
 
-    private val space = SafPathSpace(context.contentResolver)
+    /**
+     * The virtual path space this page resolves documents in — where a surface adopts what it is
+     * about to show, and drops it again on the way out.
+     *
+     * Exposed rather than delegated to. A forwarding pair here said nothing [SafPathSpace] does
+     * not say better, and hid the fact that matters: a path means something only to *this* host,
+     * because it is this host's asset loader that answers for it. Three surfaces adopt through it
+     * — the reader, the editor's preview and export — and each holds its path for a different
+     * length of time, which is why the adoption is theirs to scope rather than something this
+     * class can wrap.
+     *
+     * Internal because a virtual path is an implementation detail of the pair, not an app-wide
+     * currency; nothing outside this module has any use for one.
+     */
+    internal val paths = SafPathSpace(context.contentResolver)
 
     private val assetLoader = WebViewAssetLoader.Builder()
         // The vendored renderer: its modules, its stylesheets, and the host page itself.
         .addPathHandler(ASSETS_PREFIX, WebViewAssetLoader.AssetsPathHandler(context))
         // Document resources, out of the virtual path space.
-        .addPathHandler(RESOURCE_PREFIX, DocumentResourceHandler(space) { miss ->
+        .addPathHandler(RESOURCE_PREFIX, DocumentResourceHandler(paths) { miss ->
             Log.i(TAG, "no document resource at $miss")
         })
         // The bundled reading fonts. `res/font/` is unreachable from the page otherwise, which
@@ -204,30 +219,6 @@ class WebViewDocumentHost(
         }
     }
 
-    // ------------------------------------------------------------------ the path space
-
-    /**
-     * Takes a single document — from a file manager, or the share sheet — into the space and
-     * returns its complete virtual path. Its relative references will 404, because a single-document
-     * grant is all the app has permission to read.
-     *
-     * **[documentUri] is null for a draft**: text the app is holding with no file behind it, which
-     * is what the editor's preview pane shows. The page still needs a path to render *at*, so it
-     * gets one; nothing under it resolves.
-     *
-     * Single documents are all this host adopts, because they are all the reader opens. Folders
-     * are already `SafPathSpace`'s to adopt, and a delegation for them belongs here on the day
-     * something calls it — a document naming a sibling is `"$root/$relativePath"`, the same
-     * arithmetic the renderer does.
-     *
-     * The URI permission is the picker's to take; this does not.
-     */
-    fun adoptDocument(documentUri: Uri?, displayName: String): String =
-        space.adoptDocument(documentUri, displayName)
-
-    /** Drops a source, so a closed document stops being reachable from the page. */
-    fun forget(virtualPath: String) = space.forget(virtualPath)
-
     // -------------------------------------------------------------------- the document
 
     /**
@@ -244,7 +235,7 @@ class WebViewDocumentHost(
     ) {
         scope.launch(Dispatchers.Main) {
             val read = withContext(Dispatchers.IO) {
-                runCatching { space.readText(virtualPath) }
+                runCatching { paths.readText(virtualPath) }
             }
             val text = read.getOrNull()
             if (text == null) {
@@ -346,6 +337,81 @@ class WebViewDocumentHost(
         }
     }
 
+    // ------------------------------------------------------------------------ export
+
+    /**
+     * Renders [text] as a complete, standalone HTML file: the document as the reader draws it,
+     * with the stylesheets and images it needs carried inside.
+     *
+     * **It does not disturb what is on screen.** The page renders this into a detached container
+     * with an engine of its own, so a live find, the reading position and the document itself all
+     * survive an export — which they have to, since the export sheet is opened from over the top
+     * of the document being read.
+     *
+     * [virtualPath] is what the document's own relative images resolve against, so it has to name
+     * something adopted. It is also the reason export goes through the page at all rather than
+     * asking for markup: the images are served out of this host's path space, and only the page
+     * is on the other side of that fetch.
+     *
+     * The single asynchronous *reply* in this class, and the reason the bridge has a
+     * request-and-answer method at all. Rendering awaits whichever of highlight.js and KaTeX the
+     * document needs, so the page cannot answer through `evaluateJavascript`'s return value — a
+     * promise crosses that boundary as an empty object.
+     *
+     * @param settings the reader settings to render with. Passed rather than assumed, because the
+     *   page's own configuration is whatever the last reader to draw applied, and a document
+     *   exported from raw mode never had one.
+     * @return the file, or null if the page could not render it or did not answer in time.
+     */
+    suspend fun renderExportHtml(
+        virtualPath: String,
+        text: String,
+        title: String,
+        settings: RendererSettings,
+    ): String? = withContext(Dispatchers.Main) {
+        // Answered rather than waited on. A WebView that cannot run the renderer never reports
+        // ready, so an export asked of one would otherwise spend the whole timeout below arriving
+        // at a verdict this host reached ten seconds after it started.
+        if (isRendererUnavailable) {
+            return@withContext null
+        }
+        // The timeout covers the page-ready await as well as the reply, for the same reason: a
+        // deadline that only starts once the page is up never starts at all on a page that is not.
+        withTimeoutOrNull(EXPORT_TIMEOUT_MS) {
+            pageReady.await()
+            val id = (++lastExportId).toString()
+            val reply = CompletableDeferred<String?>()
+            exports[id] = reply
+            try {
+                call(
+                    "exportDocument",
+                    JSONObject()
+                        .put("id", id)
+                        .put("path", virtualPath)
+                        .put("text", text)
+                        .put("title", title)
+                        .put("settings", settings.toJson()),
+                )
+                reply.await()
+            } finally {
+                // Runs on the timeout too, which cancels this coroutine rather than returning
+                // through it — so an abandoned request does not sit in the map until the page
+                // answers a question nobody is listening for.
+                exports.remove(id)
+            }
+        }
+    }
+
+    /**
+     * Exports waiting on the page, by request id.
+     *
+     * Main-thread only, like everything else that touches the page: [renderExportHtml] confines
+     * itself there and the bridge hops before it answers, so a plain map is honest about the
+     * confinement where a concurrent one would imply a freedom that does not exist.
+     */
+    private val exports = mutableMapOf<String, CompletableDeferred<String?>>()
+    private var lastExportId = 0
+
     /** Applies reader settings. Safe before the first document; the page re-renders if it needs to. */
     fun applySettings(settings: RendererSettings) {
         scope.launch(Dispatchers.Main) {
@@ -356,6 +422,11 @@ class WebViewDocumentHost(
 
     fun destroy() {
         destroyed = true
+        // An export waiting on a page that has just gone — a render process that died under it,
+        // or an Activity finishing — would otherwise sit out its whole timeout to learn the same
+        // thing. Answering "no" now is what turns that into an error message.
+        exports.values.forEach { it.complete(null) }
+        exports.clear()
         webView.removeJavascriptInterface(BRIDGE_NAME)
         webView.destroy()
     }
@@ -385,8 +456,9 @@ class WebViewDocumentHost(
         }
 
         return WebView(context).apply {
-            // On, and only here. ExportManager keeps it false for PDF export, over HTML it built
-            // itself from commonmark; these two WebViews want opposite settings.
+            // On, and only here. `ExportManager` keeps it false over the file this host renders
+            // for it: that WebView lays a finished document out for the printer and has nothing
+            // to run, so the two want opposite settings for the same reason.
             settings.javaScriptEnabled = true
 
             // Everything local is reachable through the asset loader or not at all. The two
@@ -537,6 +609,21 @@ class WebViewDocumentHost(
         }
 
         /**
+         * The answer to one [renderExportHtml], by the id it was asked with.
+         *
+         * Null means the page could not build the file and said so, rather than not replying —
+         * the console error is already in logcat, and the caller has a message to show instead of
+         * a wait.
+         *
+         * A reply for an id nothing is waiting on is dropped: that is what a request abandoned by
+         * its timeout, or by the export sheet closing, looks like from in here.
+         */
+        @JavascriptInterface
+        fun exported(requestId: String, html: String?) = fromHostPage {
+            exports.remove(requestId)?.complete(html)
+        }
+
+        /**
          * Hops to the main thread, and refuses to act on anything but the host page.
          *
          * `addJavascriptInterface` exposes the bridge to whatever document is loaded, not to one
@@ -600,6 +687,17 @@ class WebViewDocumentHost(
          * working reader into raw text, which is far worse than waiting.
          */
         const val READY_TIMEOUT_MS = 10_000L
+
+        /**
+         * How long an export gets, from the request to the finished file.
+         *
+         * Twice [READY_TIMEOUT_MS], because it covers the same page-ready wait *and* the render
+         * behind it — a document already in memory, whichever of highlight.js and KaTeX it needs,
+         * and a read of every image it references. Generous for the same reason the other one is:
+         * giving up early turns a slow export into a failed one, and the only cost of waiting is
+         * that a reader who asked for a file is still waiting for it.
+         */
+        const val EXPORT_TIMEOUT_MS = 20_000L
     }
 }
 

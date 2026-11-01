@@ -23,11 +23,6 @@ splashscreen = "1.0.1"
 webkit = "1.12.1"
 material = "1.12.0"
 
-# Markdown for PDF export, and the last parser on this side: everything on screen renders in the
-# page. It arrived transitively through Markwon until Markwon was retired; declared here so that
-# export kept working, and it goes when export goes through the shared renderer too.
-commonmark = "0.13.0"
-
 # Test
 junit = "4.13.2"
 
@@ -58,8 +53,6 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 
 google-material = { module = "com.google.android.material:material", version.ref = "material" }
-
-commonmark = { module = "com.atlassian.commonmark:commonmark", version.ref = "commonmark" }
 
 detekt-compose-rules = { module = "io.nlopez.compose.rules:detekt", version.ref = "detektComposeRules" }
 

@@ -75,6 +75,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -88,6 +90,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -120,12 +123,18 @@ import com.markreader.ui.components.segmentPositionFor
 import com.markreader.ui.components.segmentShape
 import com.markreader.format.ReaderContent
 import com.markreader.ui.export.ExportManager
+import com.markreader.ui.export.exportSourceFor
+import com.markreader.ui.export.renderExportDocument
 import com.markreader.ui.resolve
 import com.markreader.ui.reader.RenderedTextView
 import com.markreader.ui.reader.WebViewReader
 import com.markreader.webview.HeadingItem
+import com.markreader.webview.rememberPageRenderer
 import com.markreader.webview.rendererSettingsFor
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * How long the chrome's visibility decision is held after it changes, covering the
@@ -166,6 +175,11 @@ fun ViewerScreen(
     var isExportSheetVisible by rememberSaveable { mutableStateOf(false) }
     var isCodeBlockWrapEnabled by rememberSaveable { mutableStateOf(true) }
     val exportManager = remember { ExportManager(context) }
+    // The Activity's page, acquired without claiming its callbacks: export renders through it
+    // and draws nothing, so taking the reader's [ReaderEvents] would only break the reader.
+    val exportHost = rememberPageRenderer()
+    val exportScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     val haptics = LocalHapticFeedback.current
 
     val launcher = rememberLauncherForActivityResult(
@@ -371,6 +385,9 @@ fun ViewerScreen(
         // chrome so there is no strip to disguise, but this still keeps the Scaffold
         // ground from flashing a different colour behind the reader during layout.
         containerColor = surfaceColor,
+        // The reader has one thing to say and it is a failure: an export that could not be
+        // rendered. Everything else it reports is drawn into the chrome.
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             AnimatedVisibility(
                 visible = canEdit && !uiState.isSearchActive && isChromeVisible,
@@ -950,6 +967,40 @@ fun ViewerScreen(
         }
     }
 
+    val exportSettings = rendererSettingsFor(
+        preferences = prefs,
+        isDark = isSurfaceDark,
+        isCodeBlockWrapEnabled = isCodeBlockWrapEnabled
+    )
+    val exportFailedMessage = stringResource(R.string.export_failed)
+
+    // Both file exports want the same rendering and differ only in what becomes of it, so the
+    // wait — a page render, plus reading whatever images the document references — is written
+    // once. It is why these two are launched rather than called: the page answers through the
+    // bridge, and the sheet has already closed long before it does.
+    fun exportRendered(deliver: (String) -> Unit) {
+        exportScope.launch {
+            // What export renders is the format's own rendering, not what is on screen: raw mode
+            // shows the source, and "export as PDF" does not offer to print the source. Off the
+            // main thread because the plain-text answer scans a document that may be 10 MB.
+            val source = withContext(Dispatchers.Default) {
+                exportSourceFor(uiState.rendered, uiState.rawText)
+            }
+            val html = renderExportDocument(
+                host = exportHost,
+                documentUri = uriString,
+                fileName = fileName,
+                source = source,
+                settings = exportSettings
+            )
+            if (html != null) {
+                deliver(html)
+            } else {
+                snackbarHostState.showSnackbar(exportFailedMessage)
+            }
+        }
+    }
+
     if (isExportSheetVisible) {
         ModalBottomSheet(
             onDismissRequest = { isExportSheetVisible = false },
@@ -984,7 +1035,7 @@ fun ViewerScreen(
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         isExportSheetVisible = false
-                        exportManager.exportPdf(uiState.rawText, activeReaderTheme, fileName)
+                        exportRendered { exportManager.exportPdf(it, fileName) }
                     }
                 )
                 ExportSheetItem(
@@ -996,7 +1047,7 @@ fun ViewerScreen(
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         isExportSheetVisible = false
-                        exportManager.exportHtml(uiState.rawText, activeReaderTheme)
+                        exportRendered { exportManager.exportHtml(it) }
                     }
                 )
                 ExportSheetItem(

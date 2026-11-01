@@ -77,6 +77,7 @@
     <string name="export_share_raw_subtitle">Send the markdown source</string>
     <string name="export_share_html_chooser">Share HTML</string>
     <string name="export_share_markdown_chooser">Share Markdown</string>
+    <string name="export_failed">This document could not be prepared for export.</string>
 
     <!-- Viewer messages -->
     <string name="viewer_error_no_file_selected">No file selected.</string>
