@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">MarkReader</string>
     <string name="action_back">Späť</string>
     <string name="action_cancel">Zrušiť</string>
     <string name="action_close">Zavrieť</string>

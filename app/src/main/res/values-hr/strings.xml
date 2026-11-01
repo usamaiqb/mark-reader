@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">MarkReader</string>
     <string name="action_back">Natrag</string>
     <string name="action_cancel">Odustani</string>
     <string name="action_close">Zatvori</string>
