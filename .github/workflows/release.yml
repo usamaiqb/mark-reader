@@ -66,48 +66,14 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # A separate job so a Play failure never holds back the GitHub Release, and so the service
-  # account key is only exposed here. The `play` environment can require an approval first.
+  # A separate job so a Play failure never holds back the GitHub Release. It lives in its own
+  # workflow so that a failed upload can be retried by hand from there.
   play:
-    name: Upload to Google Play
     needs: release
-    runs-on: ubuntu-24.04
-    environment: play
     permissions:
       contents: read
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: play-bundle
-          path: play-bundle
-
-      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with:
-          bundler-cache: true
-
-      # Uploads the bundle to the testing track along with everything under
-      # fastlane/metadata/android: the listing text, the graphics, the screenshots and
-      # changelogs/<versionCode>.txt as the release notes. The same files F-Droid reads at
-      # this tag, so both stores describe the same build.
-      #
-      # PLAY_TRACK is a repository variable; `alpha` is Play's default closed testing track.
-      # A custom closed track is addressed by its name.
-      - name: Upload bundle and store listing
-        env:
-          SUPPLY_JSON_KEY_DATA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          TRACK: ${{ vars.PLAY_TRACK || 'alpha' }}
-        run: |
-          AAB=$(find play-bundle -name '*.aab' | head -n 1)
-          MAPPING=$(find play-bundle -name 'mapping.txt' | head -n 1)
-          bundle exec fastlane supply \
-            --package_name com.markreader \
-            --track "$TRACK" \
-            --release_status completed \
-            --aab "$AAB" \
-            --mapping "$MAPPING" \
-            --metadata_path fastlane/metadata/android \
-            --sync_image_upload true \
-            --skip_upload_apk true
+      actions: read
+    uses: ./.github/workflows/play-upload.yml
+    with:
+      tag: ${{ github.ref_name }}
+      run_id: ${{ github.run_id }}
