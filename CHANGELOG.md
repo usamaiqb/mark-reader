@@ -3,6 +3,22 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.1] - 2026-11-05
+
+### Improved
+- The editor preview now renders with the same engine as the reader, so the preview shows exactly what you will read. Images stored next to a saved document now appear in the preview.
+- PDF and HTML exports now use the same rendering and styling as the reader. Images are embedded in the exported file, and an image that can't be included keeps its alt text.
+- Documents open faster: the rendering engine is prepared once when the app starts and reused for every document.
+
+### Fixed
+- In raw mode, clearing the search field or closing search now removes the match highlights.
+- Exporting a source code file now exports it as code instead of as Markdown text.
+
+### Changed
+- Sepia and AMOLED reading themes show as light and dark in the editor preview too, as they already do in rendered documents.
+- Refreshed the store description and screenshots.
+- Releases are now also uploaded to Google Play's testing track, and CI dependencies were updated.
+
 ## [1.1.0] - 2026-10-25
 
 ### Added
