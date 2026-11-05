@@ -1,0 +1,5 @@
+• The editor preview renders with the same engine as the reader.
+• PDF and HTML exports match the reader, with images embedded.
+• Documents open faster.
+• Raw mode clears search highlights when search closes.
+• Source code files export as code instead of Markdown text.
