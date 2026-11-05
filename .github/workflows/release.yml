@@ -33,8 +33,10 @@ jobs:
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > keystore.jks
 
-      - name: Build signed release APK
-        run: ./gradlew assembleRelease
+      # One Gradle run, one R8 pass: the APK (GitHub, F-Droid's comparison) and the bundle
+      # (Google Play) come from the same minified code, so they share a mapping file.
+      - name: Build signed release APK and bundle
+        run: ./gradlew assembleRelease bundleRelease
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -53,3 +55,59 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           files: app/build/outputs/apk/release/mark-reader-${{ github.ref_name }}.apk
+
+      - name: Keep the bundle for the Play upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: play-bundle
+          path: |
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  # A separate job so a Play failure never holds back the GitHub Release, and so the service
+  # account key is only exposed here. The `play` environment can require an approval first.
+  play:
+    name: Upload to Google Play
+    needs: release
+    runs-on: ubuntu-24.04
+    environment: play
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: play-bundle
+          path: play-bundle
+
+      - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with:
+          bundler-cache: true
+
+      # Uploads the bundle to the testing track along with everything under
+      # fastlane/metadata/android: the listing text, the graphics, the screenshots and
+      # changelogs/<versionCode>.txt as the release notes. The same files F-Droid reads at
+      # this tag, so both stores describe the same build.
+      #
+      # PLAY_TRACK is a repository variable; `alpha` is Play's default closed testing track.
+      # A custom closed track is addressed by its name.
+      - name: Upload bundle and store listing
+        env:
+          SUPPLY_JSON_KEY_DATA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          TRACK: ${{ vars.PLAY_TRACK || 'alpha' }}
+        run: |
+          AAB=$(find play-bundle -name '*.aab' | head -n 1)
+          MAPPING=$(find play-bundle -name 'mapping.txt' | head -n 1)
+          bundle exec fastlane supply \
+            --package_name com.markreader \
+            --track "$TRACK" \
+            --release_status completed \
+            --aab "$AAB" \
+            --mapping "$MAPPING" \
+            --metadata_path fastlane/metadata/android \
+            --sync_image_upload true \
+            --skip_upload_apk true
