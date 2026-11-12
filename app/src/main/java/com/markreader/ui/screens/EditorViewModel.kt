@@ -27,7 +27,6 @@ import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
 import com.markreader.format.FormatRegistry
 import com.markreader.format.ReaderContent
-import com.markreader.format.RenderTheme
 import com.markreader.ui.UiMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -338,7 +337,7 @@ class EditorViewModel(
      */
     private suspend fun renderPreview(text: String) {
         _uiState.value = _uiState.value.copy(
-            previewText = format?.load(text, RenderTheme(_uiState.value.isPreviewDark))
+            previewText = format?.load(text)
         )
     }
 

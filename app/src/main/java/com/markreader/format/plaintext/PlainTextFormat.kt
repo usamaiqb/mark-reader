@@ -4,7 +4,6 @@ import com.markreader.R
 import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
 import com.markreader.format.ReaderContent
-import com.markreader.format.RenderTheme
 
 /**
  * Text that renders as itself.
@@ -32,6 +31,6 @@ object PlainTextFormat : DocumentFormat {
 
     // Handed over as-is. [ReaderContent.Spans] takes a CharSequence precisely so that a format
     // with no styling to add does not copy the whole document into a Spannable to say so.
-    override suspend fun load(text: String, theme: RenderTheme): ReaderContent =
+    override suspend fun load(text: String): ReaderContent =
         ReaderContent.Spans(text)
 }

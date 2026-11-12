@@ -4,7 +4,6 @@ import com.markreader.R
 import com.markreader.format.DocumentFormat
 import com.markreader.format.FormatCapabilities
 import com.markreader.format.ReaderContent
-import com.markreader.format.RenderTheme
 
 /**
  * Source code, drawn as a single fenced block by the shared renderer.
@@ -71,7 +70,7 @@ class SourceCodeFormat(private val language: String) : DocumentFormat {
      */
     override val renderFailureWarningRes: Int? = null
 
-    override suspend fun load(text: String, theme: RenderTheme): ReaderContent =
+    override suspend fun load(text: String): ReaderContent =
         ReaderContent.Markdown(fenced(text, language))
 }
 

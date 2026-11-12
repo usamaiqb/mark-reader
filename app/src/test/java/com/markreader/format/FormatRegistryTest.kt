@@ -97,6 +97,6 @@ class FormatRegistryTest {
         override val editorPlaceholderRes = R.string.editor_placeholder_markdown
         override val creationMimeType = "text/markdown"
         override val renderFailureWarningRes: Int? = null
-        override suspend fun load(text: String, theme: RenderTheme): ReaderContent? = null
+        override suspend fun load(text: String): ReaderContent? = null
     }
 }
