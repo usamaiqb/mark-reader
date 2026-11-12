@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                 return clip.getItemAt(0).uri
             }
         }
-        return if (Build.VERSION.SDK_INT >= 33) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         } else {
             @Suppress("DEPRECATION")

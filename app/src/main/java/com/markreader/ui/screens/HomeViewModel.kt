@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.markreader.data.RecentFile
 import com.markreader.data.RecentFilesRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,7 +37,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /** Null until the first DataStore emission, so the UI can avoid flashing the empty state. */
     val recentFiles: StateFlow<List<RecentFile>?> = recentFilesRepository.recentFiles
         .map<List<RecentFile>, List<RecentFile>?> { it }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SHARING_STOP_TIMEOUT_MS), null)
 
     fun onOpenFileRequested() {
         _launchPickerSignal.tryEmit(Unit)
@@ -79,7 +80,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val cursor = getApplication<Application>().contentResolver
                 .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             cursor?.use { if (it.moveToFirst()) it.getString(0) else null }
-        } catch (e: Exception) {
+        } catch (ex: CancellationException) {
+            // Rethrown before the clauses below, and load-bearing: CancellationException is an
+            // IllegalStateException, so catching that would swallow the coroutine's cancellation.
+            throw ex
+        } catch (_: SecurityException) {
+            // Grant revoked since the document was last opened.
+            null
+        } catch (_: IllegalArgumentException) {
+            // No provider behind the authority, or it does not offer the column.
+            null
+        } catch (_: IllegalStateException) {
+            // The provider answered but is in no state to be queried.
             null
         } ?: uri.lastPathSegment?.substringAfterLast('/') ?: ""
     }

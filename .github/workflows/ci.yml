@@ -36,8 +36,8 @@ jobs:
       - name: Run lint
         run: ./gradlew lint
 
-      # Kotlin static analysis, including the Compose rules. Pre-existing findings are
-      # recorded in detekt-baseline.xml, so this fails on new ones only.
+      # Kotlin static analysis, including the Compose rules. There is no baseline: this gates
+      # on zero findings for every file, so a new one fails the build wherever it is.
       - name: Run detekt
         run: ./gradlew detekt
 

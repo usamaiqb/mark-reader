@@ -38,6 +38,30 @@ complexity:
     ignoreAnnotated:
       - "Composable"
       - "Preview"
+  CyclomaticComplexMethod:
+    active: true
+    # A screen's branching *is* its layout: an `if` per optional piece of chrome, a `when` over
+    # a sealed content type, a `?:` on every nullable. It still reads top to bottom whatever the
+    # count says, and it cannot be reduced without inventing composables that exist only to
+    # lower a number. The same argument already exempts composables from LongMethod above.
+    # Nothing else is exempt: every non-composable function is held to the default.
+    ignoreAnnotated:
+      - "Composable"
+      - "Preview"
+  TooManyFunctions:
+    active: true
+    # A view model is one screen's event surface — the viewer has seventeen handlers because the
+    # viewer raises seventeen events, not because anything in it is tangled. Two settings rather
+    # than one raised number:
+    #
+    #  - ignorePrivate, so that naming the steps of a long function — exactly what the
+    #    complexity rules above ask for — cannot push its class over this one. Private helpers
+    #    are not an API.
+    #  - a threshold one above the largest surface we actually have, and no further. The viewer
+    #    sits at seventeen, so the next event added to it reopens this question rather than
+    #    passing quietly.
+    ignorePrivate: true
+    thresholdInClasses: 18
 
 style:
   MagicNumber:

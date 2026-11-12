@@ -26,6 +26,15 @@ import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.format.ReaderContent
 
+/** The reader's own padding around the text, in dp, on all four sides. */
+private const val READER_PADDING_DP = 16
+
+/**
+ * Where in the viewport a revealed target lands: one this-many-th of the way down rather than
+ * flush against the top edge, so the line before it stays on screen as context.
+ */
+private const val REVEAL_VIEWPORT_DIVISOR = 3
+
 /**
  * A [ScrollView] that never scrolls itself to keep a focused descendant on screen.
  *
@@ -89,13 +98,6 @@ fun RenderedTextView(
     content: ReaderContent,
     textColor: Int,
     padding: PaddingValues,
-    /**
-     * Height of the chrome the reader draws underneath, added to the content's own top
-     * padding *inside* the ScrollView. Kept out of [padding] deliberately: [padding] insets
-     * the viewport, which resizes the scroll container and moves `maxScrollY`, and that is
-     * the feedback loop this avoids.
-     */
-    contentTopInset: Dp = 0.dp,
     // Held as State, not Int: the live scroll position changes every frame while
     // scrolling, and taking it as a value would recompose this composable — and
     // re-run the AndroidView update block — on every one of those frames. It is
@@ -103,16 +105,24 @@ fun RenderedTextView(
     // observation below.
     savedScrollY: State<Int>,
     scrollToOffset: Int?,
-    onScrollChanged: (scrollY: Int, maxScrollY: Int) -> Unit,
-    onScrollExtentChanged: (maxScrollY: Int) -> Unit,
-    onScrollConsumed: () -> Unit,
+    onScrollChange: (scrollY: Int, maxScrollY: Int) -> Unit,
+    onScrollExtentChange: (maxScrollY: Int) -> Unit,
+    onClearPendingScroll: () -> Unit,
     selectionHighlightColor: Int,
     fontSizeSp: Float,
     lineHeight: Float,
     readingFont: ReadingFontPreference,
+    textAlignment: TextAlignmentPreference,
+    modifier: Modifier = Modifier,
+    /**
+     * Height of the chrome the reader draws underneath, added to the content's own top
+     * padding *inside* the ScrollView. Kept out of [padding] deliberately: [padding] insets
+     * the viewport, which resizes the scroll container and moves `maxScrollY`, and that is
+     * the feedback loop this avoids.
+     */
+    contentTopInset: Dp = 0.dp,
     codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono,
-    isMonospaced: Boolean = false,
-    textAlignment: TextAlignmentPreference
+    isMonospaced: Boolean = false
 ) {
     // This view draws text and nothing else. Callers route the other two elsewhere —
     // [ReaderContent.Markdown] to [WebViewReader], and [ReaderContent.Table] to a native table
@@ -149,7 +159,7 @@ fun RenderedTextView(
         )
     }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(padding),
         contentAlignment = Alignment.TopCenter
@@ -159,129 +169,32 @@ fun RenderedTextView(
                 .fillMaxSize()
                 .widthIn(max = 600.dp),
             factory = { context ->
-                val density = context.resources.displayMetrics.density
-                val paddingPx = (16 * density).toInt()
-
-                val scrollView = FocusStableScrollView(context).apply {
-                    val textView = SearchHighlightTextView(context).apply {
-                        textSize = fontSizeSp
-                        setLineSpacing(0f, lineHeight)
-                        setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-                        setTextIsSelectable(true)
-                        setTextColor(textColor)
-                        highlightColor = selectionHighlightColor
-                    }
-                    addView(
-                        textView,
-                        ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT
-                        )
-                    )
-                    setOnScrollChangeListener { _, _, scrollY, _, _ ->
-                        onScrollChanged(scrollY, computeMaxScrollY(this))
-                    }
-                    // Report scroll extent whenever content lays out so reading
-                    // progress is available before the first scroll event. This
-                    // reports the extent only — never a position. It fires on every
-                    // window-wide layout, including every frame of the chrome's
-                    // show/hide animation, and reporting a position from here would
-                    // feed those frames into the chrome's scroll-delta threshold.
-                    //
-                    // Held in the controller and detached in `onRelease` below: a
-                    // global-layout listener is registered against the whole window's
-                    // ViewTreeObserver, so an anonymous one keeps this ScrollView —
-                    // and the document attached to it — reachable for as long as the
-                    // window lives, across every document opened after it.
-                    val extentListener = ViewTreeObserver.OnGlobalLayoutListener {
-                        val extent = computeMaxScrollY(this)
-                        if (extent != controller.lastReportedExtent) {
-                            controller.lastReportedExtent = extent
-                            onScrollExtentChanged(extent)
-                        }
-                    }
-                    controller.extentListener = extentListener
-                    viewTreeObserver.addOnGlobalLayoutListener(extentListener)
-                }
-                scrollView
+                buildReaderScrollView(
+                    context = context,
+                    controller = controller,
+                    fontSizeSp = fontSizeSp,
+                    lineHeight = lineHeight,
+                    textColor = textColor,
+                    selectionHighlightColor = selectionHighlightColor,
+                    onScrollChange = onScrollChange,
+                    onScrollExtentChange = onScrollExtentChange
+                )
             },
+            // Four steps, each its own function below, and each deciding for itself whether it
+            // has anything to do. This pass runs on every recomposition, so "nothing changed" is
+            // the common case and all four have to be cheap in it.
             update = { scrollView ->
                 val textView = scrollView.getChildAt(0) as? TextView ?: return@AndroidView
-                val density = scrollView.context.resources.displayMetrics.density
-                val paddingPx = (16 * density).toInt()
-
-                // The chrome overlays the reader, so its height belongs to the content
-                // rather than to the viewport. Putting it in `paddingTop` keeps the
-                // viewport a constant size — `maxScrollY` never moves, Android never
-                // clamps `scrollY`, and the text scrolls up into the space the bar leaves
-                // when it collapses.
-                val contentTopPx = paddingPx + (contentTopInset.value * density).toInt()
-                if (textView.paddingTop != contentTopPx) {
-                    textView.setPadding(
-                        textView.paddingLeft,
-                        contentTopPx,
-                        textView.paddingRight,
-                        textView.paddingBottom
-                    )
-                }
-
-                // The cheap test first: the very instance already applied is already on screen.
-                // Anything else is [ReaderContentController.needsText]'s to decide, because the
-                // characters are only half of what can change — the spans over them are the other
-                // half, and a search highlight changes nothing else.
-                if (text !== controller.lastTextRef) {
-                    val characters = text.toString()
-                    val hash = characters.hashCode()
-                    if (controller.needsText(isStyled = spanned != null, contentHash = hash)) {
-                        // Unstyled text goes in as a String: no Spannable is allocated to draw
-                        // text that has no styling.
-                        textView.text = spanned ?: characters
-                        controller.tookText(isStyled = spanned != null, contentHash = hash)
-                    }
-                    controller.lastTextRef = text
-                }
-                if (controller.lastStyleKey != contentKey) {
-                    applyStyleToTextView(
-                        textView, fontSizeSp, lineHeight, readingFont, codeFont, isMonospaced,
-                        textAlignment, textColor, selectionHighlightColor
-                    )
-                    controller.lastStyleKey = contentKey
-                }
-                if (controller.lastTextColor != textColor) {
-                    textView.setTextColor(textColor)
-                    controller.lastTextColor = textColor
-                }
-                if (controller.lastSelectionHighlightColor != selectionHighlightColor) {
-                    textView.highlightColor = selectionHighlightColor
-                    controller.lastSelectionHighlightColor = selectionHighlightColor
-                }
-
-                // Scroll handling. Each branch claims the key synchronously, before
-                // posting, so that a later pass through this block cannot queue a
-                // second, conflicting restore behind the one in flight.
-                if (scrollToOffset == null && controller.lastRestoredKey != contentKey) {
-                    // Restore-only read: observing it here would resubscribe this
-                    // block to a value that changes on every scroll frame.
-                    val restoreY = Snapshot.withoutReadObservation { savedScrollY.value }
-                    if (restoreY > 0) {
-                        controller.lastRestoredKey = contentKey
-                        scrollView.post { scrollView.scrollTo(0, restoreY) }
-                    }
-                }
-
-                if (scrollToOffset != null) {
-                    controller.lastRestoredKey = contentKey
-                    scrollView.post {
-                        val y = resolveScrollY(scrollView, scrollToOffset)
-                        if (y != null) {
-                            val centeredY = (y - scrollView.height / 3).coerceAtLeast(0)
-                            scrollView.smoothScrollTo(0, centeredY)
-                        }
-                        // Consumed either way, so an unresolvable target does not
-                        // leave the request pending forever.
-                        onScrollConsumed()
-                    }
-                }
+                applyTopInset(textView, contentTopInset)
+                controller.applyText(textView, text, spanned)
+                controller.applyStyle(textView, contentKey, textColor, selectionHighlightColor)
+                controller.applyPendingScroll(
+                    scrollView = scrollView,
+                    contentKey = contentKey,
+                    savedScrollY = savedScrollY,
+                    scrollToOffset = scrollToOffset,
+                    onClearPendingScroll = onClearPendingScroll
+                )
             },
             onRelease = { scrollView ->
                 controller.extentListener?.let { listener ->
@@ -290,5 +203,179 @@ fun RenderedTextView(
                 }
             }
         )
+    }
+}
+
+/** The reader's view tree: one selectable [TextView] in a scroll container that reports itself. */
+private fun buildReaderScrollView(
+    context: Context,
+    controller: ReaderContentController,
+    fontSizeSp: Float,
+    lineHeight: Float,
+    textColor: Int,
+    selectionHighlightColor: Int,
+    onScrollChange: (scrollY: Int, maxScrollY: Int) -> Unit,
+    onScrollExtentChange: (maxScrollY: Int) -> Unit
+): ScrollView {
+    val paddingPx = (READER_PADDING_DP * context.resources.displayMetrics.density).toInt()
+    return FocusStableScrollView(context).apply {
+        val textView = SearchHighlightTextView(context).apply {
+            textSize = fontSizeSp
+            setLineSpacing(0f, lineHeight)
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+            setTextIsSelectable(true)
+            setTextColor(textColor)
+            highlightColor = selectionHighlightColor
+        }
+        addView(
+            textView,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+        setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            onScrollChange(scrollY, computeMaxScrollY(this))
+        }
+        // Report scroll extent whenever content lays out so reading
+        // progress is available before the first scroll event. This
+        // reports the extent only — never a position. It fires on every
+        // window-wide layout, including every frame of the chrome's
+        // show/hide animation, and reporting a position from here would
+        // feed those frames into the chrome's scroll-delta threshold.
+        //
+        // Held in the controller and detached in the caller's `onRelease`: a
+        // global-layout listener is registered against the whole window's
+        // ViewTreeObserver, so an anonymous one keeps this ScrollView —
+        // and the document attached to it — reachable for as long as the
+        // window lives, across every document opened after it.
+        val extentListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val extent = computeMaxScrollY(this)
+            if (extent != controller.lastReportedExtent) {
+                controller.lastReportedExtent = extent
+                onScrollExtentChange(extent)
+            }
+        }
+        controller.extentListener = extentListener
+        viewTreeObserver.addOnGlobalLayoutListener(extentListener)
+    }
+}
+
+/**
+ * Puts the chrome's height into the text's top padding, if it has moved.
+ *
+ * The chrome overlays the reader, so its height belongs to the content rather than to the
+ * viewport. Padding keeps the viewport a constant size — `maxScrollY` never moves, Android never
+ * clamps `scrollY`, and the text scrolls up into the space the bar leaves when it collapses.
+ */
+private fun applyTopInset(textView: TextView, contentTopInset: Dp) {
+    val density = textView.context.resources.displayMetrics.density
+    val contentTopPx =
+        (READER_PADDING_DP * density).toInt() + (contentTopInset.value * density).toInt()
+    if (textView.paddingTop != contentTopPx) {
+        textView.setPadding(
+            textView.paddingLeft,
+            contentTopPx,
+            textView.paddingRight,
+            textView.paddingBottom
+        )
+    }
+}
+
+/**
+ * Applies [text], if it is not already on screen.
+ *
+ * The cheap test first: the very instance already applied is already on screen. Anything else is
+ * [ReaderContentController.needsText]'s to decide, because the characters are only half of what
+ * can change — the spans over them are the other half, and a search highlight changes nothing
+ * else.
+ */
+private fun ReaderContentController.applyText(
+    textView: TextView,
+    text: CharSequence,
+    spanned: Spanned?
+) {
+    if (text === lastTextRef) return
+    val characters = text.toString()
+    val hash = characters.hashCode()
+    if (needsText(isStyled = spanned != null, contentHash = hash)) {
+        // Unstyled text goes in as a String: no Spannable is allocated to draw
+        // text that has no styling.
+        textView.text = spanned ?: characters
+        tookText(isStyled = spanned != null, contentHash = hash)
+    }
+    lastTextRef = text
+}
+
+/**
+ * Applies the typography and the two colours, each only if it has moved.
+ *
+ * The typography is read back off [contentKey] rather than passed alongside it: the key *is* the
+ * set of values that decide the styling, so the comparison and what gets applied cannot disagree.
+ */
+private fun ReaderContentController.applyStyle(
+    textView: TextView,
+    contentKey: ContentKey,
+    textColor: Int,
+    selectionHighlightColor: Int
+) {
+    if (lastStyleKey != contentKey) {
+        applyStyleToTextView(
+            textView,
+            contentKey.fontSizeSp,
+            contentKey.lineHeight,
+            contentKey.readingFont,
+            contentKey.codeFont,
+            contentKey.isMonospaced,
+            contentKey.textAlignment,
+            textColor,
+            selectionHighlightColor
+        )
+        lastStyleKey = contentKey
+    }
+    if (lastTextColor != textColor) {
+        textView.setTextColor(textColor)
+        lastTextColor = textColor
+    }
+    if (lastSelectionHighlightColor != selectionHighlightColor) {
+        textView.highlightColor = selectionHighlightColor
+        lastSelectionHighlightColor = selectionHighlightColor
+    }
+}
+
+/**
+ * Either restores the saved reading position or applies a requested one.
+ *
+ * Each branch claims the key synchronously, before posting, so that a later pass through the
+ * update block cannot queue a second, conflicting restore behind the one in flight.
+ */
+private fun ReaderContentController.applyPendingScroll(
+    scrollView: ScrollView,
+    contentKey: ContentKey,
+    savedScrollY: State<Int>,
+    scrollToOffset: Int?,
+    onClearPendingScroll: () -> Unit
+) {
+    if (scrollToOffset == null) {
+        if (lastRestoredKey == contentKey) return
+        // Restore-only read: observing it from the update block would resubscribe
+        // that block to a value that changes on every scroll frame.
+        val restoreY = Snapshot.withoutReadObservation { savedScrollY.value }
+        if (restoreY > 0) {
+            lastRestoredKey = contentKey
+            scrollView.post { scrollView.scrollTo(0, restoreY) }
+        }
+        return
+    }
+    lastRestoredKey = contentKey
+    scrollView.post {
+        val y = resolveScrollY(scrollView, scrollToOffset)
+        if (y != null) {
+            val centeredY = (y - scrollView.height / REVEAL_VIEWPORT_DIVISOR).coerceAtLeast(0)
+            scrollView.smoothScrollTo(0, centeredY)
+        }
+        // Consumed either way, so an unresolvable target does not
+        // leave the request pending forever.
+        onClearPendingScroll()
     }
 }

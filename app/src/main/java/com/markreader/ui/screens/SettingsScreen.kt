@@ -3,14 +3,8 @@ package com.markreader.ui.screens
 import android.app.Application
 import android.os.Build
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,8 +28,6 @@ import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BrightnessAuto
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.FormatAlignJustify
@@ -50,21 +42,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -74,14 +60,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -99,352 +83,13 @@ import com.markreader.data.UserPreferences
 import com.markreader.ui.components.GroupOuterRadius
 import com.markreader.ui.components.SectionHeader
 import com.markreader.ui.components.SegmentPosition
-import com.markreader.ui.components.segmentShape
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
 import com.markreader.ui.theme.SansReadingFontFamily
 import java.util.Locale
 import kotlin.math.abs
 
-private const val GithubRepoUrl = "https://github.com/usamaiqb/mark-reader"
-
-// ── Reusable composables ───────────────────────────────────────────────────────
-
-@Composable
-private fun SettingsGroup(content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        content()
-    }
-}
-
-@Composable
-private fun SettingsSurface(
-    position: SegmentPosition,
-    onClick: (() -> Unit)? = null,
-    content: @Composable () -> Unit
-) {
-    val shape = segmentShape(position)
-    // One Surface with one content slot: branching used to call content() from two call
-    // sites, which throws away any state it holds if a row gains or loses its onClick.
-    // The click lives on the inner Box so its ripple stays inside the Surface's shape.
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainer
-    ) {
-        Box(
-            modifier = Modifier
-                .then(
-                    if (onClick != null) {
-                        Modifier.clickable(role = Role.Button, onClick = onClick)
-                    } else {
-                        Modifier
-                    }
-                )
-                .padding(16.dp)
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
-private fun RowLeadingIcon(icon: ImageVector) {
-    Box(
-        modifier = Modifier
-            .padding(end = 16.dp)
-            .size(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.secondary
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun <T> PickerSettingsRow(
-    position: SegmentPosition,
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    options: List<T>,
-    optionLabel: @Composable (T) -> String,
-    selectedLabel: String,
-    onSelect: (T) -> Unit
-) {
-    var showSheet by remember { mutableStateOf(false) }
-
-    SettingsSurface(position = position, onClick = { showSheet = true }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RowLeadingIcon(icon)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    shape = CircleShape
-                ) {
-                    AnimatedContent(
-                        targetState = selectedLabel,
-                        transitionSpec = {
-                            fadeIn(tween(150)) togetherWith fadeOut(tween(150))
-                        },
-                        label = "valueBadge"
-                    ) { label ->
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (showSheet) {
-        OptionSheet(
-            title = title,
-            options = options,
-            optionLabel = optionLabel,
-            selectedLabel = selectedLabel,
-            onSelect = onSelect,
-            onDismiss = { showSheet = false }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun <T> OptionSheet(
-    title: String,
-    options: List<T>,
-    optionLabel: @Composable (T) -> String,
-    selectedLabel: String,
-    onSelect: (T) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val haptics = LocalHapticFeedback.current
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-        )
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            options.forEach { option ->
-                val selected = optionLabel(option) == selectedLabel
-                Surface(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onSelect(option)
-                        onDismiss()
-                    },
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainer
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)
-                    ) {
-                        Text(
-                            text = optionLabel(option),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (selected) FontWeight.Bold else null,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (selected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = stringResource(R.string.settings_selected),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun SwitchSettingsRow(
-    position: SegmentPosition,
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    val haptics = LocalHapticFeedback.current
-    val toggle: (Boolean) -> Unit = { newValue ->
-        haptics.performHapticFeedback(
-            if (newValue) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff
-        )
-        onCheckedChange(newValue)
-    }
-
-    SettingsSurface(position = position, onClick = { toggle(!checked) }) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RowLeadingIcon(icon)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Switch(
-                checked = checked,
-                onCheckedChange = toggle,
-                thumbContent = {
-                    AnimatedContent(
-                        targetState = checked,
-                        transitionSpec = {
-                            fadeIn(tween(100)) togetherWith fadeOut(tween(100))
-                        },
-                        label = "switchThumbIcon"
-                    ) { isChecked ->
-                        Icon(
-                            imageVector = if (isChecked) Icons.Rounded.Check else Icons.Rounded.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                        )
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun SliderSettingsRow(
-    position: SegmentPosition,
-    icon: ImageVector,
-    title: String,
-    valueLabel: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    onValueChangeFinished: () -> Unit,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int
-) {
-    val haptics = LocalHapticFeedback.current
-
-    SettingsSurface(position = position) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RowLeadingIcon(icon)
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = valueLabel,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Slider(
-                value = value,
-                onValueChange = { newValue ->
-                    if (newValue != value) {
-                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                    }
-                    onValueChange(newValue)
-                },
-                onValueChangeFinished = onValueChangeFinished,
-                valueRange = valueRange,
-                steps = steps,
-                colors = SliderDefaults.colors(
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    thumbColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        }
-    }
-}
-
-@Composable
-private fun SegmentedSettingsRow(
-    position: SegmentPosition,
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    control: @Composable () -> Unit
-) {
-    SettingsSurface(position = position) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RowLeadingIcon(icon)
-                Column {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            control()
-        }
-    }
-}
+private const val GITHUB_REPO_URL = "https://github.com/usamaiqb/mark-reader"
 
 // ── Reader preview ─────────────────────────────────────────────────────────────
 
@@ -788,7 +433,7 @@ fun SettingsScreen(
                     val uriHandler = LocalUriHandler.current
                     SettingsSurface(
                         position = SegmentPosition.First,
-                        onClick = { uriHandler.openUri(GithubRepoUrl) }
+                        onClick = { uriHandler.openUri(GITHUB_REPO_URL) }
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
@@ -812,7 +457,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = GithubRepoUrl.removePrefix("https://"),
+                                    text = GITHUB_REPO_URL.removePrefix("https://"),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

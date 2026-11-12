@@ -29,6 +29,13 @@ enum class TextAlignmentPreference {
     Justified
 }
 
+/**
+ * The reader's typography defaults, named once because two places need them: the defaults on
+ * [UserPreferences] and the fallbacks [PreferencesRepository] reads when the store holds nothing.
+ */
+const val DEFAULT_FONT_SIZE_SP = 18f
+const val DEFAULT_LINE_HEIGHT = 1.6f
+
 data class UserPreferences(
     val appThemeMode: AppThemeModePreference = AppThemeModePreference.System,
     val useDynamicColors: Boolean = true,
@@ -36,7 +43,7 @@ data class UserPreferences(
     val readerDarkTheme: ReaderThemePreference = ReaderThemePreference.Dark,
     val readingFont: ReadingFontPreference = ReadingFontPreference.Merriweather,
     val codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono,
-    val fontSizeSp: Float = 18f,
-    val lineHeight: Float = 1.6f,
+    val fontSizeSp: Float = DEFAULT_FONT_SIZE_SP,
+    val lineHeight: Float = DEFAULT_LINE_HEIGHT,
     val textAlignment: TextAlignmentPreference = TextAlignmentPreference.Left
 )

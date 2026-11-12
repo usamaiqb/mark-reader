@@ -11,6 +11,12 @@ import android.text.TextPaint
 import android.text.style.CharacterStyle
 import android.widget.TextView
 
+/** Corner rounding on a match's box, in dp — a pill without looking like a button. */
+private const val HIGHLIGHT_CORNER_RADIUS_DP = 4
+
+/** How far a match's box is pulled in on each side, in dp, so adjacent matches stay distinct. */
+private const val HIGHLIGHT_HORIZONTAL_INSET_DP = 2
+
 /**
  * Marker span for search matches. Deliberately paints nothing itself — the
  * highlight boxes are drawn by [SearchHighlightTextView], bounded to the
@@ -44,14 +50,13 @@ class SearchHighlightTextView(context: Context) : TextView(context) {
         if (spans.isEmpty()) return
 
         val density = resources.displayMetrics.density
-        val cornerRadius = 4 * density
-        val horizontalInset = 2 * density
+        val cornerRadius = HIGHLIGHT_CORNER_RADIUS_DP * density
+        val horizontalInset = HIGHLIGHT_HORIZONTAL_INSET_DP * density
         canvas.save()
         canvas.translate(totalPaddingLeft.toFloat(), totalPaddingTop.toFloat())
         // Two passes so the active match is never covered by a passive box.
         for (activePass in booleanArrayOf(false, true)) {
-            for (span in spans) {
-                if (span.isActive != activePass) continue
+            for (span in spans.filter { it.isActive == activePass }) {
                 val start = spanned.getSpanStart(span)
                 val end = spanned.getSpanEnd(span)
                 if (start < 0 || end <= start || end > spanned.length) continue

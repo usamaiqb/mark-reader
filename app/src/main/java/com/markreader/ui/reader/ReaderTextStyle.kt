@@ -61,11 +61,11 @@ internal fun applyStyleToTextView(
     // justification branch because it applies either way.
     tv.textDirection = TextView.TEXT_DIRECTION_FIRST_STRONG
     if (textAlignment == TextAlignmentPreference.Justified &&
-        Build.VERSION.SDK_INT >= 26
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
     ) {
         tv.justificationMode = LineBreaker.JUSTIFICATION_MODE_INTER_WORD
     } else {
-        if (Build.VERSION.SDK_INT >= 26) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             tv.justificationMode = LineBreaker.JUSTIFICATION_MODE_NONE
         }
         tv.textAlignment = TextView.TEXT_ALIGNMENT_VIEW_START

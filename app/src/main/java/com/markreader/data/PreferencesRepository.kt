@@ -42,8 +42,12 @@ class PreferencesRepository private constructor(private val context: Context) {
             }
         }
         .map { prefs ->
-            val legacyTheme = prefs[Keys.LEGACY_THEME]?.let { runCatching { ReaderThemePreference.valueOf(it) }.getOrNull() }
-            val appThemeMode = prefs[Keys.APP_THEME_MODE]?.let { runCatching { AppThemeModePreference.valueOf(it) }.getOrNull() }
+            val legacyTheme = prefs[Keys.LEGACY_THEME]?.let {
+                runCatching { ReaderThemePreference.valueOf(it) }.getOrNull()
+            }
+            val appThemeMode = prefs[Keys.APP_THEME_MODE]?.let {
+                runCatching { AppThemeModePreference.valueOf(it) }.getOrNull()
+            }
                 ?: when (legacyTheme) {
                     ReaderThemePreference.Amoled,
                     ReaderThemePreference.Dark -> AppThemeModePreference.Dark
@@ -76,8 +80,8 @@ class PreferencesRepository private constructor(private val context: Context) {
                 runCatching { CodeFontPreference.valueOf(it) }.getOrNull()
             }
                 ?: CodeFontPreference.JetBrainsMono
-            val fontSize = prefs[Keys.FONT_SIZE] ?: 18f
-            val lineHeight = prefs[Keys.LINE_HEIGHT] ?: 1.6f
+            val fontSize = prefs[Keys.FONT_SIZE] ?: DEFAULT_FONT_SIZE_SP
+            val lineHeight = prefs[Keys.LINE_HEIGHT] ?: DEFAULT_LINE_HEIGHT
             val alignment = prefs[Keys.TEXT_ALIGNMENT]?.let {
                 runCatching { TextAlignmentPreference.valueOf(it) }.getOrNull()
             }
@@ -105,12 +109,14 @@ class PreferencesRepository private constructor(private val context: Context) {
     }
 
     suspend fun setReaderLightTheme(theme: ReaderThemePreference) {
-        val safeTheme = if (theme == ReaderThemePreference.Sepia) ReaderThemePreference.Sepia else ReaderThemePreference.Light
+        val safeTheme =
+            if (theme == ReaderThemePreference.Sepia) ReaderThemePreference.Sepia else ReaderThemePreference.Light
         context.dataStore.edit { it[Keys.READER_LIGHT_THEME] = safeTheme.name }
     }
 
     suspend fun setReaderDarkTheme(theme: ReaderThemePreference) {
-        val safeTheme = if (theme == ReaderThemePreference.Amoled) ReaderThemePreference.Amoled else ReaderThemePreference.Dark
+        val safeTheme =
+            if (theme == ReaderThemePreference.Amoled) ReaderThemePreference.Amoled else ReaderThemePreference.Dark
         context.dataStore.edit { it[Keys.READER_DARK_THEME] = safeTheme.name }
     }
 

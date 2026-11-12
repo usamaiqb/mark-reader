@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
@@ -99,7 +98,7 @@ import com.markreader.webview.rendererSettingsFor
 fun EditorScreen(
     uriString: String?,
     onNavigateBack: () -> Unit,
-    onFileSaved: () -> Unit,
+    onSaveComplete: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: EditorViewModel = viewModel(
         factory = EditorViewModel.factory(
@@ -109,7 +108,7 @@ fun EditorScreen(
     )
 ) {
     // Keyed on the save result rather than the callback, so read the caller's current one.
-    val currentOnFileSaved by rememberUpdatedState(onFileSaved)
+    val currentOnSaveComplete by rememberUpdatedState(onSaveComplete)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isSystemDark = isSystemInDarkTheme()
 
@@ -135,7 +134,7 @@ fun EditorScreen(
     LaunchedEffect(uiState.saveResult) {
         when (uiState.saveResult) {
             is SaveResult.Success -> {
-                currentOnFileSaved()
+                currentOnSaveComplete()
                 snackbarHostState.showSnackbar(savedMessage)
                 viewModel.onSaveResultConsumed()
             }
@@ -356,7 +355,7 @@ fun EditorScreen(
                     // Visible when the keyboard is up, for formats with markup to insert.
                     if (uiState.capabilities.hasFormattingToolbar && uiState.activeTab == EditorTab.Edit) {
                         AnimatedVisibility(visible = keyboardVisible) {
-                            FormattingToolbar(viewModel = viewModel)
+                            FormattingToolbar(onFormat = viewModel::applyFormat)
                         }
                     }
                 }
@@ -384,8 +383,25 @@ fun EditorScreen(
     }
 }
 
+/** What the formatting toolbar can ask for; [EditorViewModel.applyFormat] decides what it is. */
+enum class FormatAction {
+    Bold,
+    Italic,
+    Strikethrough,
+    Heading1,
+    Heading2,
+    Heading3,
+    Bullet,
+    Numbered,
+    HorizontalRule,
+    InlineCode,
+    CodeBlock,
+    Blockquote,
+    Link
+}
+
 @Composable
-private fun FormattingToolbar(viewModel: EditorViewModel) {
+private fun FormattingToolbar(onFormat: (FormatAction) -> Unit) {
     Surface(
         tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth()
@@ -397,34 +413,44 @@ private fun FormattingToolbar(viewModel: EditorViewModel) {
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                FormatIconButton(Icons.Filled.FormatBold, R.string.format_bold) { viewModel.formatBold() }
-                FormatIconButton(Icons.Filled.FormatItalic, R.string.format_italic) { viewModel.formatItalic() }
+                FormatIconButton(Icons.Filled.FormatBold, R.string.format_bold) {
+                    onFormat(FormatAction.Bold)
+                }
+                FormatIconButton(Icons.Filled.FormatItalic, R.string.format_italic) {
+                    onFormat(FormatAction.Italic)
+                }
                 FormatIconButton(
                     Icons.Filled.FormatStrikethrough,
                     R.string.format_strikethrough
-                ) { viewModel.formatStrikethrough() }
+                ) { onFormat(FormatAction.Strikethrough) }
                 FormatDivider()
-                FormatTextButton("H1") { viewModel.formatHeading(1) }
-                FormatTextButton("H2") { viewModel.formatHeading(2) }
-                FormatTextButton("H3") { viewModel.formatHeading(3) }
+                FormatTextButton("H1") { onFormat(FormatAction.Heading1) }
+                FormatTextButton("H2") { onFormat(FormatAction.Heading2) }
+                FormatTextButton("H3") { onFormat(FormatAction.Heading3) }
                 FormatDivider()
                 FormatIconButton(
                     Icons.AutoMirrored.Filled.FormatListBulleted,
                     R.string.format_bullet_list
-                ) { viewModel.formatBullet() }
+                ) { onFormat(FormatAction.Bullet) }
                 FormatIconButton(
                     Icons.Filled.FormatListNumbered,
                     R.string.format_numbered_list
-                ) { viewModel.formatNumbered() }
+                ) { onFormat(FormatAction.Numbered) }
                 FormatIconButton(
                     Icons.Filled.HorizontalRule,
                     R.string.format_horizontal_rule
-                ) { viewModel.formatHorizontalRule() }
+                ) { onFormat(FormatAction.HorizontalRule) }
                 FormatDivider()
-                FormatIconButton(Icons.Filled.Code, R.string.format_inline_code) { viewModel.formatInlineCode() }
-                FormatTextButton("```") { viewModel.formatCodeBlock() }
-                FormatIconButton(Icons.Filled.FormatQuote, R.string.format_blockquote) { viewModel.formatBlockquote() }
-                FormatIconButton(Icons.Filled.Link, R.string.format_link) { viewModel.formatLink() }
+                FormatIconButton(Icons.Filled.Code, R.string.format_inline_code) {
+                    onFormat(FormatAction.InlineCode)
+                }
+                FormatTextButton("```") { onFormat(FormatAction.CodeBlock) }
+                FormatIconButton(Icons.Filled.FormatQuote, R.string.format_blockquote) {
+                    onFormat(FormatAction.Blockquote)
+                }
+                FormatIconButton(Icons.Filled.Link, R.string.format_link) {
+                    onFormat(FormatAction.Link)
+                }
                 Spacer(modifier = Modifier.width(4.dp))
             }
         }
