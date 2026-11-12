@@ -7,7 +7,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,17 +15,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
@@ -40,7 +34,6 @@ import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -48,7 +41,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
@@ -64,7 +56,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -80,9 +71,19 @@ import com.markreader.data.ReaderThemePreference
 import com.markreader.data.ReadingFontPreference
 import com.markreader.data.TextAlignmentPreference
 import com.markreader.data.UserPreferences
-import com.markreader.ui.components.GroupOuterRadius
-import com.markreader.ui.components.SectionHeader
-import com.markreader.ui.components.SegmentPosition
+import com.markreader.ui.expressive.AppIdentityRow
+import com.markreader.ui.expressive.CollapsingLargeTopBar
+import com.markreader.ui.expressive.ControlSettingsRow
+import com.markreader.ui.expressive.ExternalLinkRow
+import com.markreader.ui.expressive.GroupOuterRadius
+import com.markreader.ui.expressive.PickerSettingsRow
+import com.markreader.ui.expressive.SectionHeader
+import com.markreader.ui.expressive.SegmentPosition
+import com.markreader.ui.expressive.SegmentedGroup
+import com.markreader.ui.expressive.SliderSettingsRow
+import com.markreader.ui.expressive.SwitchSettingsRow
+import com.markreader.ui.expressive.rememberAppVersionLabel
+import com.markreader.ui.expressive.rememberExpressiveScrollBehavior
 import com.markreader.ui.theme.CodeFontFamily
 import com.markreader.ui.theme.ReadingFontFamily
 import com.markreader.ui.theme.SansReadingFontFamily
@@ -226,22 +227,11 @@ fun SettingsScreen(
         )
     )
 ) {
-    val context = LocalContext.current
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
-    val versionFormat = stringResource(R.string.settings_version)
-    val versionUnknown = stringResource(R.string.settings_version_unknown)
-    val versionLabel = remember(context, versionFormat, versionUnknown) {
-        runCatching {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode.toLong()
-            }
-            String.format(versionFormat, packageInfo.versionName ?: "1.0", versionCode)
-        }.getOrDefault(versionUnknown)
-    }
+    val versionLabel = rememberAppVersionLabel(
+        prefix = stringResource(R.string.settings_version_prefix),
+        unknown = stringResource(R.string.settings_version_unknown)
+    )
 
     var fontSizeDraft by rememberSaveable(preferences.fontSizeSp) {
         mutableFloatStateOf(preferences.fontSizeSp)
@@ -250,27 +240,17 @@ fun SettingsScreen(
         mutableFloatStateOf(preferences.lineHeight)
     }
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = rememberExpressiveScrollBehavior()
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
-            LargeTopAppBar(
-                title = { Text(text = stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
-                scrollBehavior = scrollBehavior
+            CollapsingLargeTopBar(
+                title = stringResource(R.string.settings_title),
+                scrollBehavior = scrollBehavior,
+                onNavigateBack = onNavigateBack,
+                navigateBackDescription = stringResource(R.string.action_back)
             )
         }
     ) { paddingValues: PaddingValues ->
@@ -286,8 +266,8 @@ fun SettingsScreen(
             Column {
                 SectionHeader(stringResource(R.string.settings_section_appearance))
                 val supportsDynamicColors = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                SettingsGroup {
-                    SegmentedSettingsRow(
+                SegmentedGroup {
+                    ControlSettingsRow(
                         position = if (supportsDynamicColors) SegmentPosition.First else SegmentPosition.Single,
                         icon = Icons.Rounded.Palette,
                         title = stringResource(R.string.settings_app_theme),
@@ -322,18 +302,41 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                SettingsGroup {
+                // The picker rows take a plain label lambda, so every option's string is
+                // resolved here rather than inside the row.
+                val lightThemeOptions = listOf(
+                    ReaderThemePreference.Light,
+                    ReaderThemePreference.Sepia
+                )
+                val darkThemeOptions = listOf(
+                    ReaderThemePreference.Dark,
+                    ReaderThemePreference.Amoled
+                )
+                val readingFontOptions = listOf(
+                    ReadingFontPreference.Merriweather,
+                    ReadingFontPreference.SystemSerif,
+                    ReadingFontPreference.MerriweatherSans
+                )
+                val codeFontOptions = listOf(
+                    CodeFontPreference.JetBrainsMono,
+                    CodeFontPreference.SystemMono
+                )
+                val lightThemeLabels = optionLabels(lightThemeOptions) { it.displayLabel() }
+                val darkThemeLabels = optionLabels(darkThemeOptions) { it.displayLabel() }
+                val readingFontLabels = optionLabels(readingFontOptions) { it.displayLabel() }
+                val codeFontLabels = optionLabels(codeFontOptions) { it.displayLabel() }
+                val selectedDescription = stringResource(R.string.settings_selected)
+
+                SegmentedGroup {
                     PickerSettingsRow(
                         position = SegmentPosition.First,
                         icon = Icons.Rounded.LightMode,
                         title = stringResource(R.string.settings_reader_light_theme),
                         subtitle = stringResource(R.string.settings_reader_light_theme_subtitle),
-                        options = listOf(
-                            ReaderThemePreference.Light,
-                            ReaderThemePreference.Sepia
-                        ),
-                        optionLabel = { stringResource(it.displayLabel()) },
-                        selectedLabel = stringResource(preferences.readerLightTheme.displayLabel()),
+                        options = lightThemeOptions,
+                        optionLabel = lightThemeLabels,
+                        selected = preferences.readerLightTheme,
+                        selectedDescription = selectedDescription,
                         onSelect = viewModel::setReaderLightTheme
                     )
                     PickerSettingsRow(
@@ -341,12 +344,10 @@ fun SettingsScreen(
                         icon = Icons.Rounded.DarkMode,
                         title = stringResource(R.string.settings_reader_dark_theme),
                         subtitle = stringResource(R.string.settings_reader_dark_theme_subtitle),
-                        options = listOf(
-                            ReaderThemePreference.Dark,
-                            ReaderThemePreference.Amoled
-                        ),
-                        optionLabel = { stringResource(it.displayLabel()) },
-                        selectedLabel = stringResource(preferences.readerDarkTheme.displayLabel()),
+                        options = darkThemeOptions,
+                        optionLabel = darkThemeLabels,
+                        selected = preferences.readerDarkTheme,
+                        selectedDescription = selectedDescription,
                         onSelect = viewModel::setReaderDarkTheme
                     )
                     PickerSettingsRow(
@@ -354,13 +355,10 @@ fun SettingsScreen(
                         icon = Icons.Rounded.TextFields,
                         title = stringResource(R.string.settings_reading_font),
                         subtitle = stringResource(R.string.settings_reading_font_subtitle),
-                        options = listOf(
-                            ReadingFontPreference.Merriweather,
-                            ReadingFontPreference.SystemSerif,
-                            ReadingFontPreference.MerriweatherSans
-                        ),
-                        optionLabel = { stringResource(it.displayLabel()) },
-                        selectedLabel = stringResource(preferences.readingFont.displayLabel()),
+                        options = readingFontOptions,
+                        optionLabel = readingFontLabels,
+                        selected = preferences.readingFont,
+                        selectedDescription = selectedDescription,
                         onSelect = viewModel::setReadingFont
                     )
                     PickerSettingsRow(
@@ -368,12 +366,10 @@ fun SettingsScreen(
                         icon = Icons.Rounded.Code,
                         title = stringResource(R.string.settings_code_font),
                         subtitle = stringResource(R.string.settings_code_font_subtitle),
-                        options = listOf(
-                            CodeFontPreference.JetBrainsMono,
-                            CodeFontPreference.SystemMono
-                        ),
-                        optionLabel = { stringResource(it.displayLabel()) },
-                        selectedLabel = stringResource(preferences.codeFont.displayLabel()),
+                        options = codeFontOptions,
+                        optionLabel = codeFontLabels,
+                        selected = preferences.codeFont,
+                        selectedDescription = selectedDescription,
                         onSelect = viewModel::setCodeFont
                     )
                     SliderSettingsRow(
@@ -412,7 +408,7 @@ fun SettingsScreen(
                         valueRange = 1.2f..2.0f,
                         steps = 7
                     )
-                    SegmentedSettingsRow(
+                    ControlSettingsRow(
                         position = SegmentPosition.Last,
                         icon = Icons.AutoMirrored.Rounded.FormatAlignLeft,
                         title = stringResource(R.string.settings_text_alignment),
@@ -429,82 +425,20 @@ fun SettingsScreen(
             // ── About ──────────────────────────────────────────────────
             Column {
                 SectionHeader(stringResource(R.string.settings_section_about))
-                SettingsGroup {
-                    val uriHandler = LocalUriHandler.current
-                    SettingsSurface(
+                SegmentedGroup {
+                    ExternalLinkRow(
                         position = SegmentPosition.First,
-                        onClick = { uriHandler.openUri(GITHUB_REPO_URL) }
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                shape = CircleShape,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Code,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = stringResource(R.string.settings_github),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = GITHUB_REPO_URL.removePrefix("https://"),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    SettingsSurface(position = SegmentPosition.Last) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                shape = CircleShape,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text(
-                                    text = stringResource(R.string.app_name),
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = versionLabel,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = stringResource(R.string.settings_app_description),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                        label = stringResource(R.string.settings_github),
+                        url = GITHUB_REPO_URL,
+                        icon = Icons.Rounded.Code
+                    )
+                    AppIdentityRow(
+                        position = SegmentPosition.Last,
+                        appName = stringResource(R.string.app_name),
+                        versionLabel = versionLabel,
+                        icon = Icons.AutoMirrored.Rounded.MenuBook,
+                        tagline = stringResource(R.string.settings_app_description)
+                    )
                 }
             }
         }
@@ -601,6 +535,20 @@ private fun AlignmentPreference(
 }
 
 // ── Display label helpers ──────────────────────────────────────────────────────
+
+/**
+ * Resolves every option's label once, up front.
+ *
+ * [PickerSettingsRow] takes a plain `(T) -> String` rather than a composable one — it calls the
+ * lambda again from inside the option sheet, where a composable label would recompose per row —
+ * so [stringResource] cannot be called from the lambda itself and has to happen out here.
+ */
+@Composable
+private fun <T> optionLabels(options: List<T>, label: (T) -> Int): (T) -> String {
+    val resolved = options.map { stringResource(label(it)) }
+    val byOption = options.zip(resolved).toMap()
+    return { byOption.getValue(it) }
+}
 
 @StringRes
 private fun ReaderThemePreference.displayLabel(): Int = when (this) {

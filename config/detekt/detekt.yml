@@ -89,6 +89,19 @@ naming:
     # Composables are PascalCase, which the default pattern rejects.
     ignoreAnnotated: ["Composable", "Preview"]
     functionPattern: "[a-z][A-Za-z0-9]*"
+  TopLevelPropertyNaming:
+    active: true
+    # Compose names design tokens in PascalCase, and Material3's own source is consistent about
+    # it — `MinAlpha`, `DragMultiplier` and friends are all `private const val` floats. Holding
+    # our own tokens to SCREAMING_SNAKE would make them inconsistent with the library they wrap,
+    # so the pattern admits both spellings rather than picking a side.
+    constantPattern: "[A-Z][_A-Za-z0-9]*"
+  MatchingDeclarationName:
+    active: true
+    # `ui/expressive/` is vendored from the shared-ui repo, which matches its copies by
+    # filename: renaming ExpressiveSegments.kt after the one enum among its dozen declarations
+    # would both misname the file and make the next sync re-add the original beside it.
+    excludes: ["**/ui/expressive/**"]
 
 Compose: # io.nlopez.compose.rules
   ComposableParametersOrdering:

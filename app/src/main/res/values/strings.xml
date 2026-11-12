@@ -149,9 +149,11 @@
     <string name="settings_text_alignment_subtitle">How paragraphs are laid out</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_app_description">A focused Markdown reader for local files.</string>
-    <!-- Version name, then version code. -->
-    <string name="settings_version">Version %1$s (%2$d)</string>
-    <string name="settings_version_unknown">Version unknown</string>
+    <!-- Prefixed to the version read off the installed package. The quotes keep the trailing
+         space, which aapt would otherwise strip, giving "Version1.0.0". -->
+    <string name="settings_version_prefix">"Version "</string>
+    <!-- Stands in for the version name when the package cannot be read. -->
+    <string name="settings_version_unknown">unknown</string>
 
     <!-- Settings preview card -->
     <string name="settings_preview">Preview</string>

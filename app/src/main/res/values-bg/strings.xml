@@ -113,7 +113,6 @@
     <string name="settings_text_alignment_subtitle">Разположение на текста в абзаците</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_app_description">Четец на Markdown за локални файлове.</string>
-    <string name="settings_version">Версия %1$s (%2$d)</string>
     <string name="settings_version_unknown">Неизвестна версия</string>
     <string name="settings_preview">Преглед</string>
     <string name="settings_preview_toggle">Превключване на прегледа между светлата и тъмната тема за четене</string>

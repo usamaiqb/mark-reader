@@ -114,7 +114,6 @@
     <string name="settings_text_alignment_subtitle">Distribución de los párrafos</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_app_description">Un lector Markdown para archivos locales.</string>
-    <string name="settings_version">Versión %1$s (%2$d)</string>
     <string name="settings_version_unknown">Versión desconocida</string>
     <string name="settings_preview">Vista previa</string>
     <string name="settings_preview_toggle">Alternar la vista previa entre los temas de lectura claro y oscuro</string>
