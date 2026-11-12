@@ -90,8 +90,8 @@ private class FocusStableScrollView(context: Context) : ScrollView(context) {
  * of per-segment views, so that code blocks and tables got their own horizontally scrollable
  * panes — and that structure was driven by marker spans the Markwon renderer left behind. Both
  * Markdown surfaces render in the page today, no producer of those markers is left, and the split
- * container went with them. What arrives here is a document's source: unstyled, or carrying the
- * search highlights the view model painted onto it.
+ * container went with them. What arrives here is a document's source, and beside it the matches
+ * of whatever search is running over it: the view draws those itself, so they are not spans.
  */
 @Composable
 fun RenderedTextView(
@@ -122,7 +122,9 @@ fun RenderedTextView(
      */
     contentTopInset: Dp = 0.dp,
     codeFont: CodeFontPreference = CodeFontPreference.JetBrainsMono,
-    isMonospaced: Boolean = false
+    isMonospaced: Boolean = false,
+    /** The running search's matches over [content], or null when there is none. */
+    searchHighlights: SearchHighlights? = null
 ) {
     // This view draws text and nothing else. Callers route the other two elsewhere —
     // [ReaderContent.Markdown] to [WebViewReader], and [ReaderContent.Table] to a native table
@@ -145,9 +147,8 @@ fun RenderedTextView(
             textAlignment = textAlignment
         )
     }
-    // Search highlights arrive as spans over a string that has not changed, so styled and
-    // unstyled text are applied by different tests below. Narrowed here, at the one place that
-    // difference matters.
+    // Styled and unstyled text are applied by different tests below. Narrowed here, at the one
+    // place that difference matters.
     val spanned = text as? Spanned
     // Reconciler state for the update block below. Plain fields, so a write does
     // not invalidate the composition and is visible to the rest of the same pass;
@@ -187,6 +188,8 @@ fun RenderedTextView(
                 val textView = scrollView.getChildAt(0) as? TextView ?: return@AndroidView
                 applyTopInset(textView, contentTopInset)
                 controller.applyText(textView, text, spanned)
+                // After the text, so the matches are never drawn over the text they replaced.
+                (textView as? SearchHighlightTextView)?.searchHighlights = searchHighlights
                 controller.applyStyle(textView, contentKey, textColor, selectionHighlightColor)
                 controller.applyPendingScroll(
                     scrollView = scrollView,
