@@ -348,7 +348,6 @@ fun ViewerScreen(
     val readerContent = readerContentFor(
         isRawMode = uiState.viewMode == ViewMode.Raw,
         rawText = uiState.rawText,
-        rawHighlighted = uiState.rawHighlighted,
         rendered = uiState.rendered,
         rendererUnavailable = uiState.rendererUnavailable
     )
@@ -839,6 +838,7 @@ fun ViewerScreen(
                                 contentTopInset = if (hasWarning) 0.dp else chromeTopInset,
                                 savedScrollY = savedScrollY,
                                 scrollToOffset = scrollToOffset,
+                                searchHighlights = uiState.searchHighlights,
                                 onScrollChange = viewModel::onScrollPositionChanged,
                                 onScrollExtentChange = viewModel::onScrollExtentChanged,
                                 onClearPendingScroll = viewModel::onScrollConsumed,
