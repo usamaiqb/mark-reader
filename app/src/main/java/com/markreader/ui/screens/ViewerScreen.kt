@@ -860,6 +860,13 @@ fun ViewerScreen(
     if (isTocVisible) {
         ModalBottomSheet(
             onDismissRequest = { isTocVisible = false },
+            // The sheet stops below the status bar instead of sliding under it. Left to its
+            // default it pads its content by however much of the status bar it currently
+            // covers, so its height depends on its position and its position on its height:
+            // an outline just tall enough to reach the bar has no place to rest, and the
+            // sheet jumps by the bar's height on every frame of a drag. Taking the inset here
+            // makes it a constant.
+            modifier = Modifier.statusBarsPadding(),
             containerColor = chromeColors.surface,
             contentColor = chromeColors.content
         ) {
@@ -989,6 +996,8 @@ fun ViewerScreen(
     if (isExportSheetVisible) {
         ModalBottomSheet(
             onDismissRequest = { isExportSheetVisible = false },
+            // Below the status bar, for the reason given on the contents sheet above.
+            modifier = Modifier.statusBarsPadding(),
             containerColor = chromeColors.surface,
             contentColor = chromeColors.content
         ) {
