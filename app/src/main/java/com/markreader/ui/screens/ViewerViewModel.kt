@@ -3,11 +3,6 @@ package com.markreader.ui.screens
 import android.app.Application
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.text.SpannableString
-import android.text.Spanned
-import android.graphics.Typeface
-import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
@@ -25,7 +20,9 @@ import com.markreader.format.FormatCapabilities
 import com.markreader.format.FormatRegistry
 import com.markreader.format.ReaderContent
 import com.markreader.ui.UiMessage
-import com.markreader.ui.reader.SearchHighlightSpan
+import com.markreader.ui.reader.NativeSearchMatches
+import com.markreader.ui.reader.SearchHighlightColors
+import com.markreader.ui.reader.SearchHighlights
 import com.markreader.webview.HeadingItem
 import com.markreader.webview.PageCommand
 import com.markreader.R
@@ -44,6 +41,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -58,7 +56,6 @@ data class ViewerUiState(
     val isLoadingVisible: Boolean = false,
     val fileName: String = "",
     val rawText: String = "",
-    val rawHighlighted: ReaderContent? = null,
     val rendered: ReaderContent? = null,
     val errorMessage: UiMessage? = null,
     val warningMessage: UiMessage? = null,
@@ -73,6 +70,11 @@ data class ViewerUiState(
     val searchQuery: String = "",
     val searchMatchCount: Int = 0,
     val searchMatchIndex: Int = 0,
+    /**
+     * The matches of a search over text a `TextView` is drawing, for it to paint. Null while no
+     * such search has matches, and always null where the page is drawing: it paints its own.
+     */
+    val searchHighlights: SearchHighlights? = null,
     val userPreferences: UserPreferences = UserPreferences(),
     val documentType: DocumentType = DocumentType.PlainText,
     /** What the chrome may offer, decided by the document's format rather than by its type. */
@@ -208,7 +210,6 @@ class ViewerViewModel(
     private fun beginLoad() {
         loadingJob?.cancel()
         searchJob?.cancel()
-        _matchOffsets = emptyList()
         _scrollProgress.value = null
         _uiState.value = _uiState.value.copy(
             isLoading = true,
@@ -218,14 +219,14 @@ class ViewerViewModel(
             isEmptyFile = false,
             needsPermission = false,
             rawText = "",
-            rawHighlighted = null,
             rendered = null,
             headings = emptyList(),
             activeHeadingSlug = null,
             isSearchActive = false,
             searchQuery = "",
             searchMatchCount = 0,
-            searchMatchIndex = 0
+            searchMatchIndex = 0,
+            searchHighlights = null
         )
         send(PageCommand.CloseFind)
         loadingJob = viewModelScope.launch {
@@ -266,7 +267,6 @@ class ViewerViewModel(
                 describeReadFailure(readError)
             },
             needsPermission = readError is SecurityException,
-            rawHighlighted = null,
             searchQuery = "",
             searchMatchCount = 0,
             searchMatchIndex = 0
@@ -280,7 +280,6 @@ class ViewerViewModel(
             isLoadingVisible = false,
             fileName = fileName,
             rawText = text,
-            rawHighlighted = null,
             isEmptyFile = true,
             searchQuery = "",
             searchMatchCount = 0,
@@ -301,7 +300,6 @@ class ViewerViewModel(
             isLoadingVisible = false,
             fileName = fileName,
             rawText = text,
-            rawHighlighted = null,
             viewMode = ViewMode.Raw,
             searchQuery = "",
             searchMatchCount = 0,
@@ -332,7 +330,6 @@ class ViewerViewModel(
             isLoadingVisible = false,
             fileName = fileName,
             rawText = text,
-            rawHighlighted = null,
             rendered = loaded,
             errorMessage = null,
             warningMessage = null,
@@ -342,7 +339,7 @@ class ViewerViewModel(
         )
 
         // A query survives the document it was typed against, so the new one is searched for it.
-        applySearchQuery(_uiState.value.searchQuery)
+        if (!usesPageFind) runSearch(_uiState.value.searchQuery)
     }
 
     fun toggleViewMode() {
@@ -360,8 +357,8 @@ class ViewerViewModel(
     // A search runs on whichever surface is drawing, and the two are not alike. Where the page is
     // drawing, it owns the match set — matches are DOM ranges over a rendering only it has — so
     // the query goes in and a count comes back as an event. Where a TextView is, the matches are
-    // offsets into a string held here, painted with spans. Everything below is that fork, and
-    // [usesPageFind] is the only place it is decided.
+    // offsets into a string held here, found off the main thread and handed to the view to draw.
+    // Everything below is that fork, and [usesPageFind] is the only place it is decided.
 
     fun onSearchToggled() {
         val active = !_uiState.value.isSearchActive
@@ -380,7 +377,7 @@ class ViewerViewModel(
         } else if (usesPageFind) {
             send(PageCommand.CloseFind)
         } else {
-            applySearchQuery("")
+            clearTextSearch()
         }
     }
 
@@ -389,17 +386,9 @@ class ViewerViewModel(
             searchQuery = query,
             searchMatchIndex = 0
         )
-        searchJob?.cancel()
-        if (query.isBlank()) {
-            runSearch(query)
-            return
-        }
-        // Debounced on both surfaces, for the same reason on each: the span pass rebuilds a span
-        // per match over the whole document, and the page's walks its whole DOM for them.
-        searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(SEARCH_DEBOUNCE_MS)
-            runSearch(query)
-        }
+        // Debounced on both surfaces, for the same reason on each: a search reads the whole
+        // document, as text out here and as DOM in the page. Clearing the query is not a search.
+        runSearch(query, debounceMs = if (query.isBlank()) 0L else SEARCH_DEBOUNCE_MS)
     }
 
     fun onNextMatch() = stepMatch(1)
@@ -416,8 +405,7 @@ class ViewerViewModel(
      * means there are none, which the search bar shows as its own no-matches state.
      *
      * Deliberately not filtered against the query in the bar. The page only ever answers
-     * something this side asked it, and in order, so the last answer is the current one — the
-     * same guarantee the debounced span pass relies on.
+     * something this side asked it, and in order, so the last answer is the current one.
      */
     fun onFindStateChanged(index: Int, total: Int) {
         _uiState.value = _uiState.value.copy(
@@ -426,17 +414,28 @@ class ViewerViewModel(
         )
     }
 
-    /** Runs [query] on whichever surface is drawing. */
-    private fun runSearch(query: String) {
-        if (usesPageFind) {
-            // The page reveals the first match itself, and reports the count back.
-            send(PageCommand.Find(query))
-            return
+    /**
+     * Runs [query] on whichever surface is drawing, in place of any search still under way.
+     *
+     * One job holds the debounce and the search behind it, so cancelling it is all that
+     * retiring a search takes — and everything that changes what is being searched does that
+     * by coming through here, or through [beginLoad]. A search cancelled while it was matching
+     * never resumes to publish, which is what keeps one document's offsets off the next.
+     *
+     * With no debounce the page's request is sent before this returns: the scope dispatches
+     * immediately, and nothing suspends ahead of it.
+     */
+    private fun runSearch(query: String, debounceMs: Long = 0L) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            if (debounceMs > 0L) kotlinx.coroutines.delay(debounceMs)
+            if (usesPageFind) {
+                // The page reveals the first match itself, and reports the count back.
+                send(PageCommand.Find(query))
+            } else {
+                findInText(query)
+            }
         }
-        applySearchQuery(query)
-        // Bring the first match into view; without this, a query whose matches are all
-        // off-screen gives no visible feedback.
-        _matchOffsets.firstOrNull()?.let { _scrollToOffset.value = it }
     }
 
     /**
@@ -450,12 +449,17 @@ class ViewerViewModel(
             send(PageCommand.StepFind(delta))
             return
         }
-        val count = _uiState.value.searchMatchCount
+        val highlights = _uiState.value.searchHighlights ?: return
+        val count = highlights.matches.size
         if (count == 0) return
-        val next = ((_uiState.value.searchMatchIndex + delta) % count + count) % count
-        _uiState.value = _uiState.value.copy(searchMatchIndex = next)
-        _scrollToOffset.value = _matchOffsets.getOrNull(next)
-        applySearchQuery(_uiState.value.searchQuery)
+        val next = ((highlights.activeIndex + delta) % count + count) % count
+        // The same matches with another one current: nothing is searched again, and the view
+        // redraws without its text being touched.
+        _uiState.value = _uiState.value.copy(
+            searchMatchIndex = next,
+            searchHighlights = highlights.copy(activeIndex = next)
+        )
+        _scrollToOffset.value = highlights.matches.start(next)
     }
 
     /**
@@ -469,10 +473,9 @@ class ViewerViewModel(
         if (!_uiState.value.isSearchActive) return
         val query = _uiState.value.searchQuery
         _uiState.value = _uiState.value.copy(searchMatchCount = 0, searchMatchIndex = 0)
-        if (usesPageFind) {
-            // Drop the spans the TextView was painting; they index text that is no longer drawn.
-            applySearchQuery("")
-        }
+        // Drop what the TextView was painting: those offsets index text that is no longer drawn,
+        // and the search that replaces them does not land until it has run.
+        clearTextSearch()
         // Nothing is sent to close the find on the way out: leaving the page destroys it, and
         // whatever WebView replaces it starts with no find at all.
         runSearch(query)
@@ -567,13 +570,18 @@ class ViewerViewModel(
      * The one thing a surface theme change still has to do on this side.
      *
      * Both surfaces restyle themselves — the page from its renderer settings, the raw TextView
-     * from the colours the screen hands it — but a search highlight is a span this class painted,
-     * in colours it chose for whichever palette was on screen at the time. Nothing else would
-     * repaint one, so a light/dark flip would otherwise leave the old palette's boxes behind.
+     * from the colours the screen hands it — but a search highlight is drawn in colours this
+     * class chose for whichever palette was on screen at the time. Nothing else would repaint
+     * one, so a light/dark flip would otherwise leave the old palette's boxes behind.
+     *
+     * Only the colours are swapped. The matches and the current one are kept, so nothing is
+     * searched again and the reader stays on the match they were on.
      */
     private fun repaintSearchHighlights() {
-        if (_uiState.value.searchQuery.isBlank()) return
-        applySearchQuery(_uiState.value.searchQuery)
+        val highlights = _uiState.value.searchHighlights ?: return
+        _uiState.value = _uiState.value.copy(
+            searchHighlights = highlights.copy(colors = searchHighlightColors())
+        )
     }
 
     fun onPermissionRequestConsumed() {
@@ -669,138 +677,64 @@ class ViewerViewModel(
         )
     }
 
-    private var _matchOffsets: List<Int> = emptyList()
-
-    private fun applySearchQuery(query: String) {
-        val currentState = _uiState.value
-        val drawsSource = currentState.viewMode == ViewMode.Raw || currentState.rendererUnavailable
-        // Search out here is span-based: it counts matches in a string and paints them with
-        // spans. That is a requirement of this implementation and not of the reader, so the
-        // narrowing lives here rather than at the format boundary — and a document the page is
-        // drawing never reaches this function at all, because the page searches it instead.
-        //
-        // The text searched is whatever [readerContentFor] says is on screen, asked with no
-        // highlighting so it answers the unmarked original. Reading `uiState.rendered` instead
-        // would search the *previous* query's spans.
+    /**
+     * The text a `TextView` is drawing, or null where there is none to search.
+     *
+     * Asked of [readerContentFor], so the text searched is the text on screen. A rendering that
+     * is not text — a table — has no offsets to walk, and a document the page is drawing never
+     * gets here at all, because the page searches it instead.
+     */
+    private fun drawnText(): CharSequence? {
+        val state = _uiState.value
         val drawn = readerContentFor(
-            isRawMode = currentState.viewMode == ViewMode.Raw,
-            rawText = currentState.rawText,
-            rawHighlighted = null,
+            isRawMode = state.viewMode == ViewMode.Raw,
+            rawText = state.rawText,
             rendered = baseRendered,
-            rendererUnavailable = currentState.rendererUnavailable
+            rendererUnavailable = state.rendererUnavailable
         )
-        val baseSpans = (drawn as? ReaderContent.Spans)?.text
-
-        if (baseSpans == null) {
-            // A rendering that is not text — a table — has no offsets to walk.
-            _matchOffsets = emptyList()
-            _uiState.value = currentState.copy(
-                rawHighlighted = null,
-                searchMatchCount = 0,
-                searchMatchIndex = 0
-            )
-            return
-        }
-
-        if (query.isBlank()) {
-            _matchOffsets = emptyList()
-            _uiState.value = _uiState.value.copy(
-                rendered = baseRendered,
-                rawHighlighted = null,
-                searchMatchCount = 0,
-                searchMatchIndex = 0
-            )
-            return
-        }
-
-        val pattern = Regex(Regex.escape(query), setOf(RegexOption.IGNORE_CASE))
-        val ranges = pattern.findAll(baseSpans.toString()).map { it.range }.toList()
-        val offsets = ranges.map { it.first }
-        _matchOffsets = offsets
-
-        val activeIndex = _uiState.value.searchMatchIndex
-            .coerceIn(0, (offsets.size - 1).coerceAtLeast(0))
-        val highlighted = paintMatches(baseSpans, ranges, activeIndex)
-        val matchIndex = if (offsets.isEmpty()) 0 else activeIndex
-
-        // Where the source is on screen the highlighting has to arrive as `rawHighlighted`,
-        // because that is the field [readerContentFor] draws from in both of the cases that put
-        // it there: raw mode, and a renderer that could not start.
-        _uiState.value = if (drawsSource) {
-            _uiState.value.copy(
-                rendered = baseRendered,
-                rawHighlighted = ReaderContent.Spans(highlighted),
-                searchMatchCount = offsets.size,
-                searchMatchIndex = matchIndex
-            )
-        } else {
-            _uiState.value.copy(
-                rendered = ReaderContent.Spans(highlighted),
-                rawHighlighted = null,
-                searchMatchCount = offsets.size,
-                searchMatchIndex = matchIndex
-            )
-        }
+        return (drawn as? ReaderContent.Spans)?.text
     }
 
     /**
-     * Paints [ranges] onto a copy of [baseSpans]: a box behind every match, and behind the one
-     * at [activeIndex] a stronger box, its own text colour and bold.
+     * Finds [query] in the drawn text and publishes the matches for the view to paint.
+     *
+     * The matching runs off the main thread and checks for cancellation as it goes: a large
+     * document can take long enough that the next keystroke arrives first, and that keystroke
+     * should not wait behind a search nobody wants any more.
      */
-    private fun paintMatches(
-        baseSpans: CharSequence,
-        ranges: List<IntRange>,
-        activeIndex: Int
-    ): SpannableString {
-        val highlighted = SpannableString(baseSpans)
-        val palette = searchHighlightPalette()
-
-        // Passive highlights are capped: thousands of spans stall the TextView.
-        // Every match stays countable and navigable via _matchOffsets, and the
-        // active match is always styled below regardless of this cap.
-        for (range in ranges.take(MAX_PASSIVE_HIGHLIGHTS)) {
-            highlighted.setSpan(
-                SearchHighlightSpan(palette.passiveBackground, isActive = false),
-                range.first,
-                (range.last + 1).coerceAtMost(highlighted.length),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
+    private suspend fun findInText(query: String) {
+        val text = if (query.isBlank()) null else drawnText()
+        if (text == null) {
+            clearTextSearch()
+            return
         }
-
-        if (ranges.isEmpty()) return highlighted
-
-        val activeRange = ranges[activeIndex]
-        val activeOffset = activeRange.first
-        val activeEnd = (activeRange.last + 1).coerceAtMost(highlighted.length)
-        highlighted.setSpan(
-            SearchHighlightSpan(palette.activeBackground, isActive = true),
-            activeOffset,
-            activeEnd,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        val matches = withContext(Dispatchers.Default) {
+            NativeSearchMatches.find(text, query) { ensureActive() }
+        }
+        if (matches.size == 0) {
+            clearTextSearch()
+            return
+        }
+        _uiState.value = _uiState.value.copy(
+            searchMatchCount = matches.size,
+            searchMatchIndex = 0,
+            searchHighlights = SearchHighlights(matches, 0, searchHighlightColors())
         )
-        highlighted.setSpan(
-            ForegroundColorSpan(palette.activeText),
-            activeOffset,
-            activeEnd,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        highlighted.setSpan(
-            StyleSpan(Typeface.BOLD),
-            activeOffset,
-            activeEnd,
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        return highlighted
+        // Bring the first match into view; without this, a query whose matches are all
+        // off-screen gives no visible feedback.
+        _scrollToOffset.value = matches.start(0)
     }
 
-    /** What a match is painted in, on whichever of the four reader palettes is on screen. */
-    private class SearchHighlightPalette(
-        val passiveBackground: Int,
-        val activeBackground: Int,
-        val activeText: Int
-    )
+    /** Leaves the `TextView` with no matches to draw and the bar with none to count. */
+    private fun clearTextSearch() {
+        _uiState.value = _uiState.value.copy(
+            searchMatchCount = 0,
+            searchMatchIndex = 0,
+            searchHighlights = null
+        )
+    }
 
-    private fun searchHighlightPalette(): SearchHighlightPalette {
+    private fun searchHighlightColors(): SearchHighlightColors {
         val prefs = _uiState.value.userPreferences
         val isDark = renderDarkModeOverride ?: isDarkTheme(prefs, systemDarkTheme)
         val activeTheme = if (isDark) prefs.readerDarkTheme else prefs.readerLightTheme
@@ -820,7 +754,7 @@ class ViewerViewModel(
             isSepia -> 0xFFFFFFFF.toInt()
             else -> 0xFFFFFFFF.toInt()
         }
-        return SearchHighlightPalette(passiveBackground, activeBackground, activeText)
+        return SearchHighlightColors(passiveBackground, activeBackground, activeText)
     }
 
     companion object {
@@ -837,13 +771,6 @@ class ViewerViewModel(
          * rebuilt, and shallow enough that a backlog beyond it is a page that is not coming back.
          */
         private const val PAGE_COMMAND_BUFFER = 16
-
-        /**
-         * How many matches get a highlight box drawn behind them. Thousands of spans stall the
-         * TextView; every match past this stays countable and navigable through the offsets,
-         * and the active one is styled whatever its position.
-         */
-        private const val MAX_PASSIVE_HIGHLIGHTS = 400
 
         private fun isDarkTheme(prefs: UserPreferences, isSystemDarkTheme: Boolean): Boolean {
             return when (prefs.appThemeMode) {

@@ -16,7 +16,7 @@ import org.junit.Test
 class ViewerChoicesTest {
 
     private val rendered = ReaderContent.Markdown("# rendered")
-    private val highlighted = ReaderContent.Spans("raw with matches")
+    private val plainText = ReaderContent.Spans("a plain text document")
 
     // ------------------------------------------------------------------ what gets drawn
 
@@ -25,7 +25,6 @@ class ViewerChoicesTest {
         val content = readerContentFor(
             isRawMode = false,
             rawText = "# source",
-            rawHighlighted = null,
             rendered = rendered,
             rendererUnavailable = false
         )
@@ -38,7 +37,6 @@ class ViewerChoicesTest {
         val content = readerContentFor(
             isRawMode = false,
             rawText = "# source",
-            rawHighlighted = null,
             // The format still produced Markdown; there is simply nothing able to draw it.
             rendered = rendered,
             rendererUnavailable = true
@@ -48,42 +46,10 @@ class ViewerChoicesTest {
     }
 
     @Test
-    fun `the fallback keeps its search highlighting, as raw mode does`() {
-        // The source is on screen either way, so a search over the source has to be able to
-        // paint it either way. It used to draw the unmarked text and report matches nobody
-        // could see.
-        val content = readerContentFor(
-            isRawMode = false,
-            rawText = "# source",
-            rawHighlighted = highlighted,
-            rendered = rendered,
-            rendererUnavailable = true
-        )
-
-        assertSame(highlighted, content)
-    }
-
-    @Test
-    fun `raw mode keeps its search highlighting, renderer or not`() {
-        for (unavailable in listOf(false, true)) {
-            val content = readerContentFor(
-                isRawMode = true,
-                rawText = "# source",
-                rawHighlighted = highlighted,
-                rendered = rendered,
-                rendererUnavailable = unavailable
-            )
-
-            assertSame(highlighted, content)
-        }
-    }
-
-    @Test
     fun `a format that produced nothing still shows the source`() {
         val content = readerContentFor(
             isRawMode = false,
             rawText = "# source",
-            rawHighlighted = null,
             rendered = null,
             rendererUnavailable = false
         )
@@ -106,7 +72,7 @@ class ViewerChoicesTest {
         )
         // A format that produced text, or nothing at all, is drawn by a TextView.
         assertFalse(
-            isDrawnByPage(isRawMode = false, rendered = highlighted, rendererUnavailable = false)
+            isDrawnByPage(isRawMode = false, rendered = plainText, rendererUnavailable = false)
         )
         assertFalse(
             isDrawnByPage(isRawMode = false, rendered = null, rendererUnavailable = false)
@@ -120,12 +86,11 @@ class ViewerChoicesTest {
         // there. Asserted rather than assumed, across the whole input space.
         for (isRawMode in listOf(false, true)) {
             for (unavailable in listOf(false, true)) {
-                for (produced in listOf(rendered, highlighted, null)) {
+                for (produced in listOf(rendered, plainText, null)) {
                     val content = readerContentFor(
                         isRawMode = isRawMode,
                         rawText = "# source",
-                        rawHighlighted = null,
-                        rendered = produced,
+                                    rendered = produced,
                         rendererUnavailable = unavailable
                     )
 
