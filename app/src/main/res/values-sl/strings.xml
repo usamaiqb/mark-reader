@@ -115,7 +115,6 @@
     <string name="settings_text_alignment_subtitle">Postavitev besedila v odstavkih</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_app_description">Bralnik Markdown za lokalne datoteke.</string>
-    <string name="settings_version">Različica %1$s (%2$d)</string>
     <string name="settings_version_unknown">Neznana različica</string>
     <string name="settings_preview">Predogled</string>
     <string name="settings_preview_toggle">Preklopi predogled med svetlo in temno temo branja</string>

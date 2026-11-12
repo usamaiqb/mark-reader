@@ -115,11 +115,11 @@ import com.markreader.data.AppThemeModePreference
 import com.markreader.data.ReaderThemePreference
 import com.markreader.file.OPENABLE_MIME_TYPES
 import com.markreader.file.tryTakePersistablePermission
-import com.markreader.ui.components.GroupInnerRadius
-import com.markreader.ui.components.GroupOuterRadius
-import com.markreader.ui.components.SegmentPosition
-import com.markreader.ui.components.segmentPositionFor
-import com.markreader.ui.components.segmentShape
+import com.markreader.ui.expressive.GroupInnerRadius
+import com.markreader.ui.expressive.GroupOuterRadius
+import com.markreader.ui.expressive.SegmentPosition
+import com.markreader.ui.expressive.segmentPositionFor
+import com.markreader.ui.expressive.segmentShape
 import com.markreader.format.ReaderContent
 import com.markreader.ui.export.ExportManager
 import com.markreader.ui.export.exportSourceFor

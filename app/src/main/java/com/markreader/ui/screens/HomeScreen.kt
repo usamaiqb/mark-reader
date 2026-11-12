@@ -35,13 +35,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,10 +66,12 @@ import com.markreader.file.OPENABLE_MIME_TYPES
 import com.markreader.R
 import com.markreader.file.tryTakePersistablePermission
 import com.markreader.data.RecentFile
-import com.markreader.ui.components.SectionHeader
-import com.markreader.ui.components.SegmentPosition
-import com.markreader.ui.components.segmentPositionFor
-import com.markreader.ui.components.segmentShape
+import com.markreader.ui.expressive.CollapsingLargeTopBar
+import com.markreader.ui.expressive.SectionHeader
+import com.markreader.ui.expressive.SegmentPosition
+import com.markreader.ui.expressive.rememberExpressiveScrollBehavior
+import com.markreader.ui.expressive.segmentPositionFor
+import com.markreader.ui.expressive.segmentShape
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,28 +142,23 @@ fun HomeScreen(
     }
 
     val recentFiles by viewModel.recentFiles.collectAsStateWithLifecycle()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = rememberExpressiveScrollBehavior()
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
-            LargeTopAppBar(
-                title = { Text(text = stringResource(R.string.app_name)) },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            imageVector = Icons.Rounded.Settings,
-                            contentDescription = stringResource(R.string.home_settings_description)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
+            CollapsingLargeTopBar(
+                title = stringResource(R.string.app_name),
                 scrollBehavior = scrollBehavior
-            )
+            ) {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        imageVector = Icons.Rounded.Settings,
+                        contentDescription = stringResource(R.string.home_settings_description)
+                    )
+                }
+            }
         }
     ) { paddingValues: PaddingValues ->
         val recents = recentFiles

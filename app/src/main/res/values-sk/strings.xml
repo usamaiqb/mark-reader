@@ -115,7 +115,6 @@
     <string name="settings_text_alignment_subtitle">Rozloženie textu v odsekoch</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_app_description">Čítačka Markdown pre miestne súbory.</string>
-    <string name="settings_version">Verzia %1$s (%2$d)</string>
     <string name="settings_version_unknown">Neznáma verzia</string>
     <string name="settings_preview">Náhľad</string>
     <string name="settings_preview_toggle">Prepnúť náhľad medzi svetlým a tmavým motívom čítania</string>

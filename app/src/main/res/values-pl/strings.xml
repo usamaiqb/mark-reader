@@ -115,7 +115,6 @@
     <string name="settings_text_alignment_subtitle">Układ tekstu w akapitach</string>
     <string name="settings_github">GitHub</string>
     <string name="settings_app_description">Czytnik Markdown do plików lokalnych.</string>
-    <string name="settings_version">Wersja %1$s (%2$d)</string>
     <string name="settings_version_unknown">Nieznana wersja</string>
     <string name="settings_preview">Podgląd</string>
     <string name="settings_preview_toggle">Przełącz podgląd między jasnym a ciemnym motywem czytania</string>
