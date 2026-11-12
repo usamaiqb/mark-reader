@@ -139,6 +139,18 @@
 			margin: 0;
 		}
 
+		/*
+		 * `markdown.css` gives its 26px gutter to `html` *and* to `body`, so the two add up.
+		 * A desktop preview has the width to spare; on a phone it is over a quarter of the
+		 * screen. One gutter is enough, and `body` keeps its own. Overridden here rather than
+		 * in the stylesheet because that file stays byte-identical to upstream, and because
+		 * how wide the screen is is this host's business. An exported file is unaffected: it
+		 * takes none of this block.
+		 */
+		html {
+			padding-inline: 0;
+		}
+
 		/* WebView otherwise inflates text on a "wide" page, fighting the configured size. */
 		html {
 			-webkit-text-size-adjust: 100%;
