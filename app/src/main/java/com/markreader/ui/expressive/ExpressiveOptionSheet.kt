@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -51,6 +52,13 @@ import androidx.compose.ui.unit.dp
  * silently truncates its tail: network-scanner's language picker grows a row per locale
  * shipped, so the options that fall off the bottom are exactly the ones a user who needs
  * them cannot reach.
+ *
+ * The sheet stops below the status bar instead of sliding under it. Left to its default, a
+ * `ModalBottomSheet` pads its content by however much of the status bar it currently covers,
+ * so its height depends on its position and its position on its height. A list just long
+ * enough to bring the sheet's top inside the bar has no place to rest, and the sheet jumps
+ * by the bar's height on every frame of a drag. Taking the inset on the sheet itself makes
+ * it a constant. The same list that needs to scroll is the one that gets there.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +79,7 @@ fun <T> ExpressiveOptionSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        modifier = Modifier.statusBarsPadding(),
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
