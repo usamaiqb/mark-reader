@@ -1,0 +1,36 @@
+<!-- Debug builds only: the launcher foreground from src/main with a "DEBUG" band across the
+     bottom, so the debug and release installs are tellable apart at a glance. The two glyph
+     paths are copies of the ones in src/main and must follow them if the icon changes. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#3A3A3C"
+        android:pathData="M29,68V40h8l8,18l8,-18h8v28h-6V50l-10,18l-10,-18v18z" />
+
+    <path
+        android:fillColor="#007AFF"
+        android:pathData="M67,40h8v14h4l-8,14l-8,-14h4z" />
+
+    <!-- The band runs to the bottom edge so no launcher mask leaves a sliver under it. -->
+    <path
+        android:fillColor="#E6606060"
+        android:pathData="M0,72h108v36h-108z" />
+
+    <!-- "DEBUG", drawn as strokes: a vector drawable has no text. Kept between x 40 and 68,
+         inside what a circular mask shows at this height. -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M40,75v6h1.5a3,3 0 0 0 0,-6z
+            M50,75h-4v6h4M46,78h3
+            M52,75v6h2.5a1.5,1.5 0 0 0 0,-3h-2.5M54.5,78a1.5,1.5 0 0 0 0,-3h-2.5
+            M58,75v4a2,2 0 0 0 4,0v-4
+            M67.6,76.2a2,3 0 1 0 0,3.6V78h-1.6" />
+
+</vector>
