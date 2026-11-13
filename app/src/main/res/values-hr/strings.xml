@@ -75,7 +75,7 @@
     <string name="editor_placeholder_markdown">Počnite pisati u Markdownu…</string>
     <string name="editor_placeholder_text">Počnite pisati…</string>
     <string name="editor_rendering_preview">Priprema pretpregleda…</string>
-    <string name="editor_discard_title">Odbaciti promjene?</string>
+    <string name="editor_unsaved_title">Spremiti promjene?</string>
     <string name="editor_discard_body">Nespremljene promjene bit će izgubljene.</string>
     <string name="editor_discard_confirm">Odbaci</string>
     <string name="editor_error_file_too_large">Datoteka je prevelika za uređivanje.</string>

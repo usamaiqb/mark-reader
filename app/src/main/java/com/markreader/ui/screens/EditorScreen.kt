@@ -6,10 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -44,7 +40,6 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -109,6 +104,7 @@ fun EditorScreen(
 ) {
     // Keyed on the save result rather than the callback, so read the caller's current one.
     val currentOnSaveComplete by rememberUpdatedState(onSaveComplete)
+    val currentOnNavigateBack by rememberUpdatedState(onNavigateBack)
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isSystemDark = isSystemInDarkTheme()
 
@@ -118,6 +114,9 @@ fun EditorScreen(
     // about the WebView this Activity built, and a new one gets to be asked again.
     var previewUnavailable by remember { mutableStateOf(false) }
     var showDiscardDialog by rememberSaveable { mutableStateOf(false) }
+    // Set by choosing Save on the way out: the editor closes once that save has landed, and
+    // stays open if it did not, so a failed write never takes the edits with it.
+    var leaveAfterSave by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Resolved here rather than in the effect below, which is not a composable scope.
@@ -135,11 +134,18 @@ fun EditorScreen(
         when (uiState.saveResult) {
             is SaveResult.Success -> {
                 currentOnSaveComplete()
-                snackbarHostState.showSnackbar(savedMessage)
-                viewModel.onSaveResultConsumed()
+                if (leaveAfterSave) {
+                    leaveAfterSave = false
+                    viewModel.onSaveResultConsumed()
+                    currentOnNavigateBack()
+                } else {
+                    snackbarHostState.showSnackbar(savedMessage)
+                    viewModel.onSaveResultConsumed()
+                }
             }
             // Different cause, same remedy: a copy the app can write honestly.
             is SaveResult.NoPermission, is SaveResult.UnknownEncoding -> {
+                leaveAfterSave = false
                 val result = snackbarHostState.showSnackbar(
                     message = if (uiState.saveResult is SaveResult.UnknownEncoding) {
                         cannotSaveEncodingMessage
@@ -182,23 +188,23 @@ fun EditorScreen(
                             contentDescription = stringResource(R.string.action_back)
                         )
                     }
+                },
+                actions = {
+                    // In the bar rather than floating over the text, so the keyboard can
+                    // never cover it.
+                    IconButton(
+                        onClick = viewModel::save,
+                        enabled = uiState.isModified && !uiState.isLoading && !uiState.isSaving
+                    ) {
+                        Icon(
+                            Icons.Filled.Save,
+                            contentDescription = stringResource(R.string.editor_save)
+                        )
+                    }
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            AnimatedVisibility(
-                visible = !keyboardVisible && uiState.isModified && !uiState.isLoading,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut()
-            ) {
-                ExtendedFloatingActionButton(
-                    text = { Text(stringResource(R.string.editor_save)) },
-                    icon = { Icon(Icons.Filled.Save, contentDescription = null) },
-                    onClick = viewModel::save
-                )
-            }
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -366,18 +372,23 @@ fun EditorScreen(
     if (showDiscardDialog) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
-            title = { Text(stringResource(R.string.editor_discard_title)) },
+            title = { Text(stringResource(R.string.editor_unsaved_title)) },
             text = { Text(stringResource(R.string.editor_discard_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDiscardDialog = false
-                    onNavigateBack()
-                }) { Text(stringResource(R.string.editor_discard_confirm)) }
+                    leaveAfterSave = true
+                    viewModel.save()
+                }) { Text(stringResource(R.string.editor_save)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDiscardDialog = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    onNavigateBack()
+                }) { Text(stringResource(R.string.editor_discard_confirm)) }
             }
         )
     }

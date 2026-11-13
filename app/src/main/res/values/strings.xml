@@ -104,7 +104,7 @@
     <string name="editor_placeholder_text">Start typing…</string>
     <string name="editor_rendering_preview">Rendering preview…</string>
     <string name="editor_preview_unavailable">The system WebView on this device cannot render a preview. Keep writing in the Edit tab.</string>
-    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_unsaved_title">Save changes?</string>
     <string name="editor_discard_body">Your unsaved changes will be lost.</string>
     <string name="editor_discard_confirm">Discard</string>
     <string name="editor_error_file_too_large">This file is too large to edit.</string>
