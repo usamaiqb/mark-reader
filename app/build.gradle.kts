@@ -56,6 +56,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // A separate package, so a debug build installs beside the released app
+            // instead of replacing it.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+
         release {
             isMinifyEnabled = true
             isShrinkResources = true
