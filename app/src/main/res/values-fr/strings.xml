@@ -75,7 +75,7 @@
     <string name="editor_placeholder_markdown">Commencez à écrire en Markdown…</string>
     <string name="editor_placeholder_text">Commencez à saisir du texte…</string>
     <string name="editor_rendering_preview">Préparation de l’aperçu…</string>
-    <string name="editor_discard_title">Abandonner les modifications ?</string>
+    <string name="editor_unsaved_title">Enregistrer les modifications ?</string>
     <string name="editor_discard_body">Les modifications non enregistrées seront perdues.</string>
     <string name="editor_discard_confirm">Abandonner</string>
     <string name="editor_error_file_too_large">Ce fichier est trop volumineux pour être modifié.</string>

@@ -76,7 +76,7 @@
     <string name="editor_placeholder_markdown">Začněte psát v Markdown…</string>
     <string name="editor_placeholder_text">Začněte psát…</string>
     <string name="editor_rendering_preview">Příprava náhledu…</string>
-    <string name="editor_discard_title">Zahodit změny?</string>
+    <string name="editor_unsaved_title">Uložit změny?</string>
     <string name="editor_discard_body">Neuložené změny budou ztraceny.</string>
     <string name="editor_discard_confirm">Zahodit</string>
     <string name="editor_error_file_too_large">Soubor je příliš velký pro úpravy.</string>

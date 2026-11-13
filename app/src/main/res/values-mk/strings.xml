@@ -74,7 +74,7 @@
     <string name="editor_placeholder_markdown">Почнете да пишувате во Markdown…</string>
     <string name="editor_placeholder_text">Почнете да пишувате…</string>
     <string name="editor_rendering_preview">Подготовка на прегледот…</string>
-    <string name="editor_discard_title">Да се отфрлат промените?</string>
+    <string name="editor_unsaved_title">Да се зачуваат промените?</string>
     <string name="editor_discard_body">Незачуваните промени ќе се изгубат.</string>
     <string name="editor_discard_confirm">Отфрли</string>
     <string name="editor_error_file_too_large">Датотеката е преголема за уредување.</string>

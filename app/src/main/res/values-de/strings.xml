@@ -74,7 +74,7 @@
     <string name="editor_placeholder_markdown">Markdown schreiben…</string>
     <string name="editor_placeholder_text">Text eingeben…</string>
     <string name="editor_rendering_preview">Vorschau wird erstellt…</string>
-    <string name="editor_discard_title">Änderungen verwerfen?</string>
+    <string name="editor_unsaved_title">Änderungen speichern?</string>
     <string name="editor_discard_body">Nicht gespeicherte Änderungen gehen verloren.</string>
     <string name="editor_discard_confirm">Verwerfen</string>
     <string name="editor_error_file_too_large">Diese Datei ist zu groß zum Bearbeiten.</string>

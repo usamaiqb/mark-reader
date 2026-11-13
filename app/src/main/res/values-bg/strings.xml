@@ -74,7 +74,7 @@
     <string name="editor_placeholder_markdown">Започнете да пишете в Markdown…</string>
     <string name="editor_placeholder_text">Започнете да пишете…</string>
     <string name="editor_rendering_preview">Подготовка на прегледа…</string>
-    <string name="editor_discard_title">Отхвърляне на промените?</string>
+    <string name="editor_unsaved_title">Запазване на промените?</string>
     <string name="editor_discard_body">Незапазените промени ще бъдат загубени.</string>
     <string name="editor_discard_confirm">Отхвърляне</string>
     <string name="editor_error_file_too_large">Файлът е твърде голям за редактиране.</string>

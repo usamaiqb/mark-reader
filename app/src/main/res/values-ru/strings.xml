@@ -92,7 +92,7 @@
     <string name="editor_placeholder_markdown">Начните писать в Markdown…</string>
     <string name="editor_placeholder_text">Начните вводить текст…</string>
     <string name="editor_rendering_preview">Подготовка предпросмотра…</string>
-    <string name="editor_discard_title">Отменить изменения?</string>
+    <string name="editor_unsaved_title">Сохранить изменения?</string>
     <string name="editor_discard_body">Несохранённые изменения будут потеряны.</string>
     <string name="editor_discard_confirm">Отменить изменения</string>
     <string name="editor_error_file_too_large">Файл слишком большой для редактирования.</string>
