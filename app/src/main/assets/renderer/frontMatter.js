@@ -13,7 +13,7 @@
 //   - `vscode.l10n.t(...)` -> plain strings
 //   - dropped the `data-vscode-context` attribute (webview context menus only)
 import * as yaml from './vendor/yaml.js';
-import { escapeHtml } from './util.js';
+import { escapeHtml } from './markdown-language-features/util/dom.js';
 import { getConfig } from './config.js';
 const FRONT_MATTER_TOKEN = 'front_matter';
 const MARKER = '---';

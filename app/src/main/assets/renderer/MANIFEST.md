@@ -10,15 +10,10 @@ diverges the two apps in the meantime.
 | | |
 | --- | --- |
 | Repo | `markreader-desktop` (`../../rust/markreader-desktop` alongside this one) |
-| Commit | `dacbaf9c1cd9a5b2a6b272f12fae4215c1363adc` |
-| Subject | `fix(renderer): paint find matches from the document stylesheet` |
-| Branch | `refactor/shared-document-renderer` |
-| Command | `npm run build:esm`, output `out/renderer-esm/` |
-
-**That commit is unpushed and unmerged.** It is the tip of the branch carrying the
-document/shell split, and its SHA will change if the branch is rebased or squashed on the way
-into `main`. So the subject line above matters as much as the hash: it is what identifies the
-work after a rewrite. Re-vendor and update this table when the branch lands.
+| Commit | `33a3c9564f053eedb247bbbcbb25e711b36701eb` |
+| Subject | `docs: make the docs concise, and add AGENTS.md (#62)` |
+| Branch | `main` |
+| Command | `npm run build:esm`, output `out/renderer-esm/`, checked with `npm run verify:esm` |
 
 The desktop repo owns the code; this is a build artifact of it. There is deliberately **no
 automated freshness check** — the tradeoff is recorded in `docs/plan/sharing.md`
@@ -43,24 +38,32 @@ The generated set is:
 
 ```
 config.js  document.js  engine.js  frontMatter.js  host.js  lazy.js
-paths.js   plugins.js   sanitizer.js  slugify.js    util.js
+paths.js   plugins.js   sanitizer.js  scroll.js     slugify.js  util.js
+markdown-language-features/util/dom.js
+mermaid/subgraphTitles.js  mermaid/vsCodeTheme.js
 css/document-overrides.css  css/highlight.css  css/katex.css
 css/markdown.css            css/theme.css
 vendor/highlight.js  vendor/markdown-it-katex.js  vendor/markdown-it.js
 vendor/mermaid.js    vendor/purify.js             vendor/yaml.js
 ```
 
-Four things the desktop build emits are deliberately **not** copied:
+That list is what `document.js` and `android-host.js` import, followed to the end. A build
+that adds a module to that graph adds a file here, and nothing reports one that was missed
+until a document fails to render — so check the imports resolve after copying.
 
-- `renderer.js` and `shell.js` — the desktop shell and its entry point. Android's chrome is
-  Compose; the host page drives `document.js` directly. Copying them is how shell coupling
-  would get back in.
+Six things the desktop build emits are deliberately **not** copied:
+
+- `renderer.js`, `shell.js` and `tabs/` — the desktop shell, its entry point and its tabs.
+  Android's chrome is Compose; the host page drives `document.js` directly. Copying them is
+  how shell coupling would get back in.
+- `mermaid/config.js`, `mermaid/disposable.js` and `vscode.js` — modules that hold only types.
+  They compile to nothing and no module imports them at runtime.
 - `*.map` — source maps without `sourcesContent`, so they point at `.ts` files no device has.
   Our own modules ship unminified and are debuggable as themselves, which is the whole point
   of the unbundled build. The `//# sourceMappingURL=` comments stay in the copied files so
   they remain byte-identical to the build output; the cost is one dead lookup per module when
   devtools are attached, served a 404 by the asset handler rather than reaching any network.
-- `stub.html` and `samples/` — the desktop test harness.
+- `stub.html`, `stub.js` and `samples/` — the desktop test harness.
 - `package.json` — a `"type": "module"` marker for Node's benefit. A browser never fetches it.
 
 ## Layout constraints — two of them are load-bearing
@@ -76,7 +79,8 @@ Four things the desktop build emits are deliberately **not** copied:
 ## Licences
 
 The renderer is GPL-3.0-only, as is this app. It carries MIT-licensed code ported from VS Code
-(`css/markdown.css`, `css/highlight.css`, parts of `util.js` and `engine.js`) and vendored
+(`css/markdown.css`, `css/highlight.css`, `slugify.js`, `mermaid/`,
+`markdown-language-features/`, and parts of `engine.js` and others) and vendored
 builds of `markdown-it`, `@vscode/markdown-it-katex`, KaTeX, `highlight.js`, `mermaid`, `yaml`
 and `DOMPurify`.
 

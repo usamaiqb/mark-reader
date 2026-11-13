@@ -59,9 +59,9 @@ const pluginSourceMap = (md) => {
         }
     });
     // The 'html_block' renderer doesn't respect `attrs`. We need to insert a marker.
-    const originalHtmlBlockRenderer = md.renderer.rules['html_block'];
+    const originalHtmlBlockRenderer = md.renderer.rules.html_block;
     if (originalHtmlBlockRenderer) {
-        md.renderer.rules['html_block'] = (tokens, idx, options, env, self) => (`<div ${self.renderAttrs(tokens[idx])} ></div>\n` +
+        md.renderer.rules.html_block = (tokens, idx, options, env, self) => (`<div ${self.renderAttrs(tokens[idx])} ></div>\n` +
             originalHtmlBlockRenderer(tokens, idx, options, env, self));
     }
 };
@@ -122,6 +122,7 @@ export class MarkdownItEngine {
             html,
             containingImages: env.containingImages,
             headings: env.headings,
+            resolveResource: href => this.#toResourceUri(href, context),
         };
     }
     tokenize(text) {
@@ -137,7 +138,7 @@ export class MarkdownItEngine {
         md.renderer.rules.image = (tokens, idx, options, env, self) => {
             const token = tokens[idx];
             const renderEnv = renderEnvOf(env);
-            // markdown-it 15 widened `attrGet` to `string | number | null`.
+            // `String()` because markdown-it 15's own typings widen `attrGet` to `string | number | null`.
             const src = token.attrGet('src');
             if (src) {
                 const value = String(src);
@@ -156,8 +157,8 @@ export class MarkdownItEngine {
         };
     }
     #addFencedRenderer(md) {
-        const original = md.renderer.rules['fenced'];
-        md.renderer.rules['fenced'] = (tokens, idx, options, env, self) => {
+        const original = md.renderer.rules.fenced;
+        md.renderer.rules.fenced = (tokens, idx, options, env, self) => {
             const token = tokens[idx];
             if (token.map?.length) {
                 token.attrJoin('class', 'hljs');

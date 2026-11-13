@@ -84,6 +84,11 @@ fun WebViewReader(
      * when it goes.
      */
     contentTopInset: Dp = 0.dp,
+    /**
+     * How much of the top of the reader the chrome is covering now. It starts out as
+     * [contentTopInset] and shrinks as the chrome collapses, where the inset stays put.
+     */
+    coveredTop: Dp = contentTopInset,
 ) {
     // Plain fields rather than snapshot state, for the reason [ReaderContentController] gives at
     // length: this is written from a WebView callback and read from another, and a snapshot write
@@ -133,6 +138,10 @@ fun WebViewReader(
 
     LaunchedEffect(host, contentTopInset) {
         host.applyContentInset(contentTopInset.value)
+    }
+
+    LaunchedEffect(host, coveredTop) {
+        host.applyCoveredTop(coveredTop.value)
     }
 
     LaunchedEffect(host, commands) {

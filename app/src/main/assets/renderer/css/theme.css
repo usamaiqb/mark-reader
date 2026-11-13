@@ -4,14 +4,19 @@
 /*---------------------------------------------------------------------------------------------
  *  The theme shim.
  *
- *  markdown.css and highlight.css are copied unmodified from VS Code, so they expect the
- *  `--vscode-*` custom properties the workbench normally injects, plus a `vscode-light` /
- *  `vscode-dark` class on the body. This file supplies both.
+ *  markdown.css, highlight.css and mermaid/vsCodeTheme.ts are copied unmodified from VS Code,
+ *  so they expect what a VS Code webview has: the `--vscode-*` custom properties on `<html>`,
+ *  where the workbench injects them, and a `vscode-light` / `vscode-dark` class on the body.
+ *  This file supplies both. `DocumentView.applyTheme()` puts the class on `<html>` as well, so
+ *  the properties can be selected there without `:has()`, which the Android WebView floor
+ *  lacks. They are on `<body>` too, from its static class, so a page is themed before any
+ *  script runs.
  *
  *  Values are taken from the Default Dark Modern and Default Light Modern themes.
  *--------------------------------------------------------------------------------------------*/
 
 /* ---------------------------------------------------------------- dark (default) */
+html.vscode-dark,
 body.vscode-dark {
 	--vscode-editor-background: #1f1f1f;
 	--vscode-editor-foreground: #cccccc;
@@ -38,6 +43,28 @@ body.vscode-dark {
 	--vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
 	--vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
 
+	/*
+	 * Read by mermaid/vsCodeTheme.ts, VS Code's mermaid theme. The `charts-*` and `chart-line`
+	 * values are not in the theme files; they are the color registry's defaults, resolved through
+	 * what they reference (`charts.red` is `editorError.foreground`'s default, `charts.lines` is
+	 * `foreground` at 50%, and so on).
+	 */
+	--vscode-foreground: #cccccc;
+	--vscode-focusBorder: #0078d4;
+	--vscode-editorWidget-background: #202020;
+	--vscode-input-background: #313131;
+	--vscode-input-foreground: #cccccc;
+	--vscode-input-border: #3c3c3c;
+	--vscode-charts-foreground: #cccccc;
+	--vscode-charts-lines: #cccccc80;
+	--vscode-chart-line: #236b8e;
+	--vscode-charts-red: #f14c4c;
+	--vscode-charts-blue: #59a4f9;
+	--vscode-charts-yellow: #cca700;
+	--vscode-charts-orange: #ea5c0055;
+	--vscode-charts-green: #89d185;
+	--vscode-charts-purple: #b180d7;
+
 	/* Sidebar / chrome — MarkReader additions, same palette family */
 	--mr-sidebar-background: #181818;
 	--mr-sidebar-foreground: #cccccc;
@@ -60,12 +87,10 @@ body.vscode-dark {
 	--vscode-diffEditorGutter-insertedLineBackground: #587c0c;
 	--vscode-diffEditorGutter-removedLineBackground: #94151b;
 	--vscode-editorGutter-modifiedBackground: #1b81a8;
-
-	color: var(--vscode-editor-foreground);
-	background-color: var(--vscode-editor-background);
 }
 
 /* ---------------------------------------------------------------- light */
+html.vscode-light,
 body.vscode-light {
 	--vscode-editor-background: #ffffff;
 	--vscode-editor-foreground: #3b3b3b;
@@ -92,6 +117,22 @@ body.vscode-light {
 	--vscode-scrollbarSlider-background: rgba(100, 100, 100, 0.4);
 	--vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
 
+	--vscode-foreground: #3b3b3b;
+	--vscode-focusBorder: #005fb8;
+	--vscode-editorWidget-background: #f8f8f8;
+	--vscode-input-background: #ffffff;
+	--vscode-input-foreground: #3b3b3b;
+	--vscode-input-border: #cecece;
+	--vscode-charts-foreground: #3b3b3b;
+	--vscode-charts-lines: #3b3b3b80;
+	--vscode-chart-line: #236b8e;
+	--vscode-charts-red: #e51400;
+	--vscode-charts-blue: #0063d3;
+	--vscode-charts-yellow: #bf8803;
+	--vscode-charts-orange: #ea5c0055;
+	--vscode-charts-green: #388a34;
+	--vscode-charts-purple: #652d90;
+
 	--mr-sidebar-background: #f8f8f8;
 	--mr-sidebar-foreground: #3b3b3b;
 	--mr-chrome-border: #e5e5e5;
@@ -108,7 +149,19 @@ body.vscode-light {
 	--vscode-diffEditorGutter-insertedLineBackground: #587c0c;
 	--vscode-diffEditorGutter-removedLineBackground: #94151b;
 	--vscode-editorGutter-modifiedBackground: #1b81a8;
+}
 
+/*
+ * The workbench UI font, which a VS Code webview receives as these two properties and
+ * mermaid/vsCodeTheme.ts labels diagrams with. The family is markdown.css's own fallback list;
+ * the workbench picks one platform's entry from it.
+ */
+:root {
+	--vscode-font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+	--vscode-font-size: 13px;
+}
+
+body {
 	color: var(--vscode-editor-foreground);
 	background-color: var(--vscode-editor-background);
 }

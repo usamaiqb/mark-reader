@@ -41,32 +41,91 @@ const FORBID_TAGS = ['style', 'link', 'base', 'meta', 'form', 'object', 'embed',
 const FORBID_ATTR = ['target', 'ping', 'formaction'];
 const purify = createDOMPurify(window);
 /**
- * Sanitizes rendered document HTML.
+ * The attributes of raw HTML that load a document resource, by element. Markdown's `![]()`
+ * is rewritten by the engine's image rule; these are the same references written as HTML —
+ * a README's `<img src="docs/shot.png">`, GitHub's `<picture><source srcset>` light/dark pair.
+ */
+const RESOURCE_ATTRIBUTES = {
+    IMG: ['src', 'srcset'],
+    SOURCE: ['src', 'srcset'],
+    VIDEO: ['src', 'poster'],
+    AUDIO: ['src'],
+    TRACK: ['src'],
+};
+/** The rewriter for the sanitize call in progress; DOMPurify hooks are per instance, not per call. */
+let rewriteResource;
+purify.addHook('afterSanitizeAttributes', node => {
+    const attributes = rewriteResource && RESOURCE_ATTRIBUTES[node.nodeName];
+    // `data-src` marks an image the engine already rewrote — rewriting it twice would resolve
+    // an `mdr:` URL against the document's folder.
+    if (!attributes || node.hasAttribute('data-src')) {
+        return;
+    }
+    for (const name of attributes) {
+        const value = node.getAttribute(name);
+        if (!value) {
+            continue;
+        }
+        const rewritten = name === 'srcset' ? rewriteSrcset(value, rewriteResource) : rewriteResource(value.trim());
+        if (rewritten !== value) {
+            node.setAttribute(name, rewritten);
+            if (name === 'src') {
+                node.setAttribute('data-src', value);
+            }
+        }
+    }
+});
+/**
+ * `srcset` is a comma-separated list of `url [descriptor]`. A `data:` candidate carries commas
+ * of its own and needs no rewriting, so a set containing one is left whole rather than split
+ * wrongly.
+ */
+function rewriteSrcset(srcset, rewrite) {
+    if (/data:/i.test(srcset)) {
+        return srcset;
+    }
+    return srcset
+        .split(',')
+        .map(candidate => {
+        const [url, ...descriptors] = candidate.trim().split(/\s+/);
+        return url ? [rewrite(url), ...descriptors].join(' ') : candidate;
+    })
+        .join(', ');
+}
+/**
+ * Sanitizes rendered document HTML, and — given `resolveResource` — points the local images
+ * and media of raw HTML at the host the way the engine already did for `![]()`.
  *
  * The engine's own attributes have to survive: `data-line` for the source map, `data-href` and
  * `data-resolved-path` for link handling, `data-src` for the pre-rewrite original, and the
- * `id`s heading anchors and the outline navigate by. DOMPurify keeps `data-*` and `id` by
+ * `id`s that in-page links and the outline navigate by. DOMPurify keeps `data-*` and `id` by
  * default; the tests pin that.
  *
  * What it does *not* keep is any attribute whose value contains `-->`, an mXSS defence with no
  * opt-out. That is why the mermaid source travels as element text rather than an attribute —
  * see `engine.ts`'s `#addMermaidRenderer`.
  */
-export function sanitizeDocumentHtml(html) {
-    return purify.sanitize(html, {
-        ALLOWED_URI_REGEXP,
-        FORBID_TAGS,
-        FORBID_ATTR,
-        // MathML and SVG are both legitimate here — KaTeX emits MathML, mermaid emits SVG.
-        USE_PROFILES: { html: true, mathMl: true, svg: true },
-    });
+export function sanitizeDocumentHtml(html, resolveResource) {
+    rewriteResource = resolveResource;
+    try {
+        return purify.sanitize(html, {
+            ALLOWED_URI_REGEXP,
+            FORBID_TAGS,
+            FORBID_ATTR,
+            // MathML and SVG are both legitimate here — KaTeX emits MathML, mermaid emits SVG.
+            USE_PROFILES: { html: true, mathMl: true, svg: true },
+        });
+    }
+    finally {
+        rewriteResource = undefined;
+    }
 }
 /**
  * The single seam through which document content reaches the DOM. Everything the renderer
  * renders goes through here, so there is one line to audit rather than a scattering of
  * `innerHTML` assignments.
  */
-export function setDocumentHtml(root, html) {
-    root.innerHTML = sanitizeDocumentHtml(html);
+export function setDocumentHtml(root, html, resolveResource) {
+    root.innerHTML = sanitizeDocumentHtml(html, resolveResource);
 }
 //# sourceMappingURL=sanitizer.js.map
