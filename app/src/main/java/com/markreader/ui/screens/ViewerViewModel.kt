@@ -430,7 +430,8 @@ class ViewerViewModel(
         searchJob = viewModelScope.launch {
             if (debounceMs > 0L) kotlinx.coroutines.delay(debounceMs)
             if (usesPageFind) {
-                // The page reveals the first match itself, and reports the count back.
+                // The page marks the nearest match and reports the count back. It does not
+                // scroll until the reader steps.
                 send(PageCommand.Find(query))
             } else {
                 findInText(query)

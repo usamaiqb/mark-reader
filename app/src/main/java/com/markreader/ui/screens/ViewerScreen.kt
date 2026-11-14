@@ -822,6 +822,9 @@ fun ViewerScreen(
                                 ),
                                 padding = PaddingValues(0.dp),
                                 contentTopInset = if (hasWarning) 0.dp else chromeTopInset,
+                                // The bar as it stands, not as it was latched: collapsed, it
+                                // covers only the strip it keeps painted over the status bar.
+                                coveredTop = if (hasWarning) 0.dp else liveTopInset,
                                 savedScrollY = savedScrollY,
                                 onScroll = viewModel::onScrollPositionChanged,
                                 onRendererUnavailable = viewModel::onRendererUnavailable,

@@ -141,11 +141,11 @@
 
 		/*
 		 * `markdown.css` gives its 26px gutter to `html` *and* to `body`, so the two add up.
-		 * A desktop preview has the width to spare; on a phone it is over a quarter of the
-		 * screen. One gutter is enough, and `body` keeps its own. Overridden here rather than
-		 * in the stylesheet because that file stays byte-identical to upstream, and because
-		 * how wide the screen is is this host's business. An exported file is unaffected: it
-		 * takes none of this block.
+		 * `document-overrides.css` already leaves a narrow screen one gutter; this does the
+		 * same above its 600px breakpoint, where a tablet would otherwise get both. One is
+		 * enough, and `body` keeps its own. Here rather than in the stylesheet because a
+		 * desktop preview has the width to spare, so past that breakpoint it is this host's
+		 * business. An exported file is unaffected: it takes none of this block.
 		 */
 		html {
 			padding-inline: 0;

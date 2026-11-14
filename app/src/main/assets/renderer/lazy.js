@@ -6,8 +6,8 @@
  *  KaTeX and highlight.js are the two heaviest things in the module graph, and both used to be
  *  evaluated at startup whether or not the document had any use for them — KaTeX's stylesheet
  *  was linked in the page for good measure. Most documents contain no math; many contain no
- *  code fences. On Android the spike measured a fixed ~1.15s of start-up cost that a document
- *  120 times larger barely moved, which is what identified this as the lever worth pulling:
+ *  code fences. Measured in a WebView on a phone, start-up carried a fixed ~1.15s that a
+ *  document 120 times larger barely moved, which identified this as the lever worth pulling:
  *  it is the only one that shrinks the fixed cost rather than hiding it, and desktop gets it
  *  for free. Mermaid already proved the dynamic import survives bundling.
  *

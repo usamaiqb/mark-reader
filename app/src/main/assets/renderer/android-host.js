@@ -275,8 +275,8 @@ const MAX_INLINE_BYTES = 4 * 1024 * 1024;
  * source: hydrating one is `DocumentView`'s, and repeating that loop here would be a second
  * mermaid pipeline — the fallback `<pre>` the renderer emits beside every diagram is exactly
  * what it is for. The bundled reading fonts are not embedded, because they are this APK's and
- * every stack the app sends ends in a generic. And the copy buttons and heading anchors the
- * reader hydrates are affordances for a page with script, which this file does not have.
+ * every stack the app sends ends in a generic. And the copy buttons the reader hydrates are an
+ * affordance for a page with script, which this file does not have.
  *
  * @param request {{ path?: string, title?: string, text?: string, settings?: unknown }}
  * @returns {Promise<string>} a complete HTML document.
@@ -299,8 +299,10 @@ async function buildExportHtml(request) {
 	const container = document.createElement('div');
 	container.className = 'markdown-body';
 	container.setAttribute('dir', 'auto');
-	// The same seam every rendering goes through; see `sanitizer.js`.
-	setDocumentHtml(container, output.html);
+	// The same seam every rendering goes through; see `sanitizer.js`. The resolver is what points
+	// an image written as raw HTML at this host, as the engine already did for `![]()` — which is
+	// what lets `prepareContentForExport` find it and carry it.
+	setDocumentHtml(container, output.html, output.resolveResource);
 	await prepareContentForExport(container);
 
 	const dark = settings.theme === 'dark'
@@ -400,6 +402,10 @@ async function exportStylesheets(container) {
  *    them as document-relative paths against a `null` base URL, so every one of them was a
  *    broken image in the PDF too. Anything too large, or that fails to read, loses its `src`
  *    and keeps its alt text.
+ *  - **Every other reference to this host is dropped.** Raw HTML can name a document resource
+ *    from more places than an image's `src` — a `srcset`, a `<picture>`'s `<source>`, a video
+ *    and its poster — and the renderer points all of them here. None of those is carried: a
+ *    `<picture>` falls back to its `<img>`, which is, and media is too large to inline.
  *  - **`data-resolved-path` is dropped.** It names a path in the virtual space this session
  *    minted, which no other reader of the file can resolve and which nothing without script
  *    would read anyway.
@@ -422,7 +428,23 @@ async function prepareContentForExport(root) {
 			image.removeAttribute('src');
 		}
 	}
+
+	// After the images, so an inlined `src` is no longer a match. `includes`, not `startsWith`:
+	// a `srcset` is a list, and this host may be any entry in it.
+	for (const name of HOST_RESOURCE_ATTRIBUTES) {
+		for (const element of root.querySelectorAll(`[${name}]`)) {
+			if ((element.getAttribute(name) ?? '').includes(prefix)) {
+				element.removeAttribute(name);
+			}
+		}
+	}
 }
+
+/**
+ * The attributes `sanitizer.js` rewrites to point at this host, on any element. `data-src` is
+ * not one: it holds what the document wrote, before the rewrite.
+ */
+const HOST_RESOURCE_ATTRIBUTES = ['src', 'srcset', 'poster'];
 
 /** A document resource as a `data:` URI, or undefined if it is unreadable or too large. */
 async function asDataUri(url) {
@@ -504,6 +526,18 @@ const page = {
 	},
 
 	/**
+	 * How much of the top of the page the chrome is covering *now*, which is not the inset: the
+	 * inset is the room the expanded chrome needs and stays put, and this shrinks as the chrome
+	 * collapses. The renderer measures the reading line, the headroom above a revealed heading
+	 * and where a find match is centred from below it.
+	 *
+	 * @param json {string} a JSON `{ top }`, in CSS pixels.
+	 */
+	setCoveredTop(json) {
+		view.setCoveredTop(Number(JSON.parse(json).top) || 0);
+	},
+
+	/**
 	 * @param json {string} a JSON settings object, in the shape `config.ts` persists, plus this
 	 *   host's own `codeFontFamily`. The shared keys are validated by `parseConfig`, which drops
 	 *   unknown ones and falls back per-setting — the same check the desktop app applies to
@@ -530,7 +564,9 @@ const page = {
 	},
 
 	/**
-	 * Finds `query` in the rendering, paints every match and reveals the first.
+	 * Finds `query` in the rendering, paints every match and marks the nearest one as current.
+	 * **It does not scroll**: the reader keeps their place while typing, and `stepFind` is what
+	 * moves.
 	 *
 	 * **The match set is the page's, not Kotlin's.** Matches are DOM ranges over the rendered
 	 * document, and this is the only side that has the rendering — so what goes back out is a
@@ -547,7 +583,8 @@ const page = {
 	},
 
 	/**
-	 * Moves to another match, wrapping at either end.
+	 * Moves to another match, wrapping at either end. The first step after a query goes to the
+	 * match nearest the reading position, and a match already in view is not scrolled to.
 	 *
 	 * @param json {string} a JSON `{ delta }` — `1` for the next match, `-1` for the previous.
 	 */
@@ -570,10 +607,8 @@ const page = {
 	 * Scrolls a heading into view: the table of contents today, the resume position when that
 	 * moves onto an anchor.
 	 *
-	 * The headroom left above the target is the renderer's (`REVEAL_OFFSET`), which knows nothing
-	 * about the chrome Compose draws over the page — so a reveal that does not also collapse the
-	 * chrome can land the heading behind it. Fixing that properly means teaching the shared
-	 * reveal about the content inset, which is desktop work.
+	 * The headroom left above the target is the renderer's (`REVEAL_OFFSET`), measured from below
+	 * whatever `setCoveredTop` last said the chrome covers.
 	 *
 	 * @param json {string} a JSON `{ slug }`, one of the slugs the outline reported.
 	 */

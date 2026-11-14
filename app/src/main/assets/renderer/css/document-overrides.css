@@ -17,8 +17,8 @@
  *       section will keep growing. That is expected, not drift.
  *    2. MarkReader's own document-level rules. These were in `app.css`, which is the desktop
  *       chrome stylesheet — so a host loading only the document stylesheets got every mermaid
- *       diagram followed by its own source, and permanently visible heading anchors. They
- *       style elements `document.ts` creates, so they belong with the document.
+ *       diagram followed by its own source. They style elements `document.ts` creates, so
+ *       they belong with the document.
  *--------------------------------------------------------------------------------------------*/
 
 /*---------------------------------------------------------------------------------------------
@@ -47,12 +47,18 @@ th {
 }
 
 /*
- * Mobile: upstream's `html, body { padding: 0 26px }` costs 52px of a phone's width. Only the
- * inline padding is touched — `body { padding-top: 1em }` and the desktop toolbar offset in
- * `app.css` both survive.
+ * Mobile: upstream's `html, body { padding: 0 26px }` pads both elements, and `body` sits inside
+ * `html`, so it costs 52px a side of a phone's width. Here only `body` carries the inset, for a
+ * total of 16px a side. Only the inline padding is touched, so `body { padding-top: 1em }`
+ * survives. The desktop document scrolls in a container of its own, which `app.css` pads to
+ * the same 16px.
  */
 @media (max-width: 600px) {
-	html,
+	html {
+		padding-left: 0;
+		padding-right: 0;
+	}
+
 	body {
 		padding-left: 16px;
 		padding-right: 16px;
@@ -62,31 +68,6 @@ th {
 /*---------------------------------------------------------------------------------------------
  *  2. MarkReader's document-level rules
  *--------------------------------------------------------------------------------------------*/
-
-/* Heading anchor links, in the style of the GitHub / docs convention. */
-.markdown-body :is(h1, h2, h3, h4, h5, h6) {
-	position: relative;
-}
-
-.heading-anchor {
-	position: absolute;
-	inset-inline-start: -0.85em;
-	width: 0.85em;
-	opacity: 0;
-	text-decoration: none;
-	color: var(--mr-description-foreground);
-	font-weight: 400;
-	cursor: pointer;
-}
-
-.markdown-body :is(h1, h2, h3, h4, h5, h6):hover > .heading-anchor {
-	opacity: 1;
-}
-
-.heading-anchor:hover {
-	text-decoration: none;
-	color: var(--vscode-textLink-foreground);
-}
 
 /* Briefly flash a heading that was jumped to, so the target is obvious. */
 @keyframes mr-target-flash {
@@ -161,8 +142,8 @@ th {
 }
 
 /*
- * Mobile: a diagram scaled to fit a phone is unreadable — the spike measured exactly this at
- * 1080px. Below that width let it keep its natural size and scroll inside the block, which
+ * Mobile: a diagram scaled to fit a phone is unreadable — measured on a 1080px-wide diagram.
+ * Below that width let it keep its natural size and scroll inside the block, which
  * `.mermaid-block` is already set up for.
  */
 @media (max-width: 600px) {
