@@ -1,23 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 DigiGate
 /*---------------------------------------------------------------------------------------------
- *  SPDX-License-Identifier: GPL-3.0-only
- *  SPDX-FileCopyrightText: 2026 DigiGate
- *  SPDX-FileCopyrightText: Microsoft Corporation — MIT, see licenses/vscode.txt
- *
- *  Path and URI helpers. `escapeAttribute` and `escapeHtml` come from VS Code's
- *  `markdown-language-features/src/util/dom.ts`; the `mdr://` helpers below are
- *  MarkReader's own. See licenses/NOTICE.md.
+ *  The `mdr://` resource-URI helpers. VS Code's escaping helpers, which used to live here
+ *  too, are `markdown-language-features/util/dom.ts`, copied verbatim.
  *--------------------------------------------------------------------------------------------*/
-export function escapeAttribute(value) {
-    return String(value).replace(/"/g, '&quot;');
-}
-export function escapeHtml(value) {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
 /**
  * Replaces VS Code's `resourceProvider.asWebviewUri()`.
  *

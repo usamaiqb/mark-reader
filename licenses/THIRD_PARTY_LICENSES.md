@@ -40,8 +40,9 @@ MarkReader includes the following third-party font files in
 
 ## Visual Studio Code
 
-- Files: `css/markdown.css`, `css/highlight.css`, `slugify.js`, and parts of `engine.js`,
-  `frontMatter.js`, `plugins.js`, `document.js`, `util.js`
+- Files: `css/markdown.css`, `css/highlight.css`, `slugify.js`, `mermaid/subgraphTitles.js`,
+  `mermaid/vsCodeTheme.js`, `markdown-language-features/util/dom.js`, and parts of `engine.js`,
+  `frontMatter.js`, `plugins.js`, `document.js`
 - Source: https://github.com/microsoft/vscode
 - License: MIT
 - Copyright: Copyright (c) Microsoft Corporation. All rights reserved.

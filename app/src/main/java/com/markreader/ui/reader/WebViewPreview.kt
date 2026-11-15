@@ -77,11 +77,13 @@ fun WebViewPreview(
         host.applySettings(settings)
     }
 
-    // The reader pushes the height of its collapsing chrome into the page. Nothing is drawn over
-    // the preview, and the two share a page, so a pane that did not put this back would open with
-    // a band of empty space at the top of the document.
+    // The reader pushes the height of its collapsing chrome into the page, and how much of it is
+    // showing. Nothing is drawn over the preview, and the two share a page, so a pane that did
+    // not put these back would open with a band of empty space at the top of the document and
+    // measure its headings from below a bar that is not there.
     LaunchedEffect(host) {
         host.applyContentInset(0f)
+        host.applyCoveredTop(0f)
     }
 
     Box(modifier = modifier.fillMaxSize()) {

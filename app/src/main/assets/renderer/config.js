@@ -11,6 +11,7 @@ export const defaultConfig = {
     mermaid: true,
     showToc: true,
     wordWrap: true,
+    restoreSession: true,
     fontSize: 14,
     lineHeight: 22,
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif',
@@ -104,6 +105,7 @@ const validators = {
     mermaid: asBoolean,
     showToc: asBoolean,
     wordWrap: asBoolean,
+    restoreSession: asBoolean,
     // Bounds, not just types: a zero or negative size would render an unreadable document with
     // no way to fix it from inside the app.
     fontSize: inRange(6, 96),

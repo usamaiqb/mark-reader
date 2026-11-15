@@ -315,6 +315,21 @@ class WebViewDocumentHost(
         }
     }
 
+    /**
+     * How much of the top of the WebView the chrome is covering now, in CSS pixels.
+     *
+     * Not [applyContentInset], though the two start out equal: the inset is the room the expanded
+     * chrome needs and does not move, and this follows the chrome as it collapses. The page
+     * measures the current heading, the headroom above a revealed one and where a match is
+     * centred from below it.
+     */
+    fun applyCoveredTop(topDp: Float) {
+        scope.launch(Dispatchers.Main) {
+            pageReady.await()
+            call("setCoveredTop", JSONObject().put("top", topDp))
+        }
+    }
+
     // --------------------------------------------------------------- search and outline
 
     /**
