@@ -1,4 +1,4 @@
 <resources>
     <!-- DarkSurfaceContainerLowest. See values/colors.xml for why this is duplicated by hand. -->
-    <color name="window_background">#FF0D0E13</color>
+    <color name="window_background">#FF0B0F0B</color>
 </resources>

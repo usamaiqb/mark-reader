@@ -11,7 +11,7 @@
 
     <!-- Arrow: x:65-85, right margin = 108-85 = 23 -->
     <path
-        android:fillColor="#007AFF"
+        android:fillColor="#306A42"
         android:pathData="M67,40h8v14h4l-8,14l-8,-14h4z" />
 
 </vector>
