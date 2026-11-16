@@ -1,0 +1,5 @@
+• The top bar hides and returns with your swipe, and sideways swipes leave it alone.
+• Save is always reachable in the editor, even with the keyboard open.
+• Search keeps your reading position while you type.
+• Rendered documents are wider on phones, and raw-mode search shows every match.
+• The table of contents sheet no longer jumps when dragged.

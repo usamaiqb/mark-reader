@@ -3,6 +3,25 @@
 All notable changes to MarkReader are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.1.2] - 2026-11-16
+
+### Improved
+- The top bar now hides and returns based on how you swipe, not on how far the document has scrolled. Layout changes no longer make it flicker, and swiping sideways across a wide table or code block no longer hides it.
+- Updated the document renderer. Search keeps your reading position while you type, and moves only when you press Enter or next/previous. Mermaid diagrams use VS Code's theme, and subgraph titles no longer overlap their edges. Local images written as raw HTML now load like Markdown images.
+- A heading picked from the table of contents now lands below the top bar instead of under it.
+- Rendered documents get more width on phones. The page margin was being applied twice.
+- Search in raw mode and plain-text files runs in the background and highlights every match. It used to stop at 400.
+- Rebuilt the settings screen on Material 3 expressive components.
+
+### Fixed
+- The editor's Save button was hidden while the keyboard was open. Save is now in the top bar, and leaving with unsaved changes offers Save alongside Discard and Cancel.
+- The table of contents and export sheets no longer jump when dragged near full height.
+- Search highlights in raw mode now change colour when you switch between light and dark.
+
+### Changed
+- Settings shows the version number without the build number.
+- Updated GitHub Actions CI dependencies and made the Google Play upload retryable.
+
 ## [1.1.1] - 2026-11-05
 
 ### Improved
