@@ -12,7 +12,7 @@
         android:pathData="M29,68V40h8l8,18l8,-18h8v28h-6V50l-10,18l-10,-18v18z" />
 
     <path
-        android:fillColor="#007AFF"
+        android:fillColor="#306A42"
         android:pathData="M67,40h8v14h4l-8,14l-8,-14h4z" />
 
     <!-- The band runs to the bottom edge so no launcher mask leaves a sliver under it. -->

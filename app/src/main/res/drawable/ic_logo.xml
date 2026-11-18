@@ -11,7 +11,7 @@
 
     <!-- Download arrow -->
     <path
-        android:fillColor="#007AFF"
+        android:fillColor="#306A42"
         android:pathData="M42,4h8v14h4l-8,14l-8,-14h4z" />
 
 </vector>

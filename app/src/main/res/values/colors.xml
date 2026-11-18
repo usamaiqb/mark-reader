@@ -1,3 +1,14 @@
 <resources>
-    <color name="ic_launcher_background">#4338CA</color>
+    <!--
+      The window background, which exists before Compose draws anything. It has to match the
+      colour the first screen actually paints — the Scaffold's containerColor, which is
+      surfaceContainerLowest — or the app opens on a flash of the wrong ground. Kept in step with
+      LightSurfaceContainerLowest / DarkSurfaceContainerLowest in ui/theme/Color.kt by hand,
+      because an XML theme cannot read a Compose colour.
+
+      With dynamic colour on (the default above API 31) the drawn value comes from the wallpaper
+      and may differ slightly. That cannot be helped from here, and it is a near-white or
+      near-black either way; the point is to stop inheriting Material's baseline, which is neither.
+    -->
+    <color name="window_background">#FFFFFFFF</color>
 </resources>
